@@ -22,7 +22,7 @@
 #include "include.hpp"
 
 #include <chrono>
-#include <variant>
+#include <boost/variant.hpp>
 
 namespace rtc {
 
@@ -31,7 +31,7 @@ struct Reliability {
 
 	Type type = Type::Reliable;
 	bool unordered = false;
-	std::variant<int, std::chrono::milliseconds> rexmit = 0;
+	boost::variant<int, std::chrono::milliseconds> rexmit = 0;
 };
 
 } // namespace rtc

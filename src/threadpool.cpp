@@ -29,19 +29,19 @@ ThreadPool &ThreadPool::Instance() {
 ThreadPool::~ThreadPool() { join(); }
 
 int ThreadPool::count() const {
-	std::unique_lock lock(mWorkersMutex);
+	std::unique_lock<std::mutex> lock(mWorkersMutex);
 	return int(mWorkers.size());
 }
 
 void ThreadPool::spawn(int count) {
-	std::unique_lock lock(mWorkersMutex);
+	std::unique_lock<std::mutex> lock(mWorkersMutex);
 	mJoining = false;
 	while (count-- > 0)
 		mWorkers.emplace_back(std::bind(&ThreadPool::run, this));
 }
 
 void ThreadPool::join() {
-	std::unique_lock lock(mWorkersMutex);
+	std::unique_lock<std::mutex> lock(mWorkersMutex);
 	mJoining = true;
 	mCondition.notify_all();
 
@@ -65,7 +65,7 @@ bool ThreadPool::runOne() {
 }
 
 std::function<void()> ThreadPool::dequeue() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	mCondition.wait(lock, [this]() { return !mTasks.empty() || mJoining; });
 	if (mTasks.empty())
 		return nullptr;

@@ -61,7 +61,7 @@ protected:
 };
 
 template <class F, class... Args> void Processor::enqueue(F &&f, Args &&... args) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 	auto task = [this, bound = std::move(bound)]() mutable {
 		scope_guard guard(std::bind(&Processor::schedule, this)); // chain the next task

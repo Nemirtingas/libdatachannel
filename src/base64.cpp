@@ -22,8 +22,6 @@
 
 namespace rtc {
 
-using std::to_integer;
-
 string to_base64(const binary &data) {
 	static const char tab[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -31,9 +29,9 @@ string to_base64(const binary &data) {
 	out.reserve(3 * ((data.size() + 3) / 4));
 	int i = 0;
 	while (data.size() - i >= 3) {
-		auto d0 = to_integer<uint8_t>(data[i]);
-		auto d1 = to_integer<uint8_t>(data[i + 1]);
-		auto d2 = to_integer<uint8_t>(data[i + 2]);
+		auto d0 = uint8_t(data[i]);
+		auto d1 = uint8_t(data[i + 1]);
+		auto d2 = uint8_t(data[i + 2]);
 		out += tab[d0 >> 2];
 		out += tab[((d0 & 3) << 4) | (d1 >> 4)];
 		out += tab[((d1 & 0x0F) << 2) | (d2 >> 6)];
@@ -43,13 +41,13 @@ string to_base64(const binary &data) {
 
 	int left = int(data.size() - i);
 	if (left) {
-		auto d0 = to_integer<uint8_t>(data[i]);
+		auto d0 = uint8_t(data[i]);
 		out += tab[d0 >> 2];
 		if (left == 1) {
 			out += tab[(d0 & 3) << 4];
 			out += '=';
 		} else { // left == 2
-			auto d1 = to_integer<uint8_t>(data[i + 1]);
+			auto d1 = uint8_t(data[i + 1]);
 			out += tab[((d0 & 3) << 4) | (d1 >> 4)];
 			out += tab[(d1 & 0x0F) << 2];
 		}

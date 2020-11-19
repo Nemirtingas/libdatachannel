@@ -25,7 +25,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
-#include <optional>
+#include <boost/optional.hpp>
 #include <queue>
 
 namespace rtc {
@@ -44,15 +44,15 @@ public:
 	size_t size() const;   // elements
 	size_t amount() const; // amount
 	void push(T element);
-	std::optional<T> pop();
-	std::optional<T> tryPop();
-	std::optional<T> peek();
-	std::optional<T> exchange(T element);
-	bool wait(const std::optional<std::chrono::milliseconds> &duration = nullopt);
+	boost::optional<T> pop();
+	boost::optional<T> tryPop();
+	boost::optional<T> peek();
+	boost::optional<T> exchange(T element);
+	bool wait(const boost::optional<std::chrono::milliseconds> &duration = boost::none);
 
 private:
 	void pushImpl(T element);
-	std::optional<T> popImpl();
+	boost::optional<T> popImpl();
 
 	const size_t mLimit;
 	size_t mAmount;
@@ -75,71 +75,70 @@ Queue<T>::Queue(size_t limit, amount_function func) : mLimit(limit), mAmount(0) 
 template <typename T> Queue<T>::~Queue() { stop(); }
 
 template <typename T> void Queue<T>::stop() {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	mStopping = true;
 	mPopCondition.notify_all();
 	mPushCondition.notify_all();
 }
 
 template <typename T> bool Queue<T>::running() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return !mQueue.empty() || !mStopping;
 }
 
 template <typename T> bool Queue<T>::empty() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mQueue.empty();
 }
 
 template <typename T> bool Queue<T>::full() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mQueue.size() >= mLimit;
 }
 
 template <typename T> size_t Queue<T>::size() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mQueue.size();
 }
 
 template <typename T> size_t Queue<T>::amount() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mAmount;
 }
 
 template <typename T> void Queue<T>::push(T element) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	mPushCondition.wait(lock, [this]() { return !mLimit || mQueue.size() < mLimit || mStopping; });
 	pushImpl(std::move(element));
 }
 
-template <typename T> std::optional<T> Queue<T>::pop() {
-	std::unique_lock lock(mMutex);
+template <typename T> boost::optional<T> Queue<T>::pop() {
+	std::unique_lock<std::mutex> lock(mMutex);
 	mPopCondition.wait(lock, [this]() { return !mQueue.empty() || mStopping; });
 	return popImpl();
 }
 
-template <typename T> std::optional<T> Queue<T>::tryPop() {
-	std::unique_lock lock(mMutex);
+template <typename T> boost::optional<T> Queue<T>::tryPop() {
+	std::unique_lock<std::mutex> lock(mMutex);
 	return popImpl();
 }
 
-template <typename T> std::optional<T> Queue<T>::peek() {
-	std::unique_lock lock(mMutex);
-	return !mQueue.empty() ? std::make_optional(mQueue.front()) : nullopt;
+template <typename T> boost::optional<T> Queue<T>::peek() {
+	std::unique_lock<std::mutex> lock(mMutex);
+	return !mQueue.empty() ? boost::make_optional(mQueue.front()) : boost::none;
 }
 
-template <typename T> std::optional<T> Queue<T>::exchange(T element) {
-	std::unique_lock lock(mMutex);
+template <typename T> boost::optional<T> Queue<T>::exchange(T element) {
+	std::unique_lock<std::mutex> lock(mMutex);
 	if (mQueue.empty())
-		return nullopt;
-
+		return boost::none;
+	
 	std::swap(mQueue.front(), element);
-	return std::make_optional(std::move(element));
+	return boost::make_optional(std::move(element));
 }
 
-template <typename T>
-bool Queue<T>::wait(const std::optional<std::chrono::milliseconds> &duration) {
-	std::unique_lock lock(mMutex);
+template <typename T> bool Queue<T>::wait(const boost::optional<std::chrono::milliseconds> &duration) {
+	std::unique_lock<std::mutex> lock(mMutex);
 	if (duration)
 		mPopCondition.wait_for(lock, *duration, [this]() { return !mQueue.empty() || mStopping; });
 	else
@@ -157,12 +156,12 @@ template <typename T> void Queue<T>::pushImpl(T element) {
 	mPopCondition.notify_one();
 }
 
-template <typename T> std::optional<T> Queue<T>::popImpl() {
+template <typename T> boost::optional<T> Queue<T>::popImpl() {
 	if (mQueue.empty())
-		return nullopt;
+		return boost::none;
 
 	mAmount -= mAmountFunction(mQueue.front());
-	std::optional<T> element{std::move(mQueue.front())};
+	boost::optional<T> element{std::move(mQueue.front())};
 	mQueue.pop();
 	return element;
 }

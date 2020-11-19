@@ -53,7 +53,7 @@ using future_certificate_ptr = std::shared_future<certificate_ptr>;
 struct DataChannelInit {
 	Reliability reliability = {};
 	bool negotiated = false;
-	std::optional<uint16_t> id = nullopt;
+	boost::optional<uint16_t> id = boost::none;
 	string protocol = "";
 };
 
@@ -95,10 +95,10 @@ public:
 	bool hasLocalDescription() const;
 	bool hasRemoteDescription() const;
 	bool hasMedia() const;
-	std::optional<Description> localDescription() const;
-	std::optional<Description> remoteDescription() const;
-	std::optional<string> localAddress() const;
-	std::optional<string> remoteAddress() const;
+	boost::optional<Description> localDescription() const;
+	boost::optional<Description> remoteDescription() const;
+	boost::optional<string> localAddress() const;
+	boost::optional<string> remoteAddress() const;
 	bool getSelectedCandidatePair(Candidate *local, Candidate *remote);
 
 	void setLocalDescription(Description::Type type = Description::Type::Unspec);
@@ -122,7 +122,7 @@ public:
 	void clearStats();
 	size_t bytesSent();
 	size_t bytesReceived();
-	std::optional<std::chrono::milliseconds> rtt();
+	boost::optional<std::chrono::milliseconds> rtt();
 
 	// Track media support requires compiling with libSRTP
 	std::shared_ptr<Track> addTrack(Description::Media description);
@@ -139,7 +139,7 @@ private:
 	void forwardMessage(message_ptr message);
 	void forwardMedia(message_ptr message);
 	void forwardBufferedAmount(uint16_t stream, size_t amount);
-	std::optional<std::string> getMidFromSsrc(uint32_t ssrc);
+	boost::optional<std::string> getMidFromSsrc(uint32_t ssrc);
 
 	std::shared_ptr<DataChannel> emplaceDataChannel(Description::Role role, string label,
 	                                                DataChannelInit init);
@@ -172,8 +172,8 @@ private:
 	const future_certificate_ptr mCertificate;
 	const std::unique_ptr<Processor> mProcessor;
 
-	std::optional<Description> mLocalDescription, mRemoteDescription;
-	std::optional<Description> mCurrentLocalDescription;
+	boost::optional<Description> mLocalDescription, mRemoteDescription;
+	boost::optional<Description> mCurrentLocalDescription;
 	mutable std::mutex mLocalDescriptionMutex, mRemoteDescriptionMutex;
 
 	std::shared_ptr<IceTransport> mIceTransport;

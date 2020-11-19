@@ -34,10 +34,10 @@
 
 namespace rtc {
 
-template <class F, class... Args>
-using invoke_future_t = std::future<std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>>;
+//template <class F, class... Args>
+//using invoke_future_t = std::future<std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>>;
 
-class ThreadPool final {
+class ThreadPool {
 public:
 	static ThreadPool &Instance();
 
@@ -53,7 +53,7 @@ public:
 	bool runOne();
 
 	template <class F, class... Args>
-	auto enqueue(F &&f, Args &&... args) -> invoke_future_t<F, Args...>;
+	std::future<std::_Invoke_result_t<std::decay<F>, std::decay_t<Args>...>> enqueue(F &&f, Args &&... args);
 
 protected:
 	ThreadPool() = default;
@@ -69,9 +69,10 @@ protected:
 	std::condition_variable mCondition;
 };
 
-template <class F, class... Args>
-auto ThreadPool::enqueue(F &&f, Args &&... args) -> invoke_future_t<F, Args...> {
-	std::unique_lock lock(mMutex);
+template <class F, class... Args> 
+std::future<std::_Invoke_result_t<std::decay<F>, std::decay_t<Args>...>> ThreadPool::enqueue(F &&f, Args &&... args)
+{
+	std::unique_lock<std::mutex> lock(mMutex);
 	using R = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
 	auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 	auto task = std::make_shared<std::packaged_task<R()>>([bound = std::move(bound)]() mutable {

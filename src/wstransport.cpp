@@ -46,7 +46,6 @@
 namespace rtc {
 
 using namespace std::chrono;
-using std::to_integer;
 using std::to_string;
 
 using random_bytes_engine =
@@ -215,7 +214,8 @@ size_t WsTransport::readHttpResponse(const byte *buffer, size_t size) {
 
 	std::multimap<string, string> headers;
 	for (const auto &line : lines) {
-		if (size_t pos = line.find_first_of(':'); pos != string::npos) {
+		size_t pos = line.find_first_of(':');
+		if (pos != string::npos) {
 			string key = line.substr(0, pos);
 			string value = line.substr(line.find_first_not_of(' ', pos + 1));
 			std::transform(key.begin(), key.end(), key.begin(),
@@ -266,8 +266,8 @@ size_t WsTransport::readFrame(byte *buffer, size_t size, Frame &frame) {
 		return 0;
 
 	byte *cur = buffer;
-	auto b1 = to_integer<uint8_t>(*cur++);
-	auto b2 = to_integer<uint8_t>(*cur++);
+	auto b1 = uint8_t(*cur++);
+	auto b2 = uint8_t(*cur++);
 
 	frame.fin = (b1 & 0x80) != 0;
 	frame.mask = (b2 & 0x80) != 0;

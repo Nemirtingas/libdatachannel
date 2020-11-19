@@ -24,7 +24,7 @@
 
 #include <atomic>
 #include <functional>
-#include <variant>
+#include <boost/variant.hpp>
 
 namespace rtc {
 
@@ -53,8 +53,8 @@ public:
 	void setBufferedAmountLowThreshold(size_t amount);
 
 	// Extended API
-	virtual std::optional<message_variant> receive() = 0; // only if onMessage unset
-	virtual std::optional<message_variant> peek() = 0;    // only if onMessage unset
+	virtual boost::optional<message_variant> receive() = 0; // only if onMessage unset
+	virtual boost::optional<message_variant> peek() = 0;    // only if onMessage unset
 	virtual size_t availableAmount() const;               // total size available to receive
 	void onAvailable(std::function<void()> callback);
 

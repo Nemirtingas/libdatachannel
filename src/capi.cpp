@@ -58,43 +58,46 @@ std::unordered_map<int, void *> userPointerMap;
 std::mutex mutex;
 int lastId = 0;
 
-std::optional<void *> getUserPointer(int id) {
-	std::lock_guard lock(mutex);
+boost::optional<void *> getUserPointer(int id) {
+	std::lock_guard<std::mutex> lock(mutex);
 	auto it = userPointerMap.find(id);
-	return it != userPointerMap.end() ? std::make_optional(it->second) : nullopt;
+	return it != userPointerMap.end() ? boost::make_optional(it->second) : boost::none;
 }
 
 void setUserPointer(int i, void *ptr) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	userPointerMap[i] = ptr;
 }
 
 shared_ptr<PeerConnection> getPeerConnection(int id) {
-	std::lock_guard lock(mutex);
-	if (auto it = peerConnectionMap.find(id); it != peerConnectionMap.end())
+	std::lock_guard<std::mutex> lock(mutex);
+	auto it = peerConnectionMap.find(id);
+	if (it != peerConnectionMap.end())
 		return it->second;
 	else
 		throw std::invalid_argument("PeerConnection ID does not exist");
 }
 
 shared_ptr<DataChannel> getDataChannel(int id) {
-	std::lock_guard lock(mutex);
-	if (auto it = dataChannelMap.find(id); it != dataChannelMap.end())
+	std::lock_guard<std::mutex> lock(mutex);
+	auto it = dataChannelMap.find(id);
+	if (it != dataChannelMap.end())
 		return it->second;
 	else
 		throw std::invalid_argument("DataChannel ID does not exist");
 }
 
 shared_ptr<Track> getTrack(int id) {
-	std::lock_guard lock(mutex);
-	if (auto it = trackMap.find(id); it != trackMap.end())
+	std::lock_guard<std::mutex> lock(mutex);
+	auto it = trackMap.find(id);
+	if ( it != trackMap.end())
 		return it->second;
 	else
 		throw std::invalid_argument("Track ID does not exist");
 }
 
 int emplacePeerConnection(shared_ptr<PeerConnection> ptr) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	int pc = ++lastId;
 	peerConnectionMap.emplace(std::make_pair(pc, ptr));
 	userPointerMap.emplace(std::make_pair(pc, nullptr));
@@ -102,7 +105,7 @@ int emplacePeerConnection(shared_ptr<PeerConnection> ptr) {
 }
 
 int emplaceDataChannel(shared_ptr<DataChannel> ptr) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	int dc = ++lastId;
 	dataChannelMap.emplace(std::make_pair(dc, ptr));
 	userPointerMap.emplace(std::make_pair(dc, nullptr));
@@ -110,7 +113,7 @@ int emplaceDataChannel(shared_ptr<DataChannel> ptr) {
 }
 
 int emplaceTrack(shared_ptr<Track> ptr) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	int tr = ++lastId;
 	trackMap.emplace(std::make_pair(tr, ptr));
 	userPointerMap.emplace(std::make_pair(tr, nullptr));
@@ -118,21 +121,21 @@ int emplaceTrack(shared_ptr<Track> ptr) {
 }
 
 void erasePeerConnection(int pc) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (peerConnectionMap.erase(pc) == 0)
 		throw std::invalid_argument("PeerConnection ID does not exist");
 	userPointerMap.erase(pc);
 }
 
 void eraseDataChannel(int dc) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (dataChannelMap.erase(dc) == 0)
 		throw std::invalid_argument("DataChannel ID does not exist");
 	userPointerMap.erase(dc);
 }
 
 void eraseTrack(int tr) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (trackMap.erase(tr) == 0)
 		throw std::invalid_argument("Track ID does not exist");
 	userPointerMap.erase(tr);
@@ -140,15 +143,16 @@ void eraseTrack(int tr) {
 
 #if RTC_ENABLE_WEBSOCKET
 shared_ptr<WebSocket> getWebSocket(int id) {
-	std::lock_guard lock(mutex);
-	if (auto it = webSocketMap.find(id); it != webSocketMap.end())
+	std::lock_guard<std::mutex> lock(mutex);
+	auto it = webSocketMap.find(id);
+	if (it != webSocketMap.end())
 		return it->second;
 	else
 		throw std::invalid_argument("WebSocket ID does not exist");
 }
 
 int emplaceWebSocket(shared_ptr<WebSocket> ptr) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	int ws = ++lastId;
 	webSocketMap.emplace(std::make_pair(ws, ptr));
 	userPointerMap.emplace(std::make_pair(ws, nullptr));
@@ -156,7 +160,7 @@ int emplaceWebSocket(shared_ptr<WebSocket> ptr) {
 }
 
 void eraseWebSocket(int ws) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (webSocketMap.erase(ws) == 0)
 		throw std::invalid_argument("WebSocket ID does not exist");
 	userPointerMap.erase(ws);
@@ -164,14 +168,23 @@ void eraseWebSocket(int ws) {
 #endif
 
 shared_ptr<Channel> getChannel(int id) {
-	std::lock_guard lock(mutex);
-	if (auto it = dataChannelMap.find(id); it != dataChannelMap.end())
-		return it->second;
-	if (auto it = trackMap.find(id); it != trackMap.end())
-		return it->second;
+	std::lock_guard<std::mutex> lock(mutex);
+	{
+		auto it = dataChannelMap.find(id);
+		if (it != dataChannelMap.end())
+			return it->second;
+	}
+	{
+		auto it = trackMap.find(id);
+		if (it != trackMap.end())
+			return it->second;
+	}
 #if RTC_ENABLE_WEBSOCKET
-	if (auto it = webSocketMap.find(id); it != webSocketMap.end())
-		return it->second;
+	{
+		auto it = webSocketMap.find(id);
+		if (it != webSocketMap.end())
+			return it->second;
+	}
 #endif
 	throw std::invalid_argument("DataChannel, Track, or WebSocket ID does not exist");
 }
@@ -225,12 +238,12 @@ public:
 	plogAppender(rtcLogCallbackFunc cb = nullptr) { setCallback(cb); }
 
 	plogAppender(plogAppender &&appender) : callback(nullptr) {
-		std::lock_guard lock(appender.callbackMutex);
+		std::lock_guard<std::mutex> lock(appender.callbackMutex);
 		std::swap(appender.callback, callback);
 	}
 
 	void setCallback(rtcLogCallbackFunc cb) {
-		std::lock_guard lock(callbackMutex);
+		std::lock_guard<std::mutex> lock(callbackMutex);
 		callback = cb;
 	}
 
@@ -245,7 +258,7 @@ public:
 #else
 		std::string str = formatted;
 #endif
-		std::lock_guard lock(callbackMutex);
+		std::lock_guard<std::mutex> lock(callbackMutex);
 		if (callback)
 			callback(static_cast<rtcLogLevel>(record.getSeverity()), str.c_str());
 		else
@@ -260,9 +273,9 @@ private:
 } // namespace
 
 void rtcInitLogger(rtcLogLevel level, rtcLogCallbackFunc cb) {
-	static std::optional<plogAppender> appender;
+	static boost::optional<plogAppender> appender;
 	const auto severity = static_cast<plog::Severity>(level);
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (appender) {
 		appender->setCallback(cb);
 		InitLogger(severity, nullptr); // change the severity
@@ -325,7 +338,7 @@ int rtcAddDataChannelEx(int pc, const char *label, const rtcDataChannelInit *ini
 			}
 
 			dci.negotiated = init->negotiated;
-			dci.id = init->manualStream ? std::make_optional(init->stream) : nullopt;
+			dci.id = init->manualStream ? boost::make_optional(init->stream) : boost::none;
 			dci.protocol = init->protocol ? init->protocol : "";
 		}
 
@@ -659,10 +672,10 @@ int rtcGetDataChannelReliability(int dc, rtcReliability *reliability) {
 		reliability->unordered = dcr.unordered;
 		if (dcr.type == Reliability::Type::Timed) {
 			reliability->unreliable = true;
-			reliability->maxPacketLifeTime = unsigned(std::get<milliseconds>(dcr.rexmit).count());
+			reliability->maxPacketLifeTime = unsigned(boost::get<milliseconds>(dcr.rexmit).count());
 		} else if (dcr.type == Reliability::Type::Rexmit) {
 			reliability->unreliable = true;
-			reliability->maxRetransmits = unsigned(std::get<int>(dcr.rexmit));
+			reliability->maxRetransmits = unsigned(boost::get<int>(dcr.rexmit));
 		} else {
 			reliability->unreliable = false;
 		}
@@ -804,32 +817,30 @@ int rtcReceiveMessage(int id, char *buffer, int *size) {
 		if (!message)
 			return RTC_ERR_NOT_AVAIL;
 
-		return std::visit( //
-		    overloaded{
-		        [&](binary b) {
-			        int ret = copyAndReturn(std::move(b), buffer, *size);
-			        if (ret >= 0) {
-				        channel->receive(); // discard
-				        *size = ret;
-				        return RTC_ERR_SUCCESS;
-			        } else {
-				        *size = int(b.size());
-				        return ret;
-			        }
-		        },
-		        [&](string s) {
-			        int ret = copyAndReturn(std::move(s), buffer, *size);
-			        if (ret >= 0) {
-				        channel->receive(); // discard
-				        *size = -ret;
-				        return RTC_ERR_SUCCESS;
-			        } else {
-				        *size = -int(s.size() + 1);
-				        return ret;
-			        }
-		        },
-		    },
-		    *message);
+		std::function<int(binary)> f1([&](binary b) {
+			int ret = copyAndReturn(std::move(b), buffer, *size);
+			if (ret >= 0) {
+				channel->receive(); // discard
+				*size = ret;
+				return RTC_ERR_SUCCESS;
+			} else {
+				*size = int(b.size());
+				return ret;
+			}
+		});
+		std::function<int(string)> f2([&](string s) {
+			int ret = copyAndReturn(std::move(s), buffer, *size);
+			if (ret >= 0) {
+				channel->receive(); // discard
+				*size = -ret;
+				return RTC_ERR_SUCCESS;
+			} else {
+				*size = -int(s.size() + 1);
+				return ret;
+			}
+		});
+
+		return boost::apply_visitor(overloaded(f1, f2), *message);
 	});
 }
 

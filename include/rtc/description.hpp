@@ -26,8 +26,8 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <optional>
-#include <variant>
+#include <boost/optional.hpp>
+#include <boost/variant.hpp>
 #include <vector>
 
 namespace rtc {
@@ -45,9 +45,9 @@ public:
 	string typeString() const;
 	Role role() const;
 	string bundleMid() const;
-	std::optional<string> iceUfrag() const;
-	std::optional<string> icePwd() const;
-	std::optional<string> fingerprint() const;
+	boost::optional<string> iceUfrag() const;
+	boost::optional<string> icePwd() const;
+	boost::optional<string> fingerprint() const;
 	bool ended() const;
 
 	void hintType(Type type);
@@ -59,8 +59,8 @@ public:
 	std::vector<Candidate> extractCandidates();
 
 	operator string() const;
-	string generateSdp(string_view eol) const;
-	string generateApplicationSdp(string_view eol) const;
+	string generateSdp(boost::string_view eol) const;
+	string generateApplicationSdp(boost::string_view eol) const;
 
 	class Entry {
 	public:
@@ -73,9 +73,10 @@ public:
 		void setDirection(Direction dir);
 
 		operator string() const;
-		string generateSdp(string_view eol, string_view addr, string_view port) const;
+		string generateSdp(boost::string_view eol, boost::string_view addr,
+		                   boost::string_view port) const;
 
-		virtual void parseSdpLine(string_view line);
+		virtual void parseSdpLine(boost::string_view line);
 
 		std::vector<string>::iterator beginAttributes();
 		std::vector<string>::iterator endAttributes();
@@ -83,7 +84,7 @@ public:
 
 	protected:
 		Entry(const string &mline, string mid, Direction dir = Direction::Unknown);
-		virtual string generateSdpLines(string_view eol) const;
+		virtual string generateSdpLines(boost::string_view eol) const;
 
 		std::vector<string> mAttributes;
 
@@ -106,16 +107,16 @@ public:
 		void hintSctpPort(uint16_t port) { mSctpPort = mSctpPort.value_or(port); }
 		void setMaxMessageSize(size_t size) { mMaxMessageSize = size; }
 
-		std::optional<uint16_t> sctpPort() const { return mSctpPort; }
-		std::optional<size_t> maxMessageSize() const { return mMaxMessageSize; }
+		boost::optional<uint16_t> sctpPort() const { return mSctpPort; }
+		boost::optional<size_t> maxMessageSize() const { return mMaxMessageSize; }
 
-		virtual void parseSdpLine(string_view line) override;
+		virtual void parseSdpLine(boost::string_view line) override;
 
 	private:
-		virtual string generateSdpLines(string_view eol) const override;
+		virtual string generateSdpLines(boost::string_view eol) const override;
 
-		std::optional<uint16_t> mSctpPort;
-		std::optional<size_t> mMaxMessageSize;
+		boost::optional<uint16_t> mSctpPort;
+		boost::optional<size_t> mMaxMessageSize;
 	};
 
 	// Media (non-data)
@@ -141,10 +142,10 @@ public:
 
 		bool hasPayloadType(int payloadType) const;
 
-		virtual void parseSdpLine(string_view line) override;
+		virtual void parseSdpLine(boost::string_view line) override;
 
 		struct RTPMap {
-			RTPMap(string_view mline);
+			RTPMap(boost::string_view mline);
 			RTPMap() {}
 
 			void removeFB(const string &string);
@@ -159,8 +160,8 @@ public:
 			std::vector<string> rtcpFbs;
 			std::vector<string> fmtps;
 
-			static int parsePT(string_view view);
-			void setMLine(string_view view);
+			static int parsePT(boost::string_view view);
+			void setMLine(boost::string_view view);
 		};
 
 		std::map<int, RTPMap>::iterator beginMaps();
@@ -168,7 +169,7 @@ public:
 		std::map<int, RTPMap>::iterator removeMap(std::map<int, RTPMap>::iterator iterator);
 
 	private:
-		virtual string generateSdpLines(string_view eol) const override;
+		virtual string generateSdpLines(boost::string_view eol) const override;
 
 		int mBas = -1;
 
@@ -202,7 +203,7 @@ public:
 
 	bool hasApplication() const;
 	bool hasAudioOrVideo() const;
-	bool hasMid(string_view mid) const;
+	bool hasMid(boost::string_view mid) const;
 
 	int addMedia(Media media);
 	int addMedia(Application application);
@@ -210,8 +211,8 @@ public:
 	int addVideo(string mid = "video", Direction dir = Direction::SendOnly);
 	int addAudio(string mid = "audio", Direction dir = Direction::SendOnly);
 
-	std::variant<Media *, Application *> media(unsigned int index);
-	std::variant<const Media *, const Application *> media(unsigned int index) const;
+	boost::variant<Media *, Application *> media(unsigned int index);
+	boost::variant<const Media *, const Application *> media(unsigned int index) const;
 	unsigned int mediaCount() const;
 
 	Application *application();
@@ -220,7 +221,7 @@ public:
 	static string typeToString(Type type);
 
 private:
-	std::optional<Candidate> defaultCandidate() const;
+	boost::optional<Candidate> defaultCandidate() const;
 	std::shared_ptr<Entry> createEntry(string mline, string mid, Direction dir);
 	void removeApplication();
 
@@ -230,8 +231,8 @@ private:
 	Role mRole;
 	string mUsername;
 	string mSessionId;
-	std::optional<string> mIceUfrag, mIcePwd;
-	std::optional<string> mFingerprint;
+	boost::optional<string> mIceUfrag, mIcePwd;
+	boost::optional<string> mFingerprint;
 
 	// Entries
 	std::vector<std::shared_ptr<Entry>> mEntries;

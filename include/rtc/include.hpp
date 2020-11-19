@@ -39,19 +39,98 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
-#include <string_view>
 #include <vector>
+
+#include <boost/optional.hpp>
+#include <boost/variant.hpp>
+#include <boost/utility/string_view.hpp>
+#include <boost/convert.hpp>
+#include <boost/convert/strtol.hpp>
 
 namespace rtc {
 
-using std::byte;
-using std::string;
-using std::string_view;
-using binary = std::vector<byte>;
+// overloaded helper
+template <class... Ts> struct s_overloaded : Ts...
+{ 
+	//s_overloaded() = delete;
+};
+template <class... Ts> s_overloaded<Ts...> overloaded(Ts...)
+{
+	return s_overloaded<Ts...>();
+}
 
-using std::nullopt;
+enum class byte : unsigned char {};
+
+template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
+_NODISCARD constexpr byte
+operator<<(const byte _Arg,
+           const _IntType _Shift) noexcept { // bitwise LEFT SHIFT, every static_cast is intentional
+	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Arg) << _Shift));
+}
+
+template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
+_NODISCARD constexpr byte operator>>(
+    const byte _Arg,
+    const _IntType _Shift) noexcept { // bitwise RIGHT SHIFT, every static_cast is intentional
+	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Arg) >> _Shift));
+}
+
+_NODISCARD constexpr byte
+operator|(const byte _Left,
+          const byte _Right) noexcept { // bitwise OR, every static_cast is intentional
+	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Left) |
+	                                                    static_cast<unsigned int>(_Right)));
+}
+
+_NODISCARD constexpr byte
+operator&(const byte _Left,
+          const byte _Right) noexcept { // bitwise AND, every static_cast is intentional
+	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Left) &
+	                                                    static_cast<unsigned int>(_Right)));
+}
+
+_NODISCARD constexpr byte
+operator^(const byte _Left,
+          const byte _Right) noexcept { // bitwise XOR, every static_cast is intentional
+	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Left) ^
+	                                                    static_cast<unsigned int>(_Right)));
+}
+
+_NODISCARD constexpr byte
+operator~(const byte _Arg) noexcept { // bitwise NOT, every static_cast is intentional
+	return static_cast<byte>(static_cast<unsigned char>(~static_cast<unsigned int>(_Arg)));
+}
+
+template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
+constexpr byte &operator<<=(byte &_Arg, const _IntType _Shift) noexcept { // bitwise LEFT SHIFT
+	return _Arg = _Arg << _Shift;
+}
+
+template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
+constexpr byte &operator>>=(byte &_Arg, const _IntType _Shift) noexcept { // bitwise RIGHT SHIFT
+	return _Arg = _Arg >> _Shift;
+}
+
+constexpr byte &operator|=(byte &_Left, const byte _Right) noexcept { // bitwise OR
+	return _Left = _Left | _Right;
+}
+
+constexpr byte &operator&=(byte &_Left, const byte _Right) noexcept { // bitwise AND
+	return _Left = _Left & _Right;
+}
+
+constexpr byte &operator^=(byte &_Left, const byte _Right) noexcept { // bitwise XOR
+	return _Left = _Left ^ _Right;
+}
+
+template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
+_NODISCARD constexpr _IntType to_integer(const byte _Arg) noexcept { // convert byte to integer
+	return static_cast<_IntType>(_Arg);
+}
+
+using std::string;
+using binary = std::vector<rtc::byte>;
 
 using std::size_t;
 using std::uint16_t;
@@ -69,10 +148,6 @@ const size_t LOCAL_MAX_MESSAGE_SIZE = 256 * 1024; // Local max message size
 const size_t RECV_QUEUE_LIMIT = 1024 * 1024; // Max per-channel queue size
 
 const int THREADPOOL_SIZE = 4; // Number of threads in the global thread pool
-
-// overloaded helper
-template <class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template <class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 // weak_ptr bind helper
 template <typename F, typename T, typename... Args> auto weak_bind(F &&f, T *t, Args &&... _args) {
@@ -111,32 +186,38 @@ public:
 	~synchronized_callback() { *this = nullptr; }
 
 	synchronized_callback &operator=(synchronized_callback &&cb) {
-		std::scoped_lock lock(mutex, cb.mutex);
+		std::lock(mutex, cb.mutex);
+		std::lock_guard<std::recursive_mutex> lk1(mutex, std::adopt_lock);
+		std::lock_guard<std::recursive_mutex> lk2(cb.mutex, std::adopt_lock);
+
 		callback = std::move(cb.callback);
 		cb.callback = nullptr;
 		return *this;
 	}
 
 	synchronized_callback &operator=(const synchronized_callback &cb) {
-		std::scoped_lock lock(mutex, cb.mutex);
+		std::lock(mutex, cb.mutex);
+		std::lock_guard<std::recursive_mutex> lk1(mutex, std::adopt_lock);
+		std::lock_guard<std::recursive_mutex> lk2(cb.mutex, std::adopt_lock);
+
 		callback = cb.callback;
 		return *this;
 	}
 
 	synchronized_callback &operator=(std::function<void(Args...)> func) {
-		std::lock_guard lock(mutex);
+		std::lock_guard<std::recursive_mutex> lock(mutex);
 		callback = std::move(func);
 		return *this;
 	}
 
 	void operator()(Args... args) const {
-		std::lock_guard lock(mutex);
+		std::lock_guard<std::recursive_mutex> lock(mutex);
 		if (callback)
 			callback(std::move(args)...);
 	}
 
 	operator bool() const {
-		std::lock_guard lock(mutex);
+		std::lock_guard<std::recursive_mutex> lock(mutex);
 		return callback ? true : false;
 	}
 

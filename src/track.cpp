@@ -51,18 +51,18 @@ bool Track::send(const byte *data, size_t size) {
 	return outgoing(std::make_shared<Message>(data, data + size, Message::Binary));
 }
 
-std::optional<message_variant> Track::receive() {
+boost::optional<message_variant> Track::receive() {
 	if (auto next = mRecvQueue.tryPop())
 		return to_variant(std::move(**next));
 
-	return nullopt;
+	return boost::none;
 }
 
-std::optional<message_variant> Track::peek() {
+boost::optional<message_variant> Track::peek() {
 	if (auto next = mRecvQueue.peek())
 		return to_variant(std::move(**next));
 
-	return nullopt;
+	return boost::none;
 }
 
 bool Track::isOpen(void) const {
@@ -151,7 +151,7 @@ void Track::incoming(message_ptr message) {
 void Track::setRtcpHandler(std::shared_ptr<RtcpHandler> handler) {
 	mRtcpHandler = std::move(handler);
 	if (mRtcpHandler) {
-		mRtcpHandler->onOutgoing([&]([[maybe_unused]] const rtc::message_ptr &message) {
+		mRtcpHandler->onOutgoing([&](const rtc::message_ptr &message) {
 #if RTC_ENABLE_MEDIA
 			auto transport = mDtlsSrtpTransport.lock();
 			if (!transport)

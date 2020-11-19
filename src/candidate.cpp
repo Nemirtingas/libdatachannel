@@ -53,7 +53,7 @@ Candidate::Candidate()
       mPort(0), mPriority(0) {}
 
 Candidate::Candidate(string candidate) : Candidate() {
-	const std::array prefixes{"a=", "candidate:"};
+	const std::array<string, 2> prefixes{"a=", "candidate:"};
 	for (const string &prefix : prefixes)
 		if (hasprefix(candidate, prefix))
 			candidate.erase(0, prefix.size());
@@ -102,8 +102,9 @@ bool Candidate::resolve(ResolveMode mode) {
 
 		string left;
 		std::getline(iss, left);
+		auto it = TypeMap.find(type);
 
-		if (auto it = TypeMap.find(type); it != TypeMap.end())
+		if (it != TypeMap.end())
 			mType = it->second;
 		else
 			mType = Type::Unknown;
@@ -114,7 +115,8 @@ bool Candidate::resolve(ResolveMode mode) {
 			std::istringstream iss(left);
 			string tcptype_, tcptype;
 			if (iss >> tcptype_ >> tcptype && tcptype_ == "tcptype") {
-				if (auto it = TcpTypeMap.find(tcptype); it != TcpTypeMap.end())
+				auto it = TcpTypeMap.find(tcptype);
+				if (it != TcpTypeMap.end())
 					mTransportType = it->second;
 				else
 					mTransportType = TransportType::TcpUnknown;
@@ -194,16 +196,16 @@ Candidate::Type Candidate::type() const { return mType; }
 
 Candidate::TransportType Candidate::transportType() const { return mTransportType; }
 
-std::optional<string> Candidate::address() const {
-	return isResolved() ? std::make_optional(mAddress) : nullopt;
+boost::optional<string> Candidate::address() const {
+	return isResolved() ? boost::make_optional(mAddress) : boost::none;
 }
 
-std::optional<uint16_t> Candidate::port() const {
-	return isResolved() ? std::make_optional(mPort) : nullopt;
+boost::optional<uint16_t> Candidate::port() const {
+	return isResolved() ? boost::make_optional(mPort) : boost::none;
 }
 
-std::optional<uint32_t> Candidate::priority() const {
-	return isResolved() ? std::make_optional(mPriority) : nullopt;
+boost::optional<uint32_t> Candidate::priority() const {
+	return isResolved() ? boost::make_optional(mPriority) : boost::none;
 }
 
 } // namespace rtc

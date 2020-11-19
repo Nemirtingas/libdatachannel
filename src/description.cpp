@@ -31,8 +31,9 @@
 using std::shared_ptr;
 using std::size_t;
 using std::string;
-using std::string_view;
 using std::chrono::system_clock;
+
+using boost::string_view;
 
 namespace {
 
@@ -49,7 +50,8 @@ inline void trim_end(string &str) {
 
 inline std::pair<string_view, string_view> parse_pair(string_view attr) {
 	string_view key, value;
-	if (size_t separator = attr.find(':'); separator != string::npos) {
+	size_t separator = attr.find(':');
+	if (separator != string::npos) {
 		key = attr.substr(0, separator);
 		value = attr.substr(separator + 1);
 	} else {
@@ -64,7 +66,11 @@ template <typename T> T to_integer(string_view s) {
 
 } // namespace
 
+struct boost::cnv::by_default : boost::cnv::strtol {};
+
 namespace rtc {
+
+std::ostream &operator<<(std::ostream &out, rtc::Description::Role role);
 
 Description::Description(const string &sdp, Type type, Role role)
     : mType(Type::Unspec), mRole(role) {
@@ -89,7 +95,12 @@ Description::Description(const string &sdp, Type type, Role role)
 
 		} else if (match_prefix(line, "a=")) { // Attribute line
 			string attr = line.substr(2);
-			auto [key, value] = parse_pair(attr);
+			string_view key, value;
+			{
+				auto tmp = parse_pair(attr);
+				key = std::move(tmp.first);
+				value = std::move(tmp.second);
+			}
 
 			if (key == "setup") {
 				if (value == "active")
@@ -101,7 +112,7 @@ Description::Description(const string &sdp, Type type, Role role)
 
 			} else if (key == "fingerprint") {
 				if (match_prefix(value, "sha-256 ")) {
-					mFingerprint = value.substr(8);
+					mFingerprint = value.substr(8).to_string();
 					std::transform(mFingerprint->begin(), mFingerprint->end(),
 					               mFingerprint->begin(),
 					               [](char c) { return char(std::toupper(c)); });
@@ -109,9 +120,9 @@ Description::Description(const string &sdp, Type type, Role role)
 					PLOG_WARNING << "Unknown SDP fingerprint format: " << value;
 				}
 			} else if (key == "ice-ufrag") {
-				mIceUfrag = value;
+				mIceUfrag = value.to_string();
 			} else if (key == "ice-pwd") {
-				mIcePwd = value;
+				mIcePwd = value.to_string();
 			} else if (key == "candidate") {
 				addCandidate(Candidate(attr, bundleMid()));
 			} else if (key == "end-of-candidates") {
@@ -151,11 +162,11 @@ string Description::bundleMid() const {
 	return !mEntries.empty() ? mEntries[0]->mid() : "0";
 }
 
-std::optional<string> Description::iceUfrag() const { return mIceUfrag; }
+boost::optional<string> Description::iceUfrag() const { return mIceUfrag; }
 
-std::optional<string> Description::icePwd() const { return mIcePwd; }
+boost::optional<string> Description::icePwd() const { return mIcePwd; }
 
-std::optional<string> Description::fingerprint() const { return mFingerprint; }
+boost::optional<string> Description::fingerprint() const { return mFingerprint; }
 
 bool Description::ended() const { return mEnded; }
 
@@ -244,7 +255,7 @@ string Description::generateSdp(string_view eol) const {
 	// Entries
 	bool first = true;
 	for (const auto &entry : mEntries) {
-		sdp << entry->generateSdp(eol, addr, port);
+		sdp << entry->generateSdp(eol.to_string(), addr, port);
 
 		if (std::exchange(first, false)) {
 			// Candidates
@@ -303,9 +314,9 @@ string Description::generateApplicationSdp(string_view eol) const {
 	return sdp.str();
 }
 
-std::optional<Candidate> Description::defaultCandidate() const {
+boost::optional<Candidate> Description::defaultCandidate() const {
 	// Return the first host candidate with highest priority, favoring IPv4
-	std::optional<Candidate> result;
+	boost::optional<Candidate> result;
 	for (const auto &c : mCandidates) {
 		if (c.type() == Candidate::Type::Host) {
 			if (!result ||
@@ -385,7 +396,7 @@ int Description::addAudio(string mid, Direction dir) {
 	return addMedia(Audio(std::move(mid), dir));
 }
 
-std::variant<Description::Media *, Description::Application *>
+boost::variant<Description::Media *, Description::Application *>
 Description::media(unsigned int index) {
 	if (index >= mEntries.size())
 		throw std::out_of_range("Media index out of range");
@@ -404,7 +415,7 @@ Description::media(unsigned int index) {
 	}
 }
 
-std::variant<const Description::Media *, const Description::Application *>
+boost::variant<const Description::Media *, const Description::Application *>
 Description::media(unsigned int index) const {
 	if (index >= mEntries.size())
 		throw std::out_of_range("Media index out of range");
@@ -483,10 +494,15 @@ string Description::Entry::generateSdpLines(string_view eol) const {
 void Description::Entry::parseSdpLine(string_view line) {
 	if (match_prefix(line, "a=")) {
 		string_view attr = line.substr(2);
-		auto [key, value] = parse_pair(attr);
+		string_view key, value;
+		{
+			auto tmp = parse_pair(attr);
+			key = std::move(tmp.first);
+			value = std::move(tmp.second);
+		}
 
 		if (key == "mid")
-			mMid = value;
+			mMid = value.to_string();
 		else if (attr == "sendonly")
 			mDirection = Direction::SendOnly;
 		else if (attr == "recvonly")
@@ -563,12 +579,17 @@ string Description::Application::generateSdpLines(string_view eol) const {
 void Description::Application::parseSdpLine(string_view line) {
 	if (match_prefix(line, "a=")) {
 		string_view attr = line.substr(2);
-		auto [key, value] = parse_pair(attr);
+		string_view key, value;
+		{
+			auto tmp = parse_pair(attr);
+			key = std::move(tmp.first);
+			value = std::move(tmp.second);
+		}
 
 		if (key == "sctp-port") {
-			mSctpPort = to_integer<uint16_t>(value);
+			mSctpPort = boost::convert<uint16_t>(value).value();
 		} else if (key == "max-message-size") {
-			mMaxMessageSize = to_integer<size_t>(value);
+			mMaxMessageSize = boost::convert<size_t>(value).value();
 		} else {
 			Entry::parseSdpLine(line);
 		}
@@ -769,7 +790,12 @@ string Description::Media::generateSdpLines(string_view eol) const {
 void Description::Media::parseSdpLine(string_view line) {
 	if (match_prefix(line, "a=")) {
 		string_view attr = line.substr(2);
-		auto [key, value] = parse_pair(attr);
+		string_view key, value;
+		{
+			auto tmp = parse_pair(attr);
+			key = std::move(tmp.first);
+			value = std::move(tmp.second);
+		}
 
 		if (key == "rtpmap") {
 			auto pt = Description::Media::RTPMap::parsePT(value);
@@ -781,7 +807,8 @@ void Description::Media::parseSdpLine(string_view line) {
 			}
 		} else if (key == "rtcp-fb") {
 			size_t p = value.find(' ');
-			int pt = to_integer<int>(value.substr(0, p));
+			int pt = boost::convert<int>(value).value();
+			//int pt = boost::convert<int>(value.substr(0, p)).value();
 			auto it = mRtpMap.find(pt);
 			if (it == mRtpMap.end()) {
 				it = mRtpMap.insert(std::make_pair(pt, Description::Media::RTPMap())).first;
@@ -789,7 +816,7 @@ void Description::Media::parseSdpLine(string_view line) {
 			it->second.rtcpFbs.emplace_back(value.substr(p + 1));
 		} else if (key == "fmtp") {
 			size_t p = value.find(' ');
-			int pt = to_integer<int>(value.substr(0, p));
+			int pt = boost::convert<int>(value.substr(0, p)).value();
 			auto it = mRtpMap.find(pt);
 			if (it == mRtpMap.end())
 				it = mRtpMap.insert(std::make_pair(pt, Description::Media::RTPMap())).first;
@@ -802,7 +829,7 @@ void Description::Media::parseSdpLine(string_view line) {
 			Entry::parseSdpLine(line);
 		}
 	} else if (match_prefix(line, "b=AS")) {
-		mBas = to_integer<int>(line.substr(line.find(':') + 1));
+		mBas = boost::convert<int>(line.substr(line.find(':') + 1)).value();
 	} else {
 		Entry::parseSdpLine(line);
 	}
@@ -853,17 +880,17 @@ void Description::Media::RTPMap::addFB(const string &str) { rtcpFbs.emplace_back
 int Description::Media::RTPMap::parsePT(string_view view) {
 	size_t p = view.find(' ');
 
-	return to_integer<int>(view.substr(0, p));
+	return boost::convert<int>(view.substr(0, p)).value();
 }
 
 void Description::Media::RTPMap::setMLine(string_view mline) {
 	size_t p = mline.find(' ');
 
-	this->pt = to_integer<int>(mline.substr(0, p));
+	this->pt = std::stoi(mline.substr(0, p).to_string());
 
 	string_view line = mline.substr(p + 1);
 	size_t spl = line.find('/');
-	this->format = line.substr(0, spl);
+	this->format = line.substr(0, spl).to_string();
 
 	line = line.substr(spl + 1);
 	spl = line.find('/');
@@ -871,10 +898,10 @@ void Description::Media::RTPMap::setMLine(string_view mline) {
 		spl = line.find(' ');
 	}
 	if (spl == string::npos)
-		this->clockRate = to_integer<int>(line);
+		this->clockRate = boost::convert<int>(line).value();
 	else {
-		this->clockRate = to_integer<int>(line.substr(0, spl));
-		this->encParams = line.substr(spl + 1);
+		this->clockRate = boost::convert<int>(line.substr(0, spl)).value();
+		this->encParams = line.substr(spl + 1).to_string();
 	}
 }
 

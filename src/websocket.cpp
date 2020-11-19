@@ -37,7 +37,7 @@ namespace rtc {
 
 using std::shared_ptr;
 
-WebSocket::WebSocket(std::optional<Configuration> config)
+WebSocket::WebSocket(boost::optional<Configuration> config)
     : mConfig(config ? std::move(*config) : Configuration()),
       mRecvQueue(RECV_QUEUE_LIMIT, message_size_func) {
 	PLOG_VERBOSE << "Creating WebSocket";
@@ -89,8 +89,12 @@ void WebSocket::open(const string &url) {
 	mPath = m[13];
 	if (mPath.empty())
 		mPath += '/';
-	if (string query = m[15]; !query.empty())
-		mPath += "?" + query;
+
+	{
+		string query = m[15];
+		if (!query.empty())
+			mPath += "?" + query;
+	}
 
 	changeState(State::Connecting);
 	initTcpTransport();
@@ -123,16 +127,16 @@ bool WebSocket::isClosed() const { return mState == State::Closed; }
 
 size_t WebSocket::maxMessageSize() const { return DEFAULT_MAX_MESSAGE_SIZE; }
 
-std::optional<message_variant> WebSocket::receive() {
+boost::optional<message_variant> WebSocket::receive() {
 	while (auto next = mRecvQueue.tryPop()) {
 		message_ptr message = *next;
 		if (message->type != Message::Control)
 			return to_variant(std::move(*message));
 	}
-	return nullopt;
+	return boost::none;
 }
 
-std::optional<message_variant> WebSocket::peek() {
+boost::optional<message_variant> WebSocket::peek() {
 	while (auto next = mRecvQueue.peek()) {
 		message_ptr message = *next;
 		if (message->type != Message::Control)
@@ -140,7 +144,7 @@ std::optional<message_variant> WebSocket::peek() {
 
 		mRecvQueue.tryPop();
 	}
-	return nullopt;
+	return boost::none;
 }
 
 size_t WebSocket::availableAmount() const { return mRecvQueue.amount(); }
@@ -173,7 +177,7 @@ shared_ptr<TcpTransport> WebSocket::initTcpTransport() {
 	PLOG_VERBOSE << "Starting TCP transport";
 	using State = TcpTransport::State;
 	try {
-		std::lock_guard lock(mInitMutex);
+		std::lock_guard<std::recursive_mutex> lock(mInitMutex);
 		if (auto transport = std::atomic_load(&mTcpTransport))
 			return transport;
 
@@ -220,7 +224,7 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 	PLOG_VERBOSE << "Starting TLS transport";
 	using State = TlsTransport::State;
 	try {
-		std::lock_guard lock(mInitMutex);
+		std::lock_guard<std::recursive_mutex> lock(mInitMutex);
 		if (auto transport = std::atomic_load(&mTlsTransport))
 			return transport;
 
@@ -279,7 +283,7 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 	PLOG_VERBOSE << "Starting WebSocket transport";
 	using State = WsTransport::State;
 	try {
-		std::lock_guard lock(mInitMutex);
+		std::lock_guard<std::recursive_mutex> lock(mInitMutex);
 		if (auto transport = std::atomic_load(&mWsTransport))
 			return transport;
 

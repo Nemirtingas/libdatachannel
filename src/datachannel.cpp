@@ -115,7 +115,7 @@ bool DataChannel::send(const byte *data, size_t size) {
 	return outgoing(std::make_shared<Message>(data, data + size, Message::Binary));
 }
 
-std::optional<message_variant> DataChannel::receive() {
+boost::optional<message_variant> DataChannel::receive() {
 	while (auto next = mRecvQueue.tryPop()) {
 		message_ptr message = *next;
 		if (message->type != Message::Control)
@@ -126,10 +126,10 @@ std::optional<message_variant> DataChannel::receive() {
 			remoteClose();
 	}
 
-	return nullopt;
+	return boost::none;
 }
 
-std::optional<message_variant> DataChannel::peek() {
+boost::optional<message_variant> DataChannel::peek() {
 	while (auto next = mRecvQueue.peek()) {
 		message_ptr message = *next;
 		if (message->type != Message::Control)
@@ -142,7 +142,7 @@ std::optional<message_variant> DataChannel::peek() {
 		mRecvQueue.tryPop();
 	}
 
-	return nullopt;
+	return boost::none;
 }
 
 bool DataChannel::isOpen(void) const { return mIsOpen; }
@@ -251,12 +251,12 @@ void NegociatedDataChannel::open(shared_ptr<SctpTransport> transport) {
 	switch (mReliability->type) {
 	case Reliability::Type::Rexmit:
 		channelType = CHANNEL_PARTIAL_RELIABLE_REXMIT;
-		reliabilityParameter = uint32_t(std::get<int>(mReliability->rexmit));
+		reliabilityParameter = uint32_t(boost::get<int>(mReliability->rexmit));
 		break;
 
 	case Reliability::Type::Timed:
 		channelType = CHANNEL_PARTIAL_RELIABLE_TIMED;
-		reliabilityParameter = uint32_t(std::get<milliseconds>(mReliability->rexmit).count());
+		reliabilityParameter = uint32_t(boost::get<milliseconds>(mReliability->rexmit).count());
 		break;
 
 	default:

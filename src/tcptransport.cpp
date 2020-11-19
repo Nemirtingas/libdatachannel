@@ -44,7 +44,7 @@ SelectInterrupter::SelectInterrupter() {
 }
 
 SelectInterrupter::~SelectInterrupter() {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 #ifdef _WIN32
 	if (mDummySock != INVALID_SOCKET)
 		::closesocket(mDummySock);
@@ -54,8 +54,8 @@ SelectInterrupter::~SelectInterrupter() {
 #endif
 }
 
-int SelectInterrupter::prepare(fd_set &readfds, [[maybe_unused]] fd_set &writefds) {
-	std::lock_guard lock(mMutex);
+int SelectInterrupter::prepare(fd_set &readfds, fd_set &writefds) {
+	std::lock_guard<std::mutex> lock(mMutex);
 #ifdef _WIN32
 	if (mDummySock == INVALID_SOCKET)
 		mDummySock = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -70,7 +70,7 @@ int SelectInterrupter::prepare(fd_set &readfds, [[maybe_unused]] fd_set &writefd
 }
 
 void SelectInterrupter::interrupt() {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 #ifdef _WIN32
 	if (mDummySock != INVALID_SOCKET) {
 		::closesocket(mDummySock);
@@ -108,7 +108,7 @@ bool TcpTransport::stop() {
 }
 
 bool TcpTransport::send(message_ptr message) {
-	std::unique_lock lock(mSockMutex);
+	std::unique_lock<std::mutex> lock(mSockMutex);
 	if (state() != State::Connected)
 		return false;
 
@@ -177,7 +177,7 @@ void TcpTransport::connect(const string &hostname, const string &service) {
 }
 
 void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
-	std::unique_lock lock(mSockMutex);
+	std::unique_lock<std::mutex> lock(mSockMutex);
 	try {
 		char node[MAX_NUMERICNODE_LEN];
 		char serv[MAX_NUMERICSERV_LEN];
@@ -258,7 +258,7 @@ void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
 }
 
 void TcpTransport::close() {
-	std::unique_lock lock(mSockMutex);
+	std::unique_lock<std::mutex> lock(mSockMutex);
 	if (mSock != INVALID_SOCKET) {
 		PLOG_DEBUG << "Closing TCP socket";
 		::closesocket(mSock);
@@ -328,7 +328,7 @@ void TcpTransport::runLoop() {
 		changeState(State::Connected);
 
 		while (true) {
-			std::unique_lock lock(mSockMutex);
+			std::unique_lock<std::mutex> lock(mSockMutex);
 			if (mSock == INVALID_SOCKET)
 				break;
 

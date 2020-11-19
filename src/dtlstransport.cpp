@@ -283,7 +283,7 @@ int DtlsTransport::TransportExIndex = -1;
 std::mutex DtlsTransport::GlobalMutex;
 
 void DtlsTransport::Init() {
-	std::lock_guard lock(GlobalMutex);
+	std::lock_guard<std::mutex> lock(GlobalMutex);
 
 	openssl::init();
 
@@ -332,7 +332,13 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, shared_ptr<Certific
 		                   CertificateCallback);
 		SSL_CTX_set_verify_depth(mCtx, 1);
 
-		auto [x509, pkey] = mCertificate->credentials();
+		X509 *x509;
+		EVP_PKEY* pkey;
+		{
+			auto tmp = mCertificate->credentials();
+			x509 = std::move(std::get<0>(tmp));
+			pkey = std::move(std::get<1>(tmp));
+		}
 		SSL_CTX_use_certificate(mCtx, x509);
 		SSL_CTX_use_PrivateKey(mCtx, pkey);
 
@@ -467,7 +473,7 @@ void DtlsTransport::runRecvLoop() {
 			}
 
 			// No more messages pending, retransmit and rearm timeout if connecting
-			std::optional<milliseconds> duration;
+			boost::optional<milliseconds> duration;
 			if (state() == State::Connecting) {
 				// Warning: This function breaks the usual return value convention
 				ret = DTLSv1_handle_timeout(mSsl);
@@ -483,7 +489,7 @@ void DtlsTransport::runRecvLoop() {
 					// Also handle handshake timeout manually because OpenSSL actually doesn't...
 					// OpenSSL backs off exponentially in base 2 starting from the recommended 1s
 					// so this allows for 5 retransmissions and fails after roughly 30s.
-					if (duration > 30s) {
+					if (duration.value() > 30s) {
 						throw std::runtime_error("Handshake timeout");
 					} else {
 						LOG_VERBOSE << "OpenSSL DTLS retransmit timeout is " << duration->count()

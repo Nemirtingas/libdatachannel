@@ -48,13 +48,13 @@ public:
 	Family family() const;
 	Type type() const;
 	TransportType transportType() const;
-	std::optional<string> address() const;
-	std::optional<uint16_t> port() const;
-	std::optional<uint32_t> priority() const;
+	boost::optional<string> address() const;
+	boost::optional<uint16_t> port() const;
+	boost::optional<uint32_t> priority() const;
 
 private:
 	string mCandidate;
-	std::optional<string> mMid;
+	boost::optional<string> mMid;
 
 	// Extracted on resolution
 	Family mFamily;

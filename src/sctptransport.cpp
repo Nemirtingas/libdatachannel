@@ -96,7 +96,7 @@ SctpTransport::SctpTransport(std::shared_ptr<Transport> lower, uint16_t port,
 
 	usrsctp_register_address(this);
 	{
-		std::unique_lock lock(InstancesMutex);
+		std::unique_lock<std::shared_mutex> lock(InstancesMutex);
 		Instances.insert(this);
 	}
 
@@ -200,7 +200,7 @@ SctpTransport::~SctpTransport() {
 
 	usrsctp_deregister_address(this);
 	{
-		std::unique_lock lock(InstancesMutex);
+		std::unique_lock<std::shared_mutex> lock(InstancesMutex);
 		Instances.erase(this);
 	}
 }
@@ -280,7 +280,7 @@ void SctpTransport::shutdown() {
 }
 
 bool SctpTransport::send(message_ptr message) {
-	std::lock_guard lock(mSendMutex);
+	std::lock_guard<std::mutex> lock(mSendMutex);
 
 	if (!message)
 		return mSendQueue.empty();
@@ -301,7 +301,7 @@ void SctpTransport::closeStream(unsigned int stream) {
 }
 
 void SctpTransport::flush() {
-	std::lock_guard lock(mSendMutex);
+	std::lock_guard<std::mutex> lock(mSendMutex);
 	trySendQueue();
 }
 
@@ -310,7 +310,7 @@ void SctpTransport::incoming(message_ptr message) {
 	// sent, which would result in the connection being aborted. Therefore, we need to wait for data
 	// to be sent on our side (i.e. the local INIT) before proceeding.
 	if (!mWrittenOnce) { // test the atomic boolean is not set first to prevent a lock contention
-		std::unique_lock lock(mWriteMutex);
+		std::unique_lock<std::mutex> lock(mWriteMutex);
 		mWrittenCondition.wait(lock, [&]() { return mWrittenOnce.load(); });
 	}
 
@@ -326,7 +326,7 @@ void SctpTransport::incoming(message_ptr message) {
 }
 
 void SctpTransport::doRecv() {
-	std::lock_guard lock(mRecvMutex);
+	std::lock_guard<std::mutex> lock(mRecvMutex);
 	try {
 		while (true) {
 			const size_t bufferSize = 65536;
@@ -438,12 +438,12 @@ bool SctpTransport::trySendMessage(message_ptr message) {
 	case Reliability::Type::Rexmit:
 		spa.sendv_flags |= SCTP_SEND_PRINFO_VALID;
 		spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_RTX;
-		spa.sendv_prinfo.pr_value = uint32_t(std::get<int>(reliability.rexmit));
+		spa.sendv_prinfo.pr_value = uint32_t(boost::get<int>(reliability.rexmit));
 		break;
 	case Reliability::Type::Timed:
 		spa.sendv_flags |= SCTP_SEND_PRINFO_VALID;
 		spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_TTL;
-		spa.sendv_prinfo.pr_value = uint32_t(std::get<milliseconds>(reliability.rexmit).count());
+		spa.sendv_prinfo.pr_value = uint32_t(boost::get<milliseconds>(reliability.rexmit).count());
 		break;
 	default:
 		spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_NONE;
@@ -510,7 +510,7 @@ void SctpTransport::sendReset(uint16_t streamId) {
 
 	mWritten = false;
 	if (usrsctp_setsockopt(mSock, IPPROTO_SCTP, SCTP_RESET_STREAMS, &srs, len) == 0) {
-		std::unique_lock lock(mWriteMutex); // locking before setsockopt might deadlock usrsctp...
+		std::unique_lock<std::mutex> lock(mWriteMutex); // locking before setsockopt might deadlock usrsctp...
 		mWrittenCondition.wait_for(lock, 1000ms,
 		                           [&]() { return mWritten || state() != State::Connected; });
 	} else if (errno == EINVAL) {
@@ -548,7 +548,7 @@ void SctpTransport::handleUpcall() {
 
 int SctpTransport::handleWrite(byte *data, size_t len, uint8_t /*tos*/, uint8_t /*set_df*/) {
 	try {
-		std::unique_lock lock(mWriteMutex);
+		std::unique_lock<std::mutex> lock(mWriteMutex);
 		PLOG_VERBOSE << "Handle write, len=" << len;
 
 		if (!outgoing(make_message(data, data + len)))
@@ -695,7 +695,7 @@ void SctpTransport::processNotification(const union sctp_notification *notify, s
 			}
 		}
 		if (flags & SCTP_STREAM_RESET_INCOMING_SSN) {
-			const byte dataChannelCloseMessage{0x04};
+			const byte dataChannelCloseMessage{(rtc::byte)0x04};
 			for (int i = 0; i < count; ++i) {
 				uint16_t streamId = reset_event.strreset_stream_list[i];
 				recv(make_message(&dataChannelCloseMessage, &dataChannelCloseMessage + 1,
@@ -720,15 +720,15 @@ size_t SctpTransport::bytesSent() { return mBytesSent; }
 
 size_t SctpTransport::bytesReceived() { return mBytesReceived; }
 
-std::optional<milliseconds> SctpTransport::rtt() {
+boost::optional<milliseconds> SctpTransport::rtt() {
 	if (!mSock || state() != State::Connected)
-		return nullopt;
+		return boost::none;
 
 	struct sctp_status status = {};
 	socklen_t len = sizeof(status);
 	if (usrsctp_getsockopt(mSock, IPPROTO_SCTP, SCTP_STATUS, &status, &len)) {
 		PLOG_WARNING << "Could not read SCTP_STATUS";
-		return nullopt;
+		return boost::none;
 	}
 	return milliseconds(status.sstat_primary.spinfo_srtt);
 }
@@ -736,7 +736,7 @@ std::optional<milliseconds> SctpTransport::rtt() {
 void SctpTransport::UpcallCallback(struct socket *, void *arg, int /* flags */) {
 	auto *transport = static_cast<SctpTransport *>(arg);
 
-	std::shared_lock lock(InstancesMutex);
+	std::shared_lock<std::shared_mutex> lock(InstancesMutex);
 	if (Instances.find(transport) == Instances.end())
 		return;
 
@@ -748,7 +748,7 @@ int SctpTransport::WriteCallback(void *ptr, void *data, size_t len, uint8_t tos,
 
 	// Workaround for sctplab/usrsctp#405: Send callback is invoked on already closed socket
 	// https://github.com/sctplab/usrsctp/issues/405
-	std::shared_lock lock(InstancesMutex);
+	std::shared_lock<std::shared_mutex> lock(InstancesMutex);
 	if (Instances.find(transport) == Instances.end())
 		return -1;
 

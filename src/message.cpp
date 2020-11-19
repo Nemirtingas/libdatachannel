@@ -37,14 +37,14 @@ message_ptr make_message(binary &&data, Message::Type type, unsigned int stream,
 }
 
 message_ptr make_message(message_variant data) {
-	return std::visit( //
-	    overloaded{
-	        [&](binary data) { return make_message(std::move(data), Message::Binary); },
-	        [&](string data) {
+	return boost::apply_visitor( //
+	    overloaded(
+	        std::function<message_ptr(binary data)>([&](binary data) { return make_message(std::move(data), Message::Binary); }),
+	        std::function<message_ptr(string data)>([&](string data) {
 		        auto b = reinterpret_cast<const byte *>(data.data());
 		        return make_message(b, b + data.size(), Message::String);
-	        },
-	    },
+	        })
+	    ),
 	    std::move(data));
 }
 

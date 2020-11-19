@@ -246,19 +246,20 @@ static std::mutex CertificateCacheMutex;
 } // namespace
 
 future_certificate_ptr make_certificate(string commonName) {
-	std::lock_guard lock(CertificateCacheMutex);
+	std::lock_guard<std::mutex> lock(CertificateCacheMutex);
 
-	if (auto it = CertificateCache.find(commonName); it != CertificateCache.end())
+	auto it = CertificateCache.find(commonName);
+	if (it != CertificateCache.end())
 		return it->second;
 
-	auto future = ThreadPool::Instance().enqueue(make_certificate_impl, commonName);
+	auto future = ThreadPool::Instance().enqueue(&make_certificate_impl, commonName);
 	auto shared = future.share();
 	CertificateCache.emplace(std::move(commonName), shared);
 	return shared;
 }
 
 void CleanupCertificateCache() {
-	std::lock_guard lock(CertificateCacheMutex);
+	std::lock_guard<std::mutex> lock(CertificateCacheMutex);
 	CertificateCache.clear();
 }
 

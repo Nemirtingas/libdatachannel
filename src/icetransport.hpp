@@ -57,8 +57,8 @@ public:
 	bool addRemoteCandidate(const Candidate &candidate);
 	void gatherLocalCandidates();
 
-	std::optional<string> getLocalAddress() const;
-	std::optional<string> getRemoteAddress() const;
+	boost::optional<string> getLocalAddress() const;
+	boost::optional<string> getRemoteAddress() const;
 
 	bool stop() override;
 	bool send(message_ptr message) override; // false if dropped

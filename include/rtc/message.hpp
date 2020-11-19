@@ -24,8 +24,8 @@
 
 #include <functional>
 #include <memory>
-#include <optional>
-#include <variant>
+#include <boost/optional.hpp>
+#include <boost/variant.hpp>
 
 namespace rtc {
 
@@ -48,7 +48,7 @@ struct Message : binary {
 
 using message_ptr = std::shared_ptr<Message>;
 using message_callback = std::function<void(message_ptr message)>;
-using message_variant = std::variant<binary, string>;
+using message_variant = boost::variant<binary, string>;
 
 inline size_t message_size_func(const message_ptr &m) {
 	return m->type == Message::Binary || m->type == Message::String ? m->size() : 0;

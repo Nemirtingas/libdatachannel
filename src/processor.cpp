@@ -25,12 +25,12 @@ Processor::Processor(size_t limit) : mTasks(limit) {}
 Processor::~Processor() { join(); }
 
 void Processor::join() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	mCondition.wait(lock, [this]() { return !mPending && mTasks.empty(); });
 }
 
 void Processor::schedule() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	if (auto next = mTasks.tryPop()) {
 		ThreadPool::Instance().enqueue(std::move(*next));
 	} else {

@@ -28,9 +28,9 @@
 #include "queue.hpp"
 
 #include <atomic>
-#include <optional>
+#include <boost/optional.hpp>
 #include <thread>
-#include <variant>
+#include <boost/variant.hpp>
 
 namespace rtc {
 
@@ -51,7 +51,7 @@ public:
 		bool disableTlsVerification = false; // if true, don't verify the TLS certificate
 	};
 
-	WebSocket(std::optional<Configuration> config = nullopt);
+	WebSocket(boost::optional<Configuration> config = boost::none);
 	~WebSocket();
 
 	State readyState() const;
@@ -65,8 +65,8 @@ public:
 	size_t maxMessageSize() const override;
 
 	// Extended API
-	std::optional<message_variant> receive() override;
-	std::optional<message_variant> peek() override;
+	boost::optional<message_variant> receive() override;
+	boost::optional<message_variant> peek() override;
 	size_t availableAmount() const override; // total size available to receive
 
 private:

@@ -103,8 +103,8 @@ private:
 	uint32_t _delaySinceLastReport;
 
 public:
-	inline void preparePacket(SSRC ssrc, [[maybe_unused]] unsigned int packetsLost,
-	                          [[maybe_unused]] unsigned int totalPackets, uint16_t highestSeqNo,
+	inline void preparePacket(SSRC ssrc, unsigned int packetsLost,
+	                          unsigned int totalPackets, uint16_t highestSeqNo,
 	                          uint16_t seqNoCycles, uint32_t jitter, uint64_t lastSR_NTP,
 	                          uint64_t lastSR_DELAY) {
 		setSeqNo(highestSeqNo, seqNoCycles);
@@ -123,8 +123,8 @@ public:
 	inline void setSSRC(SSRC ssrc) { this->ssrc = htonl(ssrc); }
 	inline SSRC getSSRC() const { return ntohl(ssrc); }
 
-	inline void setPacketsLost([[maybe_unused]] unsigned int packetsLost,
-	                           [[maybe_unused]] unsigned int totalPackets) {
+	inline void setPacketsLost(unsigned int packetsLost,
+	                           unsigned int totalPackets) {
 		// TODO Implement loss percentages.
 		_fractionLostAndPacketsLost = 0;
 	}

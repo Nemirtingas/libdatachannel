@@ -66,7 +66,7 @@ struct ProxyServer {
 
 struct Configuration {
 	std::vector<IceServer> iceServers;
-	std::optional<ProxyServer> proxyServer;
+	boost::optional<ProxyServer> proxyServer;
 	bool enableIceTcp = false;
 	uint16_t portRangeBegin = 1024;
 	uint16_t portRangeEnd = 65535;

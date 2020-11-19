@@ -58,7 +58,7 @@ public:
 	void clearStats();
 	size_t bytesSent();
 	size_t bytesReceived();
-	std::optional<std::chrono::milliseconds> rtt();
+	boost::optional<std::chrono::milliseconds> rtt();
 
 private:
 	// Order seems wrong but these are the actual values

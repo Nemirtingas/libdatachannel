@@ -97,7 +97,7 @@ bool Init::Initialized = false;
 std::recursive_mutex Init::Mutex;
 
 init_token Init::Token() {
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	if (auto token = Weak.lock())
 		return token;
 
@@ -108,7 +108,7 @@ init_token Init::Token() {
 }
 
 void Init::Preload() {
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	auto token = Token();
 	if (!Global)
 		Global = new shared_ptr<void>(token);
@@ -118,7 +118,7 @@ void Init::Preload() {
 }
 
 void Init::Cleanup() {
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	delete Global;
 	Global = nullptr;
 }
@@ -132,7 +132,7 @@ Init::Init() {
 Init::~Init() {
 	std::thread t([]() {
 		// We need to lock Mutex ourselves
-		std::unique_lock lock(Mutex);
+		std::unique_lock<std::recursive_mutex> lock(Mutex);
 		if (Global)
 			return;
 		if (std::exchange(Initialized, false))
