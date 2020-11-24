@@ -48,6 +48,8 @@
 #include <boost/convert.hpp>
 #include <boost/convert/strtol.hpp>
 
+#include "workarounds.hpp"
+
 namespace rtc {
 
 // overloaded helper
@@ -58,75 +60,6 @@ template <class... Ts> struct s_overloaded : Ts...
 template <class... Ts> s_overloaded<Ts...> overloaded(Ts...)
 {
 	return s_overloaded<Ts...>();
-}
-
-enum class byte : unsigned char {};
-
-template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
-_NODISCARD constexpr byte
-operator<<(const byte _Arg,
-           const _IntType _Shift) noexcept { // bitwise LEFT SHIFT, every static_cast is intentional
-	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Arg) << _Shift));
-}
-
-template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
-_NODISCARD constexpr byte operator>>(
-    const byte _Arg,
-    const _IntType _Shift) noexcept { // bitwise RIGHT SHIFT, every static_cast is intentional
-	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Arg) >> _Shift));
-}
-
-_NODISCARD constexpr byte
-operator|(const byte _Left,
-          const byte _Right) noexcept { // bitwise OR, every static_cast is intentional
-	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Left) |
-	                                                    static_cast<unsigned int>(_Right)));
-}
-
-_NODISCARD constexpr byte
-operator&(const byte _Left,
-          const byte _Right) noexcept { // bitwise AND, every static_cast is intentional
-	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Left) &
-	                                                    static_cast<unsigned int>(_Right)));
-}
-
-_NODISCARD constexpr byte
-operator^(const byte _Left,
-          const byte _Right) noexcept { // bitwise XOR, every static_cast is intentional
-	return static_cast<byte>(static_cast<unsigned char>(static_cast<unsigned int>(_Left) ^
-	                                                    static_cast<unsigned int>(_Right)));
-}
-
-_NODISCARD constexpr byte
-operator~(const byte _Arg) noexcept { // bitwise NOT, every static_cast is intentional
-	return static_cast<byte>(static_cast<unsigned char>(~static_cast<unsigned int>(_Arg)));
-}
-
-template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
-constexpr byte &operator<<=(byte &_Arg, const _IntType _Shift) noexcept { // bitwise LEFT SHIFT
-	return _Arg = _Arg << _Shift;
-}
-
-template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
-constexpr byte &operator>>=(byte &_Arg, const _IntType _Shift) noexcept { // bitwise RIGHT SHIFT
-	return _Arg = _Arg >> _Shift;
-}
-
-constexpr byte &operator|=(byte &_Left, const byte _Right) noexcept { // bitwise OR
-	return _Left = _Left | _Right;
-}
-
-constexpr byte &operator&=(byte &_Left, const byte _Right) noexcept { // bitwise AND
-	return _Left = _Left & _Right;
-}
-
-constexpr byte &operator^=(byte &_Left, const byte _Right) noexcept { // bitwise XOR
-	return _Left = _Left ^ _Right;
-}
-
-template <class _IntType, std::enable_if_t<std::is_integral_v<_IntType>, int> = 0>
-_NODISCARD constexpr _IntType to_integer(const byte _Arg) noexcept { // convert byte to integer
-	return static_cast<_IntType>(_Arg);
 }
 
 using std::string;
