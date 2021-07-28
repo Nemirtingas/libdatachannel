@@ -224,10 +224,10 @@ add_library(datachannel-static STATIC EXCLUDE_FROM_ALL
 
 set_target_properties(datachannel PROPERTIES
 	VERSION ${PROJECT_VERSION}
-	CXX_STANDARD 17)
+	CXX_STANDARD 14)
 set_target_properties(datachannel-static PROPERTIES
 	VERSION ${PROJECT_VERSION}
-	CXX_STANDARD 17)
+	CXX_STANDARD 14)
 
 target_include_directories(datachannel PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
 target_include_directories(datachannel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/rtc)
