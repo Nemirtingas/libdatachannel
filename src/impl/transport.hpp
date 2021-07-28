@@ -36,7 +36,8 @@ public:
 	using state_callback = std::function<void(State state)>;
 
 	Transport(shared_ptr<Transport> lower = nullptr, state_callback callback = nullptr)
-	    : mLower(std::move(lower)), mStateChangeCallback(std::move(callback)) {}
+	    : mLower(std::move(lower)),
+	      mStateChangeCallback(std::move(callback)), mState(State::Disconnected), mStopped(true) {}
 
 	virtual ~Transport() { stop(); }
 
@@ -97,8 +98,8 @@ private:
 	synchronized_callback<State> mStateChangeCallback;
 	synchronized_callback<message_ptr> mRecvCallback;
 
-	std::atomic<State> mState = State::Disconnected;
-	std::atomic<bool> mStopped = true;
+	std::atomic<State> mState;
+	std::atomic<bool> mStopped;
 };
 
 } // namespace impl
