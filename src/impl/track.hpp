@@ -79,7 +79,7 @@ private:
 
 	mutable std::shared_mutex mMutex;
 
-	std::atomic<bool> mIsClosed = false;
+	std::atomic<bool> mIsClosed;
 
 	Queue<message_ptr> mRecvQueue;
 };

@@ -21,6 +21,12 @@
 namespace rtc{
 namespace impl {
 
+Channel::Channel() :
+	bufferedAmount(0),
+	bufferedAmountLowThreshold(0),
+	mOpenTriggered(false)
+{}
+
 void Channel::triggerOpen() {
 	mOpenTriggered = true;
 	openCallback();

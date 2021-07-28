@@ -76,8 +76,8 @@ protected:
 
 	Queue<message_ptr> mRecvQueue;
 
-	std::atomic<bool> mIsOpen = false;
-	std::atomic<bool> mIsClosed = false;
+	std::atomic<bool> mIsOpen;
+	std::atomic<bool> mIsClosed;
 };
 
 struct NegotiatedDataChannel final : public DataChannel {

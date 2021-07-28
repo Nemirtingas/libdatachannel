@@ -21,6 +21,8 @@
 namespace rtc{
 namespace impl {
 
+LogCounter::LogData::LogData() : mCount(0) {}
+
 LogCounter::LogCounter(plog::Severity severity, const std::string &text,
                        std::chrono::seconds duration) {
 	mData = std::make_shared<LogData>();

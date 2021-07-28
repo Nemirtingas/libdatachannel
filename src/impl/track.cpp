@@ -31,7 +31,8 @@ static LogCounter COUNTER_QUEUE_FULL(plog::warning,
 
 Track::Track(weak_ptr<PeerConnection> pc, Description::Media description)
     : mPeerConnection(pc), mMediaDescription(std::move(description)),
-      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func) {}
+      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func), 
+	  mIsClosed (false){}
 
 string Track::mid() const {
 	std::shared_lock<std::shared_mutex> lock(mMutex);

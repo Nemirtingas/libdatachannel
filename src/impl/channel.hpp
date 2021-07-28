@@ -51,11 +51,12 @@ struct Channel {
 
 	synchronized_callback<message_variant> messageCallback;
 
-	std::atomic<size_t> bufferedAmount = 0;
-	std::atomic<size_t> bufferedAmountLowThreshold = 0;
+	std::atomic<size_t> bufferedAmount;
+	std::atomic<size_t> bufferedAmountLowThreshold;
 
+	Channel();
 private:
-	std::atomic<bool> mOpenTriggered = false;
+	std::atomic<bool> mOpenTriggered;
 };
 
 } // namespace impl

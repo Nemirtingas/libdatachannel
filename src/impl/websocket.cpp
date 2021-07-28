@@ -42,7 +42,9 @@ using namespace std::placeholders;
 WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certificate)
     : config(optConfig ? std::move(*optConfig) : Configuration()),
       mCertificate(std::move(certificate)), mIsSecure(mCertificate != nullptr),
-      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func) {
+      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func),
+	state(State::Closed)
+{
 	PLOG_VERBOSE << "Creating WebSocket";
 }
 

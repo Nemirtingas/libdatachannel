@@ -26,7 +26,7 @@ ThreadPool &ThreadPool::Instance() {
 	return *instance;
 }
 
-ThreadPool::ThreadPool() {}
+ThreadPool::ThreadPool() : mBusyWorkers(0), mJoining(false) {}
 
 ThreadPool::~ThreadPool() {}
 

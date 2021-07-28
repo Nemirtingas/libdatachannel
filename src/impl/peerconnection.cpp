@@ -55,7 +55,12 @@ static LogCounter
 
 PeerConnection::PeerConnection(Configuration config_)
     : config(std::move(config_)), mCertificate(make_certificate(config.certificateType)),
-      mProcessor(std::make_unique<Processor>()) {
+      mProcessor(std::make_unique<Processor>()),
+state(State::New),
+gatheringState(GatheringState::New),
+signalingState(SignalingState::Stable),
+negotiationNeeded(false)
+{
 	PLOG_VERBOSE << "Creating PeerConnection";
 
 	if (config.portRangeEnd && config.portRangeBegin > config.portRangeEnd)

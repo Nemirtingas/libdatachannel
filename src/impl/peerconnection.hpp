@@ -103,10 +103,10 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	void outgoingMedia(message_ptr message);
 
 	const Configuration config;
-	std::atomic<State> state = State::New;
-	std::atomic<GatheringState> gatheringState = GatheringState::New;
-	std::atomic<SignalingState> signalingState = SignalingState::Stable;
-	std::atomic<bool> negotiationNeeded = false;
+	std::atomic<State> state;
+	std::atomic<GatheringState> gatheringState;
+	std::atomic<SignalingState> signalingState;
+	std::atomic<bool> negotiationNeeded;
 
 	synchronized_callback<shared_ptr<rtc::DataChannel>> dataChannelCallback;
 	synchronized_callback<Description> localDescriptionCallback;

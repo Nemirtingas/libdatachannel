@@ -96,8 +96,8 @@ protected:
 	std::function<void()> dequeue(); // returns null function if joining
 
 	std::vector<std::thread> mWorkers;
-	std::atomic<int> mBusyWorkers = 0;
-	std::atomic<bool> mJoining = false;
+	std::atomic<int> mBusyWorkers;
+	std::atomic<bool> mJoining;
 
 	struct Task {
 		clock::time_point time;

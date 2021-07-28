@@ -178,7 +178,14 @@ SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &c
                              amount_callback bufferedAmountCallback,
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mPort(port),
-      mSendQueue(0, message_size_func), mBufferedAmountCallback(std::move(bufferedAmountCallback)) {
+      mSendQueue(0, message_size_func), mBufferedAmountCallback(std::move(bufferedAmountCallback)),
+	mPendingRecvCount(0),
+	mPendingFlushCount(0),
+	mWritten(false),
+	mWrittenOnce(false),
+	mBytesSent(0),
+	mBytesReceived(0)
+{
 	onRecv(recvCallback);
 
 	PLOG_DEBUG << "Initializing SCTP transport";
