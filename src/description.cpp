@@ -35,7 +35,7 @@ using std::chrono::system_clock;
 namespace {
 
 using std::string;
-using std::string_view;
+using boost::string_view;
 
 inline bool match_prefix(string_view str, string_view prefix) {
 	return str.size() >= prefix.size() &&
@@ -55,7 +55,8 @@ inline void trim_end(string &str) {
 
 inline std::pair<string_view, string_view> parse_pair(string_view attr) {
 	string_view key, value;
-	if (size_t separator = attr.find(':'); separator != string::npos) {
+	size_t separator = attr.find(':');
+	if (separator != string::npos) {
 		key = attr.substr(0, separator);
 		value = attr.substr(separator + 1);
 	} else {
@@ -116,7 +117,9 @@ Description::Description(const string &sdp, Type type, Role role)
 
 		} else if (match_prefix(line, "a=")) { // Attribute line
 			string attr = line.substr(2);
-			auto [key, value] = parse_pair(attr);
+			auto pair = parse_pair(attr);
+			auto &key = pair.first;
+			auto &value = pair.second;
 
 			if (key == "setup") {
 				if (value == "active")
@@ -135,9 +138,9 @@ Description::Description(const string &sdp, Type type, Role role)
 					PLOG_WARNING << "Unknown SDP fingerprint format: " << value;
 				}
 			} else if (key == "ice-ufrag") {
-				mIceUfrag = value;
+				mIceUfrag = std::string(value.data(), value.size());
 			} else if (key == "ice-pwd") {
-				mIcePwd = value;
+				mIcePwd = std::string(value.data(), value.size());
 			} else if (key == "candidate") {
 				addCandidate(Candidate(attr, bundleMid()));
 			} else if (key == "end-of-candidates") {
@@ -529,10 +532,12 @@ string Description::Entry::generateSdpLines(string_view eol) const {
 void Description::Entry::parseSdpLine(string_view line) {
 	if (match_prefix(line, "a=")) {
 		string_view attr = line.substr(2);
-		auto [key, value] = parse_pair(attr);
+		auto pair = parse_pair(attr);
+		auto& key = pair.first;
+		auto &value = pair.second;
 
 		if (key == "mid")
-			mMid = value;
+			mMid = std::string(value.data(), value.size());
 		else if (attr == "sendonly")
 			mDirection = Direction::SendOnly;
 		else if (attr == "recvonly")
@@ -632,7 +637,9 @@ string Description::Application::generateSdpLines(string_view eol) const {
 void Description::Application::parseSdpLine(string_view line) {
 	if (match_prefix(line, "a=")) {
 		string_view attr = line.substr(2);
-		auto [key, value] = parse_pair(attr);
+		auto pair = parse_pair(attr);
+		auto &key = pair.first;
+		auto &value = pair.second;
 
 		if (key == "sctp-port") {
 			mSctpPort = to_integer<uint16_t>(value);
@@ -791,11 +798,11 @@ void Description::Video::addH264Codec(int pt, optional<string> profile) {
 }
 
 void Description::Video::addVP8Codec(int payloadType) {
-	addVideoCodec(payloadType, "VP8", nullopt);
+	addVideoCodec(payloadType, "VP8", none);
 }
 
 void Description::Video::addVP9Codec(int payloadType) {
-	addVideoCodec(payloadType, "VP9", nullopt);
+	addVideoCodec(payloadType, "VP9", none);
 }
 
 void Description::Media::setBitrate(int bitrate) { mBas = bitrate; }
@@ -837,7 +844,9 @@ string Description::Media::generateSdpLines(string_view eol) const {
 void Description::Media::parseSdpLine(string_view line) {
 	if (match_prefix(line, "a=")) {
 		string_view attr = line.substr(2);
-		auto [key, value] = parse_pair(attr);
+		auto pair = parse_pair(attr);
+		auto &key = pair.first;
+		auto &value = pair.second;
 
 		if (key == "rtpmap") {
 			auto pt = Description::Media::RTPMap::parsePT(value);
@@ -896,7 +905,7 @@ optional<string> Description::Media::getCNameForSsrc(uint32_t ssrc) {
 	if (it != mCNameMap.end()) {
 		return it->second;
 	}
-	return nullopt;
+	return none;
 }
 
 std::map<int, Description::Media::RTPMap>::iterator Description::Media::beginMaps() {
@@ -944,7 +953,10 @@ void Description::Media::RTPMap::setMLine(string_view mline) {
 	if (spl == string::npos)
 		throw std::invalid_argument("Invalid m-line");
 
-	this->format = line.substr(0, spl);
+	{
+		auto tmp = line.substr(0, spl);
+		this->format = std::string(tmp.data(), tmp.size());
+	}
 
 	line = line.substr(spl + 1);
 	spl = line.find('/');
@@ -955,7 +967,10 @@ void Description::Media::RTPMap::setMLine(string_view mline) {
 		this->clockRate = to_integer<int>(line);
 	else {
 		this->clockRate = to_integer<int>(line.substr(0, spl));
-		this->encParams = line.substr(spl + 1);
+		{
+			auto tmp = line.substr(spl + 1);
+			this->encParams = std::string(tmp.data(), tmp.size());
+		}
 	}
 }
 

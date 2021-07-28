@@ -32,7 +32,8 @@
 
 #include "usrsctp.h"
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class SctpTransport final : public Transport {
 public:
@@ -122,6 +123,7 @@ private:
 	static InstancesSet *Instances;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

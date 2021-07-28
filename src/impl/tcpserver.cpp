@@ -29,7 +29,8 @@
 #include <unistd.h>
 #endif
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 TcpServer::TcpServer(uint16_t port) {
 	PLOG_DEBUG << "Initializing TCP server";
@@ -40,7 +41,7 @@ TcpServer::~TcpServer() { close(); }
 
 shared_ptr<TcpTransport> TcpServer::accept() {
 	while (true) {
-		std::unique_lock lock(mSockMutex);
+		std::unique_lock<std::mutex> lock(mSockMutex);
 
 		if (mSock == INVALID_SOCKET)
 			break;
@@ -82,7 +83,7 @@ shared_ptr<TcpTransport> TcpServer::accept() {
 }
 
 void TcpServer::close() {
-	std::unique_lock lock(mSockMutex);
+	std::unique_lock<std::mutex> lock(mSockMutex);
 	if (mSock != INVALID_SOCKET) {
 		PLOG_DEBUG << "Closing TCP server socket";
 		::closesocket(mSock);
@@ -116,7 +117,7 @@ void TcpServer::listen(uint16_t port) {
 		throw std::runtime_error("No suitable address family found");
 
 	try {
-		std::unique_lock lock(mSockMutex);
+		std::unique_lock<std::mutex> lock(mSockMutex);
 		PLOG_VERBOSE << "Creating TCP server socket";
 
 		// Create socket
@@ -180,6 +181,7 @@ void TcpServer::listen(uint16_t port) {
 	freeaddrinfo(result);
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

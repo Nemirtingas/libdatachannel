@@ -26,7 +26,8 @@
 #include <list>
 #include <map>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class WsHandshake final {
 public:
@@ -71,7 +72,8 @@ private:
 	mutable std::mutex mMutex;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

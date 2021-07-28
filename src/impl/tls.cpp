@@ -80,13 +80,14 @@ gnutls_datum_t make_datum(char *data, size_t size) {
 
 #else // USE_GNUTLS==0
 
-namespace rtc::openssl {
+namespace rtc{
+namespace openssl {
 
 void init() {
 	static std::mutex mutex;
 	static bool done = false;
 
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (!std::exchange(done, true)) {
 		OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS | OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
 		OPENSSL_init_crypto(OPENSSL_INIT_LOAD_CRYPTO_STRINGS, nullptr);
@@ -126,6 +127,7 @@ bool check(SSL *ssl, int ret, const string &message) {
 	throw std::runtime_error(message + ": " + str);
 }
 
-} // namespace rtc::openssl
+} // namespace openssl
+} // namespace rtc
 
 #endif

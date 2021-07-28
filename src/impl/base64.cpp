@@ -20,9 +20,10 @@
 
 #include "base64.hpp"
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
-using std::to_integer;
+using nonstd::to_integer;
 
 string to_base64(const binary &data) {
 	static const char tab[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -59,6 +60,7 @@ string to_base64(const binary &data) {
 	return out;
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

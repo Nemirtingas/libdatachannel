@@ -26,7 +26,8 @@
 #include <sstream>
 #include <unordered_map>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 #if USE_GNUTLS
 
@@ -336,4 +337,5 @@ future_certificate_ptr make_certificate(CertificateType type) {
 	});
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc

@@ -27,7 +27,8 @@
 #include <mutex>
 #include <queue>
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 template <typename T> class Queue {
 public:
@@ -47,7 +48,7 @@ public:
 	optional<T> tryPop();
 	optional<T> peek();
 	optional<T> exchange(T element);
-	bool wait(const optional<std::chrono::milliseconds> &duration = nullopt);
+	bool wait(const optional<std::chrono::milliseconds> &duration = none);
 
 private:
 	void pushImpl(T element);
@@ -74,71 +75,70 @@ Queue<T>::Queue(size_t limit, amount_function func) : mLimit(limit), mAmount(0) 
 template <typename T> Queue<T>::~Queue() { stop(); }
 
 template <typename T> void Queue<T>::stop() {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	mStopping = true;
 	mPopCondition.notify_all();
 	mPushCondition.notify_all();
 }
 
 template <typename T> bool Queue<T>::running() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return !mQueue.empty() || !mStopping;
 }
 
 template <typename T> bool Queue<T>::empty() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mQueue.empty();
 }
 
 template <typename T> bool Queue<T>::full() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mQueue.size() >= mLimit;
 }
 
 template <typename T> size_t Queue<T>::size() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mQueue.size();
 }
 
 template <typename T> size_t Queue<T>::amount() const {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mAmount;
 }
 
 template <typename T> void Queue<T>::push(T element) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	mPushCondition.wait(lock, [this]() { return !mLimit || mQueue.size() < mLimit || mStopping; });
 	pushImpl(std::move(element));
 }
 
 template <typename T> optional<T> Queue<T>::pop() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	mPopCondition.wait(lock, [this]() { return !mQueue.empty() || mStopping; });
 	return popImpl();
 }
 
 template <typename T> optional<T> Queue<T>::tryPop() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	return popImpl();
 }
 
 template <typename T> optional<T> Queue<T>::peek() {
-	std::unique_lock lock(mMutex);
-	return !mQueue.empty() ? std::make_optional(mQueue.front()) : nullopt;
+	std::unique_lock<std::mutex> lock(mMutex);
+	return !mQueue.empty() ? boost::make_optional(mQueue.front()) : none;
 }
 
 template <typename T> optional<T> Queue<T>::exchange(T element) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	if (mQueue.empty())
-		return nullopt;
+		return none;
 
 	std::swap(mQueue.front(), element);
-	return std::make_optional(std::move(element));
+	return boost::make_optional(std::move(element));
 }
 
-template <typename T>
-bool Queue<T>::wait(const optional<std::chrono::milliseconds> &duration) {
-	std::unique_lock lock(mMutex);
+template <typename T> bool Queue<T>::wait(const optional<std::chrono::milliseconds> &duration) {
+	std::unique_lock<std::mutex> lock(mMutex);
 	if (duration)
 		mPopCondition.wait_for(lock, *duration, [this]() { return !mQueue.empty() || mStopping; });
 	else
@@ -158,7 +158,7 @@ template <typename T> void Queue<T>::pushImpl(T element) {
 
 template <typename T> optional<T> Queue<T>::popImpl() {
 	if (mQueue.empty())
-		return nullopt;
+		return none;
 
 	mAmount -= mAmountFunction(mQueue.front());
 	optional<T> element{std::move(mQueue.front())};
@@ -166,6 +166,7 @@ template <typename T> optional<T> Queue<T>::popImpl() {
 	return element;
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

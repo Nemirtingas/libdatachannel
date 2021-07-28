@@ -40,7 +40,8 @@
 using namespace std::chrono_literals;
 using std::chrono::system_clock;
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 #if !USE_NICE
 
@@ -206,17 +207,17 @@ optional<string> IceTransport::getLocalAddress() const {
 	char str[JUICE_MAX_ADDRESS_STRING_LEN];
 	if (juice_get_selected_addresses(mAgent.get(), str, JUICE_MAX_ADDRESS_STRING_LEN, NULL, 0) ==
 	    0) {
-		return std::make_optional(string(str));
+		return boost::make_optional(string(str));
 	}
-	return nullopt;
+	return none;
 }
 optional<string> IceTransport::getRemoteAddress() const {
 	char str[JUICE_MAX_ADDRESS_STRING_LEN];
 	if (juice_get_selected_addresses(mAgent.get(), NULL, 0, str, JUICE_MAX_ADDRESS_STRING_LEN) ==
 	    0) {
-		return std::make_optional(string(str));
+		return boost::make_optional(string(str));
 	}
-	return nullopt;
+	return none;
 }
 
 bool IceTransport::getSelectedCandidatePair(Candidate *local, Candidate *remote) {
@@ -559,7 +560,7 @@ Description IceTransport::getLocalDescription(Description::Type type) const {
 	             type == Description::Type::Offer ? TRUE : FALSE, nullptr);
 
 	unique_ptr<gchar[], void (*)(void *)> sdp(nice_agent_generate_local_sdp(mNiceAgent.get()),
-	                                               g_free);
+	                                          g_free);
 
 	// RFC 5763: The endpoint that is the offerer MUST use the setup attribute value of
 	// setup:actpass.
@@ -621,18 +622,18 @@ optional<string> IceTransport::getLocalAddress() const {
 	NiceCandidate *local = nullptr;
 	NiceCandidate *remote = nullptr;
 	if (nice_agent_get_selected_pair(mNiceAgent.get(), mStreamId, 1, &local, &remote)) {
-		return std::make_optional(AddressToString(local->addr));
+		return boost::make_optional(AddressToString(local->addr));
 	}
-	return nullopt;
+	return none;
 }
 
 optional<string> IceTransport::getRemoteAddress() const {
 	NiceCandidate *local = nullptr;
 	NiceCandidate *remote = nullptr;
 	if (nice_agent_get_selected_pair(mNiceAgent.get(), mStreamId, 1, &local, &remote)) {
-		return std::make_optional(AddressToString(remote->addr));
+		return boost::make_optional(AddressToString(remote->addr));
 	}
-	return nullopt;
+	return none;
 }
 
 bool IceTransport::send(message_ptr message) {
@@ -645,7 +646,7 @@ bool IceTransport::send(message_ptr message) {
 }
 
 bool IceTransport::outgoing(message_ptr message) {
-	std::lock_guard lock(mOutgoingMutex);
+	std::lock_guard<std::mutex> lock(mOutgoingMutex);
 	if (mOutgoingDscp != message->dscp) {
 		mOutgoingDscp = message->dscp;
 		// Explicit Congestion Notification takes the least-significant 2 bits of the DS field
@@ -812,4 +813,5 @@ bool IceTransport::getSelectedCandidatePair(Candidate *local, Candidate *remote)
 
 #endif
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc

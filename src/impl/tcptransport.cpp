@@ -26,7 +26,8 @@
 #include <unistd.h>
 #endif
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 TcpTransport::TcpTransport(string hostname, string service, state_callback callback)
     : Transport(nullptr, std::move(callback)), mIsActive(true), mHostname(std::move(hostname)),
@@ -82,8 +83,8 @@ bool TcpTransport::stop() {
 }
 
 bool TcpTransport::send(message_ptr message) {
-	std::unique_lock lock(mSockMutex);
-	if(state() == State::Connecting)
+	std::unique_lock<std::mutex> lock(mSockMutex);
+	if (state() == State::Connecting)
 		throw std::runtime_error("Connection is not open");
 
 	if (state() != State::Connected)
@@ -155,7 +156,7 @@ void TcpTransport::connect(const string &hostname, const string &service) {
 }
 
 void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
-	std::unique_lock lock(mSockMutex);
+	std::unique_lock<std::mutex> lock(mSockMutex);
 	try {
 		char node[MAX_NUMERICNODE_LEN];
 		char serv[MAX_NUMERICSERV_LEN];
@@ -237,7 +238,7 @@ void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
 }
 
 void TcpTransport::close() {
-	std::unique_lock lock(mSockMutex);
+	std::unique_lock<std::mutex> lock(mSockMutex);
 	if (mSock != INVALID_SOCKET) {
 		PLOG_DEBUG << "Closing TCP socket";
 		::closesocket(mSock);
@@ -309,7 +310,7 @@ void TcpTransport::runLoop() {
 		changeState(State::Connected);
 
 		while (true) {
-			std::unique_lock lock(mSockMutex);
+			std::unique_lock<std::mutex> lock(mSockMutex);
 			if (mSock == INVALID_SOCKET)
 				break;
 
@@ -372,6 +373,7 @@ void TcpTransport::runLoop() {
 	recv(nullptr);
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

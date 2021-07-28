@@ -37,7 +37,8 @@
 #include <mutex>
 #include <thread>
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 class IceTransport : public Transport {
 public:
@@ -115,6 +116,7 @@ private:
 #endif
 };
 
+} // namespace impl
 } // namespace rtc
 
 #endif

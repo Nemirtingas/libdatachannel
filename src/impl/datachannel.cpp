@@ -34,7 +34,8 @@
 
 using std::chrono::milliseconds;
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 // Messages for the DataChannel establishment protocol (RFC 8832)
 // See https://tools.ietf.org/html/rfc8832
@@ -90,7 +91,7 @@ DataChannel::~DataChannel() { close(); }
 void DataChannel::close() {
 	shared_ptr<SctpTransport> transport;
 	{
-		std::shared_lock lock(mMutex);
+		std::shared_lock<std::shared_mutex> lock(mMutex);
 		transport = mSctpTransport.lock();
 	}
 
@@ -119,7 +120,7 @@ optional<message_variant> DataChannel::receive() {
 			remoteClose();
 	}
 
-	return nullopt;
+	return none;
 }
 
 optional<message_variant> DataChannel::peek() {
@@ -135,28 +136,28 @@ optional<message_variant> DataChannel::peek() {
 		mRecvQueue.tryPop();
 	}
 
-	return nullopt;
+	return none;
 }
 
 size_t DataChannel::availableAmount() const { return mRecvQueue.amount(); }
 
 uint16_t DataChannel::stream() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mStream;
 }
 
 string DataChannel::label() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mLabel;
 }
 
 string DataChannel::protocol() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mProtocol;
 }
 
 Reliability DataChannel::reliability() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return *mReliability;
 }
 
@@ -170,14 +171,14 @@ size_t DataChannel::maxMessageSize() const {
 }
 
 void DataChannel::shiftStream() {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	if (mStream % 2 == 1)
 		mStream -= 1;
 }
 
 void DataChannel::open(shared_ptr<SctpTransport> transport) {
 	{
-		std::unique_lock lock(mMutex);
+		std::unique_lock<std::shared_mutex> lock(mMutex);
 		mSctpTransport = transport;
 	}
 
@@ -193,7 +194,7 @@ void DataChannel::processOpenMessage(message_ptr) {
 bool DataChannel::outgoing(message_ptr message) {
 	shared_ptr<SctpTransport> transport;
 	{
-		std::shared_lock lock(mMutex);
+		std::shared_lock<std::shared_mutex> lock(mMutex);
 		transport = mSctpTransport.lock();
 
 		if (!transport || mIsClosed)
@@ -263,7 +264,7 @@ NegotiatedDataChannel::NegotiatedDataChannel(weak_ptr<PeerConnection> pc,
 NegotiatedDataChannel::~NegotiatedDataChannel() {}
 
 void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::shared_mutex> lock(mMutex);
 	mSctpTransport = transport;
 
 	uint8_t channelType;
@@ -271,12 +272,12 @@ void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
 	switch (mReliability->type) {
 	case Reliability::Type::Rexmit:
 		channelType = CHANNEL_PARTIAL_RELIABLE_REXMIT;
-		reliabilityParameter = uint32_t(std::max(std::get<int>(mReliability->rexmit), 0));
+		reliabilityParameter = uint32_t(std::max(boost::get<int>(mReliability->rexmit), 0));
 		break;
 
 	case Reliability::Type::Timed:
 		channelType = CHANNEL_PARTIAL_RELIABLE_TIMED;
-		reliabilityParameter = uint32_t(std::get<milliseconds>(mReliability->rexmit).count());
+		reliabilityParameter = uint32_t(boost::get<milliseconds>(mReliability->rexmit).count());
 		break;
 
 	default:
@@ -308,7 +309,7 @@ void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
 }
 
 void NegotiatedDataChannel::processOpenMessage(message_ptr message) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::shared_mutex> lock(mMutex);
 	auto transport = mSctpTransport.lock();
 	if (!transport)
 		throw std::runtime_error("DataChannel has no transport");
@@ -356,4 +357,5 @@ void NegotiatedDataChannel::processOpenMessage(message_ptr message) {
 		triggerOpen();
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc

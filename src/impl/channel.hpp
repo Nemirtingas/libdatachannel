@@ -25,7 +25,8 @@
 #include <atomic>
 #include <functional>
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 struct Channel {
 	virtual optional<message_variant> receive() = 0;
@@ -57,6 +58,7 @@ private:
 	std::atomic<bool> mOpenTriggered = false;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

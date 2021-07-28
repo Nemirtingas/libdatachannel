@@ -23,11 +23,13 @@
 
 #include "common.hpp"
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 string to_base64(const binary &data);
 
 }
+} // namespace rtc
 
 #endif
 

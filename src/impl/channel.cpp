@@ -18,7 +18,8 @@
 
 #include "channel.hpp"
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 void Channel::triggerOpen() {
 	mOpenTriggered = true;
@@ -72,4 +73,5 @@ void Channel::resetCallbacks() {
 	messageCallback = nullptr;
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc

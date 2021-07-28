@@ -21,7 +21,8 @@
 
 #if RTC_ENABLE_WEBSOCKET
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 VerifiedTlsTransport::VerifiedTlsTransport(shared_ptr<TcpTransport> lower, string host,
                                            certificate_ptr certificate, state_callback callback)
@@ -39,6 +40,7 @@ VerifiedTlsTransport::VerifiedTlsTransport(shared_ptr<TcpTransport> lower, strin
 
 VerifiedTlsTransport::~VerifiedTlsTransport() {}
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

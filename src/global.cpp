@@ -76,7 +76,7 @@ void InitLogger(plog::Severity severity, plog::IAppender *appender) {
 	static plog::ColorConsoleAppender<plog::TxtFormatter> consoleAppender;
 	static plog::Logger<0> *logger = nullptr;
 	static std::mutex mutex;
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (!logger) {
 		logger = &plog::init(severity, appender ? appender : &consoleAppender);
 		PLOG_DEBUG << "Logger initialized";

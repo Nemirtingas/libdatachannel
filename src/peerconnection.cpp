@@ -237,12 +237,12 @@ void PeerConnection::addRemoteCandidate(Candidate candidate) {
 
 optional<string> PeerConnection::localAddress() const {
 	auto iceTransport = impl()->getIceTransport();
-	return iceTransport ? iceTransport->getLocalAddress() : nullopt;
+	return iceTransport ? iceTransport->getLocalAddress() : none;
 }
 
 optional<string> PeerConnection::remoteAddress() const {
 	auto iceTransport = impl()->getIceTransport();
-	return iceTransport ? iceTransport->getRemoteAddress() : nullopt;
+	return iceTransport ? iceTransport->getRemoteAddress() : none;
 }
 
 shared_ptr<DataChannel> PeerConnection::createDataChannel(string label, DataChannelInit init) {
@@ -327,7 +327,7 @@ size_t PeerConnection::bytesReceived() {
 
 optional<std::chrono::milliseconds> PeerConnection::rtt() {
 	auto sctpTransport = impl()->getSctpTransport();
-	return sctpTransport ? sctpTransport->rtt() : nullopt;
+	return sctpTransport ? sctpTransport->rtt() : none;
 }
 
 } // namespace rtc

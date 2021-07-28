@@ -35,7 +35,8 @@
 
 using namespace std::chrono;
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 #if USE_GNUTLS
 
@@ -129,7 +130,7 @@ bool DtlsTransport::send(message_ptr message) {
 
 	ssize_t ret;
 	do {
-		std::lock_guard lock(mSendMutex);
+		std::lock_guard<std::mutex> lock(mSendMutex);
 		mCurrentDscp = message->dscp;
 		ret = gnutls_record_send(mSession, message->data(), message->size());
 	} while (ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN);
@@ -211,7 +212,7 @@ void DtlsTransport::runRecvLoop() {
 			// See https://tools.ietf.org/html/rfc8827#section-6.5
 			if (ret == GNUTLS_E_REHANDSHAKE) {
 				do {
-					std::lock_guard lock(mSendMutex);
+					std::lock_guard<std::mutex> lock(mSendMutex);
 					ret = gnutls_alert_send(mSession, GNUTLS_AL_WARNING, GNUTLS_A_NO_RENEGOTIATION);
 				} while (ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN);
 				continue;
@@ -321,7 +322,7 @@ int DtlsTransport::TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int ms) 
 	DtlsTransport *t = static_cast<DtlsTransport *>(ptr);
 	try {
 		bool notEmpty = t->mIncomingQueue.wait(
-		    ms != GNUTLS_INDEFINITE_TIMEOUT ? std::make_optional(milliseconds(ms)) : nullopt);
+		    ms != GNUTLS_INDEFINITE_TIMEOUT ? boost::make_optional(milliseconds(ms)) : none);
 		return notEmpty ? 1 : 0;
 
 	} catch (const std::exception &e) {
@@ -337,7 +338,7 @@ int DtlsTransport::TransportExIndex = -1;
 std::mutex DtlsTransport::GlobalMutex;
 
 void DtlsTransport::Init() {
-	std::lock_guard lock(GlobalMutex);
+	std::lock_guard<std::mutex> lock(GlobalMutex);
 
 	openssl::init();
 
@@ -395,7 +396,9 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 		openssl::check(SSL_CTX_set_cipher_list(mCtx, "ALL:!LOW:!EXP:!RC4:!MD5:@STRENGTH"),
 		               "Failed to set SSL priorities");
 
-		auto [x509, pkey] = mCertificate->credentials();
+		auto tuple = mCertificate->credentials();
+		auto &x509 = std::get<0>(tuple);
+		auto&pkey = std::get<1>(tuple);
 		SSL_CTX_use_certificate(mCtx, x509);
 		SSL_CTX_use_PrivateKey(mCtx, pkey);
 
@@ -563,7 +566,7 @@ void DtlsTransport::runRecvLoop() {
 					// Also handle handshake timeout manually because OpenSSL actually doesn't...
 					// OpenSSL backs off exponentially in base 2 starting from the recommended 1s
 					// so this allows for 5 retransmissions and fails after roughly 30s.
-					if (duration > 30s) {
+					if (*duration > 30s) {
 						throw std::runtime_error("Handshake timeout");
 					} else {
 						LOG_VERBOSE << "OpenSSL DTLS retransmit timeout is " << duration->count()
@@ -654,4 +657,5 @@ long DtlsTransport::BioMethodCtrl(BIO * /*bio*/, int cmd, long /*num*/, void * /
 
 #endif
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc

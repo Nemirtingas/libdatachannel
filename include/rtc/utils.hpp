@@ -22,15 +22,17 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <optional>
+#include <boost/optional.hpp>
 #include <tuple>
 #include <utility>
 
 namespace rtc {
 
 // overloaded helper
-template <class... Ts> struct overloaded : Ts... { using Ts::operator()...; };
-template <class... Ts> overloaded(Ts...) -> overloaded<Ts...>;
+template <class... Ts> struct s_overloaded : Ts... {
+	// s_overloaded() = delete;
+};
+template <class... Ts> s_overloaded<Ts...> overloaded(Ts...) { return s_overloaded<Ts...>(); }
 
 // weak_ptr bind helper
 template <typename F, typename T, typename... Args> auto weak_bind(F &&f, T *t, Args &&..._args) {
@@ -69,30 +71,30 @@ public:
 	virtual ~synchronized_callback() { *this = nullptr; }
 
 	synchronized_callback &operator=(synchronized_callback &&cb) {
-		std::scoped_lock lock(mutex, cb.mutex);
+		workarounds::scoped_lock lock(mutex, cb.mutex);
 		set(std::exchange(cb.callback, nullptr));
 		return *this;
 	}
 
 	synchronized_callback &operator=(const synchronized_callback &cb) {
-		std::scoped_lock lock(mutex, cb.mutex);
+		workarounds::scoped_lock lock(mutex, cb.mutex);
 		set(cb.callback);
 		return *this;
 	}
 
 	synchronized_callback &operator=(std::function<void(Args...)> func) {
-		std::lock_guard lock(mutex);
+		std::lock_guard<std::recursive_mutex> lock(mutex);
 		set(std::move(func));
 		return *this;
 	}
 
 	bool operator()(Args... args) const {
-		std::lock_guard lock(mutex);
+		std::lock_guard<std::recursive_mutex> lock(mutex);
 		return call(std::move(args)...);
 	}
 
 	operator bool() const {
-		std::lock_guard lock(mutex);
+		std::lock_guard<std::recursive_mutex> lock(mutex);
 		return callback ? true : false;
 	}
 
@@ -127,7 +129,7 @@ private:
 	void set(std::function<void(Args...)> func) {
 		synchronized_callback<Args...>::set(func);
 		if (func && stored) {
-			std::apply(func, std::move(*stored));
+			workarounds::apply(func, std::move(*stored));
 			stored.reset();
 		}
 	}
@@ -139,7 +141,7 @@ private:
 		return true;
 	}
 
-	mutable std::optional<std::tuple<Args...>> stored;
+	mutable boost::optional<std::tuple<Args...>> stored;
 };
 
 // pimpl base class

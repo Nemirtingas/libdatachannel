@@ -42,7 +42,7 @@ struct PeerConnection;
 struct RTC_CPP_EXPORT DataChannelInit {
 	Reliability reliability = {};
 	bool negotiated = false;
-	optional<uint16_t> id = nullopt;
+	optional<uint16_t> id = none;
 	string protocol = "";
 };
 

@@ -34,7 +34,8 @@
 #include <winsock2.h>
 #endif
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 using namespace std::placeholders;
 
@@ -94,8 +95,11 @@ void WebSocket::open(const string &url) {
 	if (path.empty())
 		path += '/';
 
-	if (string query = m[15]; !query.empty())
-		path += "?" + query;
+	{
+		string query = m[15];
+		if (!query.empty())
+			path += "?" + query;
+	}
 
 	mHostname = hostname; // for TLS SNI
 	std::atomic_store(&mWsHandshake, std::make_shared<WsHandshake>(host, path, config.protocols));
@@ -135,7 +139,7 @@ optional<message_variant> WebSocket::receive() {
 		if (message->type != Message::Control)
 			return to_variant(std::move(*message));
 	}
-	return nullopt;
+	return none;
 }
 
 optional<message_variant> WebSocket::peek() {
@@ -146,7 +150,7 @@ optional<message_variant> WebSocket::peek() {
 
 		mRecvQueue.tryPop();
 	}
-	return nullopt;
+	return none;
 }
 
 size_t WebSocket::availableAmount() const { return mRecvQueue.amount(); }
@@ -267,8 +271,8 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 
 		shared_ptr<TlsTransport> transport;
 		if (verify)
-			transport = std::make_shared<VerifiedTlsTransport>(lower, mHostname.value(), mCertificate,
-			                                                   stateChangeCallback);
+			transport = std::make_shared<VerifiedTlsTransport>(lower, mHostname.value(),
+			                                                   mCertificate, stateChangeCallback);
 		else
 			transport =
 			    std::make_shared<TlsTransport>(lower, mHostname, mCertificate, stateChangeCallback);
@@ -401,6 +405,7 @@ void WebSocket::closeTransports() {
 	});
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

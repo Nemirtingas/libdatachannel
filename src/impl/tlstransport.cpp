@@ -28,7 +28,8 @@
 
 using namespace std::chrono;
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 #if USE_GNUTLS
 
@@ -38,7 +39,7 @@ gnutls_certificate_credentials_t default_certificate_credentials() {
 	static std::mutex mutex;
 	static shared_ptr<gnutls_certificate_credentials_t> creds;
 
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	if (!creds) {
 		creds = shared_ptr<gnutls_certificate_credentials_t>(gnutls::new_credentials(),
 		                                                     gnutls::free_credentials);
@@ -268,7 +269,7 @@ int TlsTransport::TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int ms) {
 	TlsTransport *t = static_cast<TlsTransport *>(ptr);
 	try {
 		bool notEmpty = t->mIncomingQueue.wait(
-		    ms != GNUTLS_INDEFINITE_TIMEOUT ? std::make_optional(milliseconds(ms)) : nullopt);
+		    ms != GNUTLS_INDEFINITE_TIMEOUT ? boost::make_optional(milliseconds(ms)) : none);
 		return notEmpty ? 1 : 0;
 
 	} catch (const std::exception &e) {
@@ -307,7 +308,9 @@ TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host
 		               "Failed to set SSL priorities");
 
 		if (certificate) {
-			auto [x509, pkey] = certificate->credentials();
+			auto tuple = certificate->credentials();
+			auto &x509 = std::get<0>(tuple);
+			auto &pkey = std::get<1>(tuple);
 			SSL_CTX_use_certificate(mCtx, x509);
 			SSL_CTX_use_PrivateKey(mCtx, pkey);
 		} else {
@@ -496,6 +499,7 @@ void TlsTransport::InfoCallback(const SSL *ssl, int where, int ret) {
 
 #endif
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

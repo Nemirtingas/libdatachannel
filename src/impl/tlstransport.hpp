@@ -29,7 +29,8 @@
 
 #include <thread>
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 class TcpTransport;
 
@@ -80,7 +81,8 @@ protected:
 #endif
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

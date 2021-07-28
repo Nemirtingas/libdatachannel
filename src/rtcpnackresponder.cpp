@@ -38,7 +38,7 @@ RtcpNackResponder::Storage::Storage(unsigned _maximumSize): maximumSize(_maximum
 
 optional<binary_ptr> RtcpNackResponder::Storage::get(uint16_t sequenceNumber) {
 	auto position = storage.find(sequenceNumber);
-	return position != storage.end() ? std::make_optional(storage.at(sequenceNumber)->packet) : nullopt;
+	return position != storage.end() ? boost::make_optional(storage.at(sequenceNumber)->packet) : none;
 }
 
 void RtcpNackResponder::Storage::store(binary_ptr packet) {
@@ -107,7 +107,7 @@ ChainedIncomingControlProduct RtcpNackResponder::processIncomingControlMessage(m
 	if (!packets->empty()) {
 		return {message, ChainedOutgoingProduct(packets)};
 	} else {
-		return {message, nullopt};
+		return {message, none};
 	}
 }
 

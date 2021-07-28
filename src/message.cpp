@@ -37,14 +37,16 @@ message_ptr make_message(binary &&data, Message::Type type, unsigned int stream,
 }
 
 message_ptr make_message(message_variant data) {
-	return std::visit( //
-	    overloaded{
-	        [&](binary data) { return make_message(std::move(data), Message::Binary); },
-	        [&](string data) {
-		        auto b = reinterpret_cast<const byte *>(data.data());
-		        return make_message(b, b + data.size(), Message::String);
-	        },
-	    },
+	std::function<rtc::message_ptr(binary)> f1 = [&](binary data) {
+		return make_message(std::move(data), Message::Binary);
+	};
+	std::function<rtc::message_ptr(string)> f2 = [&](string data) {
+		auto b = reinterpret_cast<const byte *>(data.data());
+		return make_message(b, b + data.size(), Message::String);
+	};
+
+	return boost::apply_visitor( //
+	    overloaded(f1, f2),
 	    std::move(data));
 }
 

@@ -26,7 +26,8 @@
 #include <future>
 #include <tuple>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class Certificate {
 public:
@@ -69,6 +70,7 @@ using future_certificate_ptr = std::shared_future<certificate_ptr>;
 
 future_certificate_ptr make_certificate(CertificateType type = CertificateType::Default);
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

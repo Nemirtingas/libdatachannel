@@ -23,7 +23,8 @@
 #include "internals.hpp"
 #include "threadpool.hpp"
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 using namespace std::placeholders;
 
@@ -72,7 +73,7 @@ void WebSocketServer::runLoop() {
 				if (!clientCallback)
 					continue;
 
-				auto impl = std::make_shared<WebSocket>(nullopt, mCertificate);
+				auto impl = std::make_shared<WebSocket>(none, mCertificate);
 				impl->changeState(WebSocket::State::Connecting);
 				impl->setTcpTransport(incoming);
 				clientCallback(std::make_shared<rtc::WebSocket>(impl));
@@ -88,6 +89,7 @@ void WebSocketServer::runLoop() {
 	PLOG_INFO << "Stopped WebSocketServer";
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

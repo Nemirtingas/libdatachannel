@@ -53,9 +53,9 @@ public:
 	/// @param startTime_s Start time of the stream
 	/// @param epochStart Type of used epoch
 	/// @param startTimestamp Corresponding timestamp for given start time (current timestamp will
-	/// be used if value is nullopt)
+	/// be used if value is none)
 	void setStartTime(double startTime_s, EpochStart epochStart,
-	                  optional<uint32_t> startTimestamp = std::nullopt);
+	                  optional<uint32_t> startTimestamp = std::none);
 
 	/// Construct RTP configuration used in packetization process
 	/// @param ssrc SSRC of source
@@ -63,11 +63,11 @@ public:
 	/// @param payloadType Payload type of source
 	/// @param clockRate Clock rate of source used in timestamps
 	/// @param sequenceNumber Initial sequence number of RTP packets (random number is choosed if
-	/// nullopt)
-	/// @param timestamp Initial timastamp of RTP packets (random number is choosed if nullopt)
+	/// none)
+	/// @param timestamp Initial timastamp of RTP packets (random number is choosed if none)
 	RtpPacketizationConfig(SSRC ssrc, std::string cname, uint8_t payloadType, uint32_t clockRate,
-	                       optional<uint16_t> sequenceNumber = std::nullopt,
-	                       optional<uint32_t> timestamp = std::nullopt);
+	                       optional<uint16_t> sequenceNumber = std::none,
+	                       optional<uint32_t> timestamp = std::none);
 
 	/// Convert timestamp to seconds
 	/// @param timestamp Timestamp

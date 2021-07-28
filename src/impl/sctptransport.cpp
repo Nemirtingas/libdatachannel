@@ -77,7 +77,8 @@ template <typename T> uint32_t to_uint32(T i) {
 
 } // namespace
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 static LogCounter COUNTER_UNKNOWN_PPID(plog::warning,
                                        "Number of SCTP packets received with an unknown PPID");
@@ -90,19 +91,19 @@ static LogCounter COUNTER_BAD_SCTP_STATUS(plog::warning,
 class SctpTransport::InstancesSet {
 public:
 	void insert(SctpTransport *instance) {
-		std::unique_lock lock(mMutex);
+		std::unique_lock<std::shared_mutex> lock(mMutex);
 		mSet.insert(instance);
 	}
 
 	void erase(SctpTransport *instance) {
-		std::unique_lock lock(mMutex);
+		std::unique_lock<std::shared_mutex> lock(mMutex);
 		mSet.erase(instance);
 	}
 
 	using shared_lock = std::shared_lock<std::shared_mutex>;
 	optional<shared_lock> lock(SctpTransport *instance) {
 		shared_lock lock(mMutex);
-		return mSet.find(instance) != mSet.end() ? std::make_optional(std::move(lock)) : nullopt;
+		return mSet.find(instance) != mSet.end() ? boost::make_optional(std::move(lock)) : none;
 	}
 
 private:
@@ -400,7 +401,7 @@ void SctpTransport::shutdown() {
 }
 
 bool SctpTransport::send(message_ptr message) {
-	std::lock_guard lock(mSendMutex);
+	std::lock_guard<std::recursive_mutex> lock(mSendMutex);
 
 	if (!message)
 		return trySendQueue();
@@ -418,7 +419,7 @@ bool SctpTransport::send(message_ptr message) {
 
 bool SctpTransport::flush() {
 	try {
-		std::lock_guard lock(mSendMutex);
+		std::lock_guard<std::recursive_mutex> lock(mSendMutex);
 		trySendQueue();
 		return true;
 
@@ -437,7 +438,7 @@ void SctpTransport::incoming(message_ptr message) {
 	// sent, which would result in the connection being aborted. Therefore, we need to wait for data
 	// to be sent on our side (i.e. the local INIT) before proceeding.
 	if (!mWrittenOnce) { // test the atomic boolean is not set first to prevent a lock contention
-		std::unique_lock lock(mWriteMutex);
+		std::unique_lock<std::mutex> lock(mWriteMutex);
 		mWrittenCondition.wait(lock, [&]() { return mWrittenOnce.load(); });
 	}
 
@@ -461,7 +462,7 @@ bool SctpTransport::outgoing(message_ptr message) {
 }
 
 void SctpTransport::doRecv() {
-	std::lock_guard lock(mRecvMutex);
+	std::lock_guard<std::mutex> lock(mRecvMutex);
 	--mPendingRecvCount;
 	try {
 		while (state() != State::Disconnected && state() != State::Failed) {
@@ -515,7 +516,7 @@ void SctpTransport::doRecv() {
 }
 
 void SctpTransport::doFlush() {
-	std::lock_guard lock(mSendMutex);
+	std::lock_guard<std::recursive_mutex> lock(mSendMutex);
 	--mPendingFlushCount;
 	try {
 		trySendQueue();
@@ -584,12 +585,12 @@ bool SctpTransport::trySendMessage(message_ptr message) {
 	case Reliability::Type::Rexmit:
 		spa.sendv_flags |= SCTP_SEND_PRINFO_VALID;
 		spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_RTX;
-		spa.sendv_prinfo.pr_value = to_uint32(std::get<int>(reliability.rexmit));
+		spa.sendv_prinfo.pr_value = to_uint32(boost::get<int>(reliability.rexmit));
 		break;
 	case Reliability::Type::Timed:
 		spa.sendv_flags |= SCTP_SEND_PRINFO_VALID;
 		spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_TTL;
-		spa.sendv_prinfo.pr_value = to_uint32(std::get<milliseconds>(reliability.rexmit).count());
+		spa.sendv_prinfo.pr_value = to_uint32(boost::get<milliseconds>(reliability.rexmit).count());
 		break;
 	default:
 		spa.sendv_prinfo.pr_policy = SCTP_PR_SCTP_NONE;
@@ -659,7 +660,7 @@ void SctpTransport::sendReset(uint16_t streamId) {
 
 	mWritten = false;
 	if (usrsctp_setsockopt(mSock, IPPROTO_SCTP, SCTP_RESET_STREAMS, &srs, len) == 0) {
-		std::unique_lock lock(mWriteMutex); // locking before setsockopt might deadlock usrsctp...
+		std::unique_lock<std::mutex> lock(mWriteMutex); // locking before setsockopt might deadlock usrsctp...
 		mWrittenCondition.wait_for(lock, 1000ms,
 		                           [&]() { return mWritten || state() != State::Connected; });
 	} else if (errno == EINVAL) {
@@ -690,7 +691,7 @@ void SctpTransport::handleUpcall() {
 
 int SctpTransport::handleWrite(byte *data, size_t len, uint8_t /*tos*/, uint8_t /*set_df*/) {
 	try {
-		std::unique_lock lock(mWriteMutex);
+		std::unique_lock<std::mutex> lock(mWriteMutex);
 		PLOG_VERBOSE << "Handle write, len=" << len;
 
 		if (!outgoing(make_message(data, data + len)))
@@ -867,14 +868,14 @@ size_t SctpTransport::bytesReceived() { return mBytesReceived; }
 
 optional<milliseconds> SctpTransport::rtt() {
 	if (!mSock || state() != State::Connected)
-		return nullopt;
+		return none;
 
 	struct sctp_status status = {};
 	socklen_t len = sizeof(status);
 	if (usrsctp_getsockopt(mSock, IPPROTO_SCTP, SCTP_STATUS, &status, &len)) {
 		COUNTER_BAD_SCTP_STATUS++;
 
-		return nullopt;
+		return none;
 	}
 	return milliseconds(status.sstat_primary.spinfo_srtt);
 }
@@ -897,4 +898,5 @@ int SctpTransport::WriteCallback(void *ptr, void *data, size_t len, uint8_t tos,
 		return -1;
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc

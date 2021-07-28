@@ -26,7 +26,8 @@
 
 #include <mutex>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 // Utility class to interrupt select()
 class SelectInterrupter final {
@@ -46,7 +47,8 @@ private:
 #endif
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

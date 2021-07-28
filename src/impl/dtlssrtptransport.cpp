@@ -85,7 +85,7 @@ DtlsSrtpTransport::~DtlsSrtpTransport() {
 }
 
 bool DtlsSrtpTransport::sendMedia(message_ptr message) {
-	std::lock_guard lock(sendMutex);
+	std::lock_guard<std::mutex> lock(sendMutex);
 	if (!message)
 		return false;
 

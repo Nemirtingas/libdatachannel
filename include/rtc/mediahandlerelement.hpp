@@ -48,7 +48,7 @@ struct RTC_CPP_EXPORT ChainedIncomingProduct {
 
 /// Incoming control messages with response
 struct RTC_CPP_EXPORT ChainedIncomingControlProduct {
-	ChainedIncomingControlProduct(message_ptr incoming, optional<ChainedOutgoingProduct> outgoing = nullopt);
+	ChainedIncomingControlProduct(message_ptr incoming, optional<ChainedOutgoingProduct> outgoing = none);
 	const message_ptr incoming;
 	const optional<ChainedOutgoingProduct> outgoing;
 };

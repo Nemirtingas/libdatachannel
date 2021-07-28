@@ -144,14 +144,14 @@ public:
 
 		void removeFormat(const string &fmt);
 
-		void addSSRC(uint32_t ssrc, optional<string> name, optional<string> msid = nullopt,
-		             optional<string> trackID = nullopt);
+		void addSSRC(uint32_t ssrc, optional<string> name, optional<string> msid = none,
+		             optional<string> trackID = none);
 		void removeSSRC(uint32_t oldSSRC);
 		void replaceSSRC(uint32_t oldSSRC, uint32_t ssrc, optional<string> name,
-		                 optional<string> msid = nullopt, optional<string> trackID = nullopt);
+		                 optional<string> msid = none, optional<string> trackID = none);
 		bool hasSSRC(uint32_t ssrc);
 		std::vector<uint32_t> getSSRCs();
-		std::optional<std::string> getCNameForSsrc(uint32_t ssrc);
+		boost::optional<std::string> getCNameForSsrc(uint32_t ssrc);
 
 		void setBitrate(int bitrate);
 		int getBitrate() const;
@@ -206,7 +206,7 @@ public:
 	public:
 		Audio(string mid = "audio", Direction dir = Direction::SendOnly);
 
-		void addAudioCodec(int payloadType, string codec, optional<string> profile = std::nullopt);
+		void addAudioCodec(int payloadType, string codec, optional<string> profile = none);
 
 		void addOpusCodec(int payloadType, optional<string> profile = DEFAULT_OPUS_AUDIO_PROFILE);
 	};
@@ -215,7 +215,7 @@ public:
 	public:
 		Video(string mid = "video", Direction dir = Direction::SendOnly);
 
-		void addVideoCodec(int payloadType, string codec, optional<string> profile = std::nullopt);
+		void addVideoCodec(int payloadType, string codec, optional<string> profile = none);
 
 		void addH264Codec(int payloadType, optional<string> profile = DEFAULT_H264_VIDEO_PROFILE);
 		void addVP8Codec(int payloadType);

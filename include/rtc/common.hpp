@@ -47,22 +47,25 @@
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
-#include <string_view>
-#include <variant>
+#include "byte.hpp"
+#include <boost/utility/string_view.hpp>
+#include <boost/variant.hpp>
+#include <boost/optional.hpp>
 #include <vector>
+
+#include "workarounds.hpp"
 
 namespace rtc {
 
-using std::byte;
-using std::nullopt;
-using std::optional;
+using nonstd::byte;
+using boost::none;
+using boost::optional;
 using std::shared_ptr;
 using std::string;
-using std::string_view;
+using boost::string_view;
 using std::unique_ptr;
-using std::variant;
+using boost::variant;
 using std::weak_ptr;
 
 using binary = std::vector<byte>;

@@ -35,10 +35,11 @@
 #include <thread>
 #include <vector>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
-template <class F, class... Args>
-using invoke_future_t = std::future<std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>>;
+//template <class F, class... Args>
+//using invoke_future_t = std::future<workarounds::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>>;
 
 class ThreadPool final {
 public:
@@ -58,13 +59,35 @@ public:
 	bool runOne();
 
 	template <class F, class... Args>
-	auto enqueue(F &&f, Args &&...args) -> invoke_future_t<F, Args...>;
+	auto enqueue(F&& f, Args &&... args) {
+		return schedule(clock::now(), std::forward<F>(f), std::forward<Args>(args)...);
+	}
 
 	template <class F, class... Args>
-	auto schedule(clock::duration delay, F &&f, Args &&...args) -> invoke_future_t<F, Args...>;
+	auto schedule(clock::duration delay, F&& f, Args &&... args) {
+		return schedule(clock::now() + delay, std::forward<F>(f), std::forward<Args>(args)...);
+	}
 
 	template <class F, class... Args>
-	auto schedule(clock::time_point time, F &&f, Args &&...args) -> invoke_future_t<F, Args...>;
+	auto schedule(clock::time_point time, F&& f, Args &&... args) {
+		std::unique_lock<std::mutex> lock(mMutex);
+		using R = workarounds::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
+		auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+		auto task = std::make_shared<std::packaged_task<R()>>([bound = std::move(bound)]() mutable {
+			try {
+				return bound();
+			} catch (const std::exception &e) {
+				PLOG_WARNING << e.what();
+				throw;
+			}
+		});
+		std::future<R> result = task->get_future();
+
+		mTasks.push(
+		    {time, [task = std::move(task), token = Init::Token()]() { return (*task)(); }});
+		mTasksCondition.notify_one();
+		return result;
+	}
 
 protected:
 	ThreadPool();
@@ -88,38 +111,7 @@ protected:
 	mutable std::mutex mMutex, mWorkersMutex;
 };
 
-template <class F, class... Args>
-auto ThreadPool::enqueue(F &&f, Args &&...args) -> invoke_future_t<F, Args...> {
-	return schedule(clock::now(), std::forward<F>(f), std::forward<Args>(args)...);
-}
-
-template <class F, class... Args>
-auto ThreadPool::schedule(clock::duration delay, F &&f, Args &&...args)
-    -> invoke_future_t<F, Args...> {
-	return schedule(clock::now() + delay, std::forward<F>(f), std::forward<Args>(args)...);
-}
-
-template <class F, class... Args>
-auto ThreadPool::schedule(clock::time_point time, F &&f, Args &&...args)
-    -> invoke_future_t<F, Args...> {
-	std::unique_lock lock(mMutex);
-	using R = std::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
-	auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-	auto task = std::make_shared<std::packaged_task<R()>>([bound = std::move(bound)]() mutable {
-		try {
-			return bound();
-		} catch (const std::exception &e) {
-			PLOG_WARNING << e.what();
-			throw;
-		}
-	});
-	std::future<R> result = task->get_future();
-
-	mTasks.push({time, [task = std::move(task), token = Init::Token()]() { return (*task)(); }});
-	mTasksCondition.notify_one();
-	return result;
-}
-
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

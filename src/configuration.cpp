@@ -34,7 +34,7 @@ IceServer::IceServer(const string &url) {
 
 	std::vector<optional<string>> opt(m.size());
 	std::transform(m.begin(), m.end(), opt.begin(), [](const auto &sm) {
-		return sm.length() > 0 ? std::make_optional(string(sm)) : nullopt;
+		return sm.length() > 0 ? boost::make_optional(string(sm)) : none;
 	});
 
 	string scheme = opt[2].value_or("stun");

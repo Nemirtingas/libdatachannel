@@ -21,7 +21,8 @@
 #include "logcounter.hpp"
 #include "peerconnection.hpp"
 
-namespace rtc::impl {
+namespace rtc{
+	namespace impl {
 
 static LogCounter COUNTER_MEDIA_BAD_DIRECTION(plog::warning,
                                               "Number of media packets sent in invalid directions");
@@ -33,22 +34,22 @@ Track::Track(weak_ptr<PeerConnection> pc, Description::Media description)
       mRecvQueue(RECV_QUEUE_LIMIT, message_size_func) {}
 
 string Track::mid() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mMediaDescription.mid();
 }
 
 Description::Direction Track::direction() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mMediaDescription.direction();
 }
 
 Description::Media Track::description() const {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mMediaDescription;
 }
 
 void Track::setDescription(Description::Media description) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::shared_mutex> lock(mMutex);
 	if (description.mid() != mMediaDescription.mid())
 		throw std::logic_error("Media description mid does not match track mid");
 
@@ -66,14 +67,14 @@ optional<message_variant> Track::receive() {
 	if (auto next = mRecvQueue.tryPop())
 		return to_variant(std::move(**next));
 
-	return nullopt;
+	return none;
 }
 
 optional<message_variant> Track::peek() {
 	if (auto next = mRecvQueue.peek())
 		return to_variant(std::move(**next));
 
-	return nullopt;
+	return none;
 }
 
 size_t Track::availableAmount() const { return mRecvQueue.amount(); }
@@ -100,7 +101,7 @@ size_t Track::maxMessageSize() const {
 #if RTC_ENABLE_MEDIA
 void Track::open(shared_ptr<DtlsSrtpTransport> transport) {
 	{
-		std::lock_guard lock(mMutex);
+		std::lock_guard<std::mutex> lock(mMutex);
 		mDtlsSrtpTransport = transport;
 	}
 
@@ -155,7 +156,7 @@ bool Track::outgoing(message_ptr message) {
 	return transportSend(message);
 }
 
-bool Track::transportSend([[maybe_unused]] message_ptr message) {
+bool Track::transportSend(message_ptr message) {
 #if RTC_ENABLE_MEDIA
 	shared_ptr<DtlsSrtpTransport> transport;
 	{
@@ -181,7 +182,7 @@ bool Track::transportSend([[maybe_unused]] message_ptr message) {
 
 void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
 	{
-		std::unique_lock lock(mMutex);
+		std::unique_lock<std::shared_mutex> lock(mMutex);
 		if (mMediaHandler)
 			mMediaHandler->onOutgoing(nullptr);
 
@@ -193,8 +194,8 @@ void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
 }
 
 shared_ptr<MediaHandler> Track::getMediaHandler() {
-	std::shared_lock lock(mMutex);
+	std::shared_lock<std::shared_mutex> lock(mMutex);
 	return mMediaHandler;
 }
 
-} // namespace rtc::impl
+}} // namespace rtc::impl

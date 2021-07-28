@@ -30,7 +30,8 @@
 #include <mutex>
 #include <thread>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class TcpTransport : public Transport {
 public:
@@ -69,7 +70,8 @@ private:
 	Queue<message_ptr> mSendQueue;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

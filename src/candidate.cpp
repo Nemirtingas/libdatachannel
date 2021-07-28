@@ -92,7 +92,7 @@ void Candidate::parse(string candidate) {
 	                                        {"passive", TransportType::TcpPassive},
 	                                        {"so", TransportType::TcpSo}};
 
-	const std::array prefixes{"a=", "candidate:"};
+	const std::array<const char*, 2> prefixes{"a=", "candidate:"};
 	for (string prefix : prefixes)
 		if (match_prefix(candidate, prefix))
 			candidate.erase(0, prefix.size());
@@ -110,10 +110,13 @@ void Candidate::parse(string candidate) {
 	trim_begin(mTail);
 	trim_end(mTail);
 
-	if (auto it = TypeMap.find(mTypeString); it != TypeMap.end())
+	{
+	auto it = TypeMap.find(mTypeString);
+	if (it != TypeMap.end())
 		mType = it->second;
 	else
 		mType = Type::Unknown;
+	}
 
 	if (mTransportString == "UDP" || mTransportString == "udp") {
 		mTransportType = TransportType::Udp;
@@ -122,10 +125,13 @@ void Candidate::parse(string candidate) {
 		std::istringstream tiss(mTail);
 		string tcptype_, tcptype;
 		if (tiss >> tcptype_ >> tcptype && tcptype_ == "tcptype") {
-			if (auto it = TcpTypeMap.find(tcptype); it != TcpTypeMap.end())
+			{
+			auto it = TcpTypeMap.find(tcptype);
+			if (it != TcpTypeMap.end())
 				mTransportType = it->second;
 			else
 				mTransportType = TransportType::TcpUnknown;
+			}
 
 		} else {
 			mTransportType = TransportType::TcpUnknown;
@@ -235,11 +241,11 @@ bool Candidate::isResolved() const { return mFamily != Family::Unresolved; }
 Candidate::Family Candidate::family() const { return mFamily; }
 
 optional<string> Candidate::address() const {
-	return isResolved() ? std::make_optional(mAddress) : nullopt;
+	return isResolved() ? boost::make_optional(mAddress) : none;
 }
 
 optional<uint16_t> Candidate::port() const {
-	return isResolved() ? std::make_optional(mPort) : nullopt;
+	return isResolved() ? boost::make_optional(mPort) : none;
 }
 
 } // namespace rtc

@@ -68,7 +68,8 @@ gnutls_datum_t make_datum(char *data, size_t size);
 #define BIO_EOF -1
 #endif
 
-namespace rtc::openssl {
+namespace rtc {
+namespace openssl {
 
 void init();
 string error_string(unsigned long err);
@@ -76,7 +77,8 @@ string error_string(unsigned long err);
 bool check(int success, const string &message = "OpenSSL error");
 bool check(SSL *ssl, int ret, const string &message = "OpenSSL error");
 
-} // namespace rtc::openssl
+} // namespace openssl
+} // namespace rtc
 
 #endif
 

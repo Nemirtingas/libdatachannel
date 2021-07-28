@@ -76,7 +76,7 @@ optional<ChainedOutgoingProduct> MediaHandlerElement::processOutgoingResponse(Ch
 				return msgs.value();
 			} else {
 				LOG_ERROR << "Generating outgoing message failed";
-				return nullopt;
+				return none;
 			}
 		} else {
 			return messages;
@@ -88,7 +88,7 @@ optional<ChainedOutgoingProduct> MediaHandlerElement::processOutgoingResponse(Ch
 				return ChainedOutgoingProduct(nullptr, control);
 			} else {
 				LOG_ERROR << "Generating outgoing control message failed";
-				return nullopt;
+				return none;
 			}
 		} else {
 			return messages;
@@ -164,11 +164,11 @@ optional<ChainedOutgoingProduct> MediaHandlerElement::formOutgoingBinaryMessage(
 	assert(newProduct.messages && !newProduct.messages->empty());
 	if (product.control && !newProduct.control) {
 		LOG_ERROR << "Outgoing message must not remove control message";
-		return nullopt;
+		return none;
 	}
 	if (!newProduct.messages || newProduct.messages->empty()) {
 		LOG_ERROR << "Failed to generate message";
-		return nullopt;
+		return none;
 	}
 	if (upstream) {
 		return upstream->formOutgoingBinaryMessage(newProduct);

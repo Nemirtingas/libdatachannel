@@ -85,8 +85,8 @@ void RTP::log() const {
 
 SSRC RTCP_ReportBlock::getSSRC() const { return ntohl(_ssrc); }
 
-void RTCP_ReportBlock::preparePacket(SSRC in_ssrc, [[maybe_unused]] unsigned int packetsLost,
-                                     [[maybe_unused]] unsigned int totalPackets,
+void RTCP_ReportBlock::preparePacket(SSRC in_ssrc, unsigned int packetsLost,
+                                     unsigned int totalPackets,
                                      uint16_t highestSeqNo, uint16_t seqNoCycles, uint32_t jitter,
                                      uint64_t lastSR_NTP, uint64_t lastSR_DELAY) {
 	setSeqNo(highestSeqNo, seqNoCycles);
@@ -104,8 +104,8 @@ void RTCP_ReportBlock::preparePacket(SSRC in_ssrc, [[maybe_unused]] unsigned int
 
 void RTCP_ReportBlock::setSSRC(SSRC in_ssrc) { _ssrc = htonl(in_ssrc); }
 
-void RTCP_ReportBlock::setPacketsLost([[maybe_unused]] unsigned int packetsLost,
-                                      [[maybe_unused]] unsigned int totalPackets) {
+void RTCP_ReportBlock::setPacketsLost(unsigned int packetsLost,
+                                      unsigned int totalPackets) {
 	// TODO Implement loss percentages.
 	_fractionLostAndPacketsLost = 0;
 }

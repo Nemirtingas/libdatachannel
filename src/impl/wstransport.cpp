@@ -44,9 +44,10 @@
 #define ntohll(x) htonll(x)
 #endif
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
-using std::to_integer;
+using nonstd::to_integer;
 using std::to_string;
 using std::chrono::system_clock;
 using random_bytes_engine =
@@ -55,12 +56,16 @@ using random_bytes_engine =
 WsTransport::WsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<TlsTransport>> lower,
                          shared_ptr<WsHandshake> handshake, message_callback recvCallback,
                          state_callback stateCallback)
-    : Transport(std::visit([](auto l) { return std::static_pointer_cast<Transport>(l); }, lower),
+    : Transport(boost::apply_visitor([](auto l) { return std::static_pointer_cast<Transport>(l); },
+                                     lower),
                 std::move(stateCallback)),
       mHandshake(std::move(handshake)),
-      mIsClient(
-          std::visit(rtc::overloaded{[](shared_ptr<TcpTransport> l) { return l->isActive(); },
-                                     [](shared_ptr<TlsTransport> l) { return l->isClient(); }},
+      mIsClient(boost::apply_visitor(
+          rtc::overloaded(std::function<const bool(shared_ptr<TcpTransport> l)>(
+                              [](shared_ptr<TcpTransport> l) {
+	return l->isActive(); }),
+                                     std::function<const bool(shared_ptr<TlsTransport> l)>([](shared_ptr<TlsTransport> l) {
+	return l->isClient(); })),
                      lower)) {
 
 	onRecv(recvCallback);
@@ -371,6 +376,7 @@ bool WsTransport::sendFrame(const Frame &frame) {
 	return outgoing(make_message(frame.payload, frame.payload + frame.length)); // payload
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

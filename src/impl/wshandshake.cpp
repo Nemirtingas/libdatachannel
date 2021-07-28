@@ -58,7 +58,8 @@ string implode(const std::vector<string> &tokens, char delim) {
 
 } // namespace
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 using std::to_string;
 using std::chrono::system_clock;
@@ -78,22 +79,22 @@ WsHandshake::WsHandshake(string host, string path, std::vector<string> protocols
 }
 
 string WsHandshake::host() const {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	return mHost;
 }
 
 string WsHandshake::path() const {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	return mPath;
 }
 
 std::vector<string> WsHandshake::protocols() const {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	return mProtocols;
 }
 
 string WsHandshake::generateHttpRequest() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	mKey = generateKey();
 
 	string out = "GET " + mPath +
@@ -116,7 +117,7 @@ string WsHandshake::generateHttpRequest() {
 }
 
 string WsHandshake::generateHttpResponse() {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	const string out = "HTTP/1.1 101 Switching Protocols\r\n"
 	                   "Server: libdatachannel\r\n"
 	                   "Connection: upgrade\r\n"
@@ -130,7 +131,7 @@ string WsHandshake::generateHttpResponse() {
 namespace {
 
 string GetHttpErrorName(int responseCode) {
-	switch(responseCode) {
+	switch (responseCode) {
 	case 400:
 		return "Bad Request";
 	case 404:
@@ -146,26 +147,30 @@ string GetHttpErrorName(int responseCode) {
 	}
 }
 
-}
+} // namespace
 
 string WsHandshake::generateHttpError(int responseCode) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 
 	const string error = to_string(responseCode) + " " + GetHttpErrorName(responseCode);
 
-	const string out = "HTTP/1.1 " + error + "\r\n"
+	const string out = "HTTP/1.1 " + error +
+	                   "\r\n"
 	                   "Server: libdatachannel\r\n"
 	                   "Connection: upgrade\r\n"
 	                   "Upgrade: websocket\r\n"
 	                   "Content-Type: text/plain\r\n"
-	                   "Content-Length: " + to_string(error.size()) + "\r\n"
-	                   "Access-Control-Allow-Origin: *\r\n\r\n" + error;
+	                   "Content-Length: " +
+	                   to_string(error.size()) +
+	                   "\r\n"
+	                   "Access-Control-Allow-Origin: *\r\n\r\n" +
+	                   error;
 
 	return out;
 }
 
 size_t WsHandshake::parseHttpRequest(const byte *buffer, size_t size) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	std::list<string> lines;
 	size_t length = parseHttpLines(buffer, size, lines);
 	if (length == 0)
@@ -217,7 +222,7 @@ size_t WsHandshake::parseHttpRequest(const byte *buffer, size_t size) {
 }
 
 size_t WsHandshake::parseHttpResponse(const byte *buffer, size_t size) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::mutex> lock(mMutex);
 	std::list<string> lines;
 	size_t length = parseHttpLines(buffer, size, lines);
 	if (length == 0)
@@ -296,7 +301,8 @@ size_t WsHandshake::parseHttpLines(const byte *buffer, size_t size, std::list<st
 std::multimap<string, string> WsHandshake::parseHttpHeaders(const std::list<string> &lines) {
 	std::multimap<string, string> headers;
 	for (const auto &line : lines) {
-		if (size_t pos = line.find_first_of(':'); pos != string::npos) {
+		size_t pos = line.find_first_of(':');
+		if (pos != string::npos) {
 			string key = line.substr(0, pos);
 			string value = line.substr(line.find_first_not_of(' ', pos + 1));
 			std::transform(key.begin(), key.end(), key.begin(),
@@ -317,6 +323,7 @@ WsHandshake::RequestError::RequestError(const string &w, int responseCode)
 
 int WsHandshake::RequestError::RequestError::responseCode() const { return mResponseCode; }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

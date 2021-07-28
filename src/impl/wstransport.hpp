@@ -25,7 +25,8 @@
 
 #if RTC_ENABLE_WEBSOCKET
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 class TcpTransport;
 class TlsTransport;
@@ -79,7 +80,8 @@ private:
 	Opcode mPartialOpcode;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

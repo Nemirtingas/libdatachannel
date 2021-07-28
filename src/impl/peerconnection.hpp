@@ -33,7 +33,8 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	using State = rtc::PeerConnection::State;
@@ -139,6 +140,7 @@ private:
 	std::unordered_map<uint32_t, string> mMidFromSsrc; // cache
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

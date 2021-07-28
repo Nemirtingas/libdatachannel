@@ -26,7 +26,8 @@
 
 #if RTC_ENABLE_WEBSOCKET
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 class TcpServer {
 public:
@@ -47,7 +48,8 @@ private:
 	SelectInterrupter mInterrupter;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

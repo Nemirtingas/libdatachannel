@@ -34,7 +34,8 @@
 #include <atomic>
 #include <thread>
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 struct WebSocketServer final : public std::enable_shared_from_this<WebSocketServer> {
 	using Configuration = rtc::WebSocketServer::Configuration;
@@ -59,7 +60,8 @@ private:
 	std::atomic<bool> mStopped;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

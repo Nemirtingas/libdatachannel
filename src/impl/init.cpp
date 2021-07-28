@@ -93,7 +93,7 @@ SctpSettings Init::CurrentSctpSettings = {};
 std::recursive_mutex Init::Mutex;
 
 init_token Init::Token() {
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	if (auto token = Weak.lock())
 		return token;
 
@@ -104,21 +104,21 @@ init_token Init::Token() {
 }
 
 void Init::Preload() {
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	auto token = Token();
 	if (!Global)
 		Global = new shared_ptr<void>(token);
 }
 
 void Init::Cleanup() {
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	delete Global;
 	Global = nullptr;
 }
 
 void Init::SetSctpSettings(SctpSettings s) {
 	auto token = Token();
-	std::unique_lock lock(Mutex);
+	std::unique_lock<std::recursive_mutex> lock(Mutex);
 	impl::SctpTransport::SetSettings(s);
 	CurrentSctpSettings = std::move(s); // store for next init
 }
@@ -135,7 +135,7 @@ Init::Init() {
 Init::~Init() {
 	std::thread t([]() {
 		// We need to lock Mutex ourselves
-		std::unique_lock lock(Mutex);
+		std::unique_lock<std::recursive_mutex> lock(Mutex);
 		if (Global)
 			return;
 

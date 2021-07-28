@@ -35,13 +35,14 @@
 #include <atomic>
 #include <thread>
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 struct WebSocket final : public Channel, public std::enable_shared_from_this<WebSocket> {
 	using State = rtc::WebSocket::State;
 	using Configuration = rtc::WebSocket::Configuration;
 
-	WebSocket(optional<Configuration> optConfig = nullopt, certificate_ptr certificate = nullptr);
+	WebSocket(optional<Configuration> optConfig = none, certificate_ptr certificate = nullptr);
 	~WebSocket();
 
 	void open(const string &url);
@@ -90,7 +91,8 @@ private:
 	Queue<message_ptr> mRecvQueue;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

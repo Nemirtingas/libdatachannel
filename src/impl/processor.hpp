@@ -30,7 +30,8 @@
 #include <mutex>
 #include <queue>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 // Processed tasks in order by delegating them to the thread pool
 class Processor final {
@@ -45,7 +46,7 @@ public:
 
 	void join();
 
-	template <class F, class... Args> void enqueue(F &&f, Args &&...args);
+	template <class F, class... Args> void enqueue(F &&f, Args &&... args);
 
 protected:
 	void schedule();
@@ -60,8 +61,8 @@ protected:
 	std::condition_variable mCondition;
 };
 
-template <class F, class... Args> void Processor::enqueue(F &&f, Args &&...args) {
-	std::unique_lock lock(mMutex);
+template <class F, class... Args> void Processor::enqueue(F &&f, Args &&... args) {
+	std::unique_lock<std::mutex> lock(mMutex);
 	auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 	auto task = [this, bound = std::move(bound)]() mutable {
 		scope_guard guard(std::bind(&Processor::schedule, this)); // chain the next task
@@ -76,6 +77,7 @@ template <class F, class... Args> void Processor::enqueue(F &&f, Args &&...args)
 	}
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

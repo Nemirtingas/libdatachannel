@@ -27,7 +27,8 @@
 #include <functional>
 #include <memory>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class Transport {
 public:
@@ -100,6 +101,7 @@ private:
 	std::atomic<bool> mStopped = true;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

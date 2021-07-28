@@ -32,7 +32,8 @@
 #include <atomic>
 #include <shared_mutex>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 struct PeerConnection;
 
@@ -83,6 +84,7 @@ private:
 	Queue<message_ptr> mRecvQueue;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
