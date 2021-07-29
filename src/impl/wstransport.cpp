@@ -61,13 +61,10 @@ WsTransport::WsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<TlsTranspo
                 std::move(stateCallback)),
       mHandshake(std::move(handshake)),
       mIsClient(boost::apply_visitor(
-          rtc::overloaded(std::function<const bool(shared_ptr<TcpTransport> l)>(
-                              [](shared_ptr<TcpTransport> l) {
-	return l->isActive(); }),
-                                     std::function<const bool(shared_ptr<TlsTransport> l)>([](shared_ptr<TlsTransport> l) {
-	return l->isClient(); })),
-                     lower)) {
-
+          rtc::make_visitor([](shared_ptr<TcpTransport> l) { return l->isActive(); },
+                            [](shared_ptr<TlsTransport> l) { return l->isClient(); }),
+                     lower))
+{
 	onRecv(recvCallback);
 
 	PLOG_DEBUG << "Initializing WebSocket transport";

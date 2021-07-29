@@ -753,32 +753,30 @@ int rtcReceiveMessage(int id, char *buffer, int *size) {
 		if (!message)
 			return RTC_ERR_NOT_AVAIL;
 
-		std::function<int(binary)> f1 = [&](binary b) {
-			int ret = copyAndReturn(std::move(b), buffer, *size);
-			if (ret >= 0) {
-				channel->receive(); // discard
-				*size = ret;
-				return RTC_ERR_SUCCESS;
-			} else {
-				*size = int(b.size());
-				return ret;
-			}
-		};
-
-		std::function<int(string)> f2 = [&](string s) {
-			int ret = copyAndReturn(std::move(s), buffer, *size);
-			if (ret >= 0) {
-				channel->receive(); // discard
-				*size = -ret;
-				return RTC_ERR_SUCCESS;
-			} else {
-				*size = -int(s.size() + 1);
-				return ret;
-			}
-		};
-
 		return boost::apply_visitor( //
-		    overloaded(f1, f2),
+		    make_visitor(
+		        [&](binary b) {
+			        int ret = copyAndReturn(std::move(b), buffer, *size);
+			        if (ret >= 0) {
+				        channel->receive(); // discard
+				        *size = ret;
+				        return RTC_ERR_SUCCESS;
+			        } else {
+				        *size = int(b.size());
+				        return ret;
+			        }
+		        },
+		        [&](string s) {
+			        int ret = copyAndReturn(std::move(s), buffer, *size);
+			        if (ret >= 0) {
+				        channel->receive(); // discard
+				        *size = -ret;
+				        return RTC_ERR_SUCCESS;
+			        } else {
+				        *size = -int(s.size() + 1);
+				        return ret;
+			        }
+		        }),
 		    *message);
 	});
 }

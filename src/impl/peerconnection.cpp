@@ -527,19 +527,17 @@ optional<std::string> PeerConnection::getMidFromSsrc(uint32_t ssrc) {
 		if (!mRemoteDescription)
 			return none;
 
-		std::function<optional<string>(Description::Application*)> f1 =
-		    [&](Description::Application *) -> optional<string> {
-			return boost::none;
-		};
-		std::function<optional<string>(Description::Media *)> f2 =
-		    [&](Description::Media *media) -> optional<string> {
-			return media->hasSSRC(ssrc) ? boost::make_optional(media->mid()) : none;
-		};
-
 		for (unsigned int i = 0; i < mRemoteDescription->mediaCount(); ++i) {
 			if (auto found =
-			        boost::apply_visitor(rtc::overloaded(f1, f2),
-			                   mRemoteDescription->media(i))) {
+			        boost::apply_visitor(
+						rtc::make_visitor(
+							[&](Description::Application *) -> optional<string> { return boost::none; },
+							[&](Description::Media *media) -> optional<string> { return media->hasSSRC(ssrc) ? boost::make_optional(media->mid()) : none; }
+						),
+						mRemoteDescription->media(i)
+					)
+				)
+			{
 
 				mMidFromSsrc.emplace(ssrc, *found);
 				return *found;
@@ -551,17 +549,16 @@ optional<std::string> PeerConnection::getMidFromSsrc(uint32_t ssrc) {
 		if (!mLocalDescription)
 			return none;
 
-		std::function<optional<string>(Description::Application *)> f1 =
-		    [&](Description::Application *) -> optional<string> { return boost::none; };
-		std::function<optional<string>(Description::Media *)> f2 =
-		    [&](Description::Media *media) -> optional<string> {
-			return media->hasSSRC(ssrc) ? boost::make_optional(media->mid()) : none;
-		};
-
 		for (unsigned int i = 0; i < mLocalDescription->mediaCount(); ++i) {
 			if (auto found =
-			        boost::apply_visitor(rtc::overloaded(f1, f2),
-			                   mLocalDescription->media(i))) {
+			        boost::apply_visitor(
+						rtc::make_visitor(
+							[&](Description::Application *) -> optional<string> { return boost::none; },
+							[&](Description::Media *media) -> optional<string> { return media->hasSSRC(ssrc) ? boost::make_optional(media->mid()) : none; }
+						),
+			            mLocalDescription->media(i)
+					)
+				) {
 
 				mMidFromSsrc.emplace(ssrc, *found);
 				return *found;
@@ -747,15 +744,14 @@ void PeerConnection::validateRemoteDescription(const Description &description) {
 
 	int activeMediaCount = 0;
 
-	std::function<void(const Description::Application *)> f1 = [&](const Description::Application *) { ++activeMediaCount; };
-	std::function<void(const Description::Media *)> f2 = [&](const Description::Media *media) {
-		if (media->direction() != Description::Direction::Inactive)
-			++activeMediaCount;
-	};
-
 	for (unsigned int i = 0; i < description.mediaCount(); ++i)
-		boost::apply_visitor(rtc::overloaded(f1, f2),
-		           description.media(i));
+		boost::apply_visitor(
+			rtc::make_visitor(
+				[&](const Description::Application *) { ++activeMediaCount; },
+				[&](const Description::Media *media) { if (media->direction() != Description::Direction::Inactive) ++activeMediaCount; }
+			),
+		    description.media(i)
+		);
 
 	if (activeMediaCount == 0)
 		throw std::invalid_argument("Remote description has no active media");
@@ -779,80 +775,80 @@ void PeerConnection::processLocalDescription(Description description) {
 
 	if (auto remote = remoteDescription()) {
 		// Reciprocate remote description
-
-		std::function<void(Description::Application *)> f1 =
-		    [&](Description::Application *remoteApp) {
-			std::shared_lock<std::shared_mutex> lock(mDataChannelsMutex);
-			if (!mDataChannels.empty()) {
-				// Prefer local description
-				Description::Application app(remoteApp->mid());
-				app.setSctpPort(localSctpPort);
-				app.setMaxMessageSize(localMaxMessageSize);
-
-				PLOG_DEBUG << "Adding application to local description, mid=\"" << app.mid()
-				           << "\"";
-
-				description.addMedia(std::move(app));
-				return;
-			}
-
-			auto reciprocated = remoteApp->reciprocate();
-			reciprocated.hintSctpPort(localSctpPort);
-			reciprocated.setMaxMessageSize(localMaxMessageSize);
-
-			PLOG_DEBUG << "Reciprocating application in local description, mid=\""
-			           << reciprocated.mid() << "\"";
-
-			description.addMedia(std::move(reciprocated));
-		};
-
-		std::function<void(Description::Media *)> f2 = [&](Description::Media *remoteMedia) {
-			std::shared_lock<std::shared_mutex> lock(mTracksMutex);
-			auto it = mTracks.find(remoteMedia->mid());
-			if (it != mTracks.end()) {
-				// Prefer local description
-				if (auto track = it->second.lock()) {
-					auto media = track->description();
-#if !RTC_ENABLE_MEDIA
-					// No media support, mark as inactive
-					media.setDirection(Description::Direction::Inactive);
-#endif
-					PLOG_DEBUG << "Adding media to local description, mid=\"" << media.mid()
-					           << "\", active=" << std::boolalpha
-					           << (media.direction() != Description::Direction::Inactive);
-
-					description.addMedia(std::move(media));
-				} else {
-					auto reciprocated = remoteMedia->reciprocate();
-					reciprocated.setDirection(Description::Direction::Inactive);
-
-					PLOG_DEBUG << "Adding inactive media to local description, mid=\""
-					           << reciprocated.mid() << "\"";
-
-					description.addMedia(std::move(reciprocated));
-				}
-				return;
-			}
-			lock.unlock(); // we are going to call incomingTrack()
-
-			auto reciprocated = remoteMedia->reciprocate();
-#if !RTC_ENABLE_MEDIA
-			// No media support, mark as inactive
-			reciprocated.setDirection(Description::Direction::Inactive);
-#endif
-			incomingTrack(reciprocated);
-
-			PLOG_DEBUG << "Reciprocating media in local description, mid=\"" << reciprocated.mid()
-			           << "\", active=" << std::boolalpha
-			           << (reciprocated.direction() != Description::Direction::Inactive);
-
-			description.addMedia(std::move(reciprocated));
-		};
-
 		for (unsigned int i = 0; i < remote->mediaCount(); ++i)
 			boost::apply_visitor( // reciprocate each media
-			    rtc::overloaded(f1, f2),
-			    remote->media(i));
+			    rtc::make_visitor(
+			        [&](Description::Application *remoteApp) {
+				        std::shared_lock<std::shared_mutex> lock(mDataChannelsMutex);
+				        if (!mDataChannels.empty()) {
+					        // Prefer local description
+					        Description::Application app(remoteApp->mid());
+					        app.setSctpPort(localSctpPort);
+					        app.setMaxMessageSize(localMaxMessageSize);
+
+					        PLOG_DEBUG << "Adding application to local description, mid=\""
+					                   << app.mid() << "\"";
+
+					        description.addMedia(std::move(app));
+					        return;
+				        }
+
+				        auto reciprocated = remoteApp->reciprocate();
+				        reciprocated.hintSctpPort(localSctpPort);
+				        reciprocated.setMaxMessageSize(localMaxMessageSize);
+
+				        PLOG_DEBUG << "Reciprocating application in local description, mid=\""
+				                   << reciprocated.mid() << "\"";
+
+				        description.addMedia(std::move(reciprocated));
+			        },
+					[&](Description::Media *remoteMedia) {
+				        std::shared_lock<std::shared_mutex> lock(mTracksMutex);
+				        auto it = mTracks.find(remoteMedia->mid());
+				        if (it != mTracks.end()) {
+					        // Prefer local description
+					        if (auto track = it->second.lock()) {
+						        auto media = track->description();
+#if !RTC_ENABLE_MEDIA
+						        // No media support, mark as inactive
+						        media.setDirection(Description::Direction::Inactive);
+#endif
+						        PLOG_DEBUG
+						            << "Adding media to local description, mid=\"" << media.mid()
+						            << "\", active=" << std::boolalpha
+						            << (media.direction() != Description::Direction::Inactive);
+
+						        description.addMedia(std::move(media));
+					        } else {
+						        auto reciprocated = remoteMedia->reciprocate();
+						        reciprocated.setDirection(Description::Direction::Inactive);
+
+						        PLOG_DEBUG << "Adding inactive media to local description, mid=\""
+						                   << reciprocated.mid() << "\"";
+
+						        description.addMedia(std::move(reciprocated));
+					        }
+					        return;
+				        }
+				        lock.unlock(); // we are going to call incomingTrack()
+
+				        auto reciprocated = remoteMedia->reciprocate();
+#if !RTC_ENABLE_MEDIA
+				        // No media support, mark as inactive
+				        reciprocated.setDirection(Description::Direction::Inactive);
+#endif
+				        incomingTrack(reciprocated);
+
+				        PLOG_DEBUG
+				            << "Reciprocating media in local description, mid=\""
+				            << reciprocated.mid() << "\", active=" << std::boolalpha
+				            << (reciprocated.direction() != Description::Direction::Inactive);
+
+				        description.addMedia(std::move(reciprocated));
+			        }
+				),
+			    remote->media(i)
+			);
 	}
 
 	if (description.type() == Description::Type::Offer) {

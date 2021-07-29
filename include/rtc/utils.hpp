@@ -28,12 +28,23 @@
 #include <utility>
 
 namespace rtc {
-
 // overloaded helper
-template <class... Ts> struct s_overloaded : Ts... {
-	// s_overloaded() = delete;
+template <class... Fs> struct overload;
+
+template <class F0, class... Fs> struct overload<F0, Fs...> : F0, overload<Fs...> {
+	overload(F0 f0, Fs... rest) : F0(f0), overload<Fs...>(rest...) {}
+
+	using F0::operator();
+	using overload<Fs...>::operator();
 };
-template <class... Ts> s_overloaded<Ts...> overloaded(Ts...) { return s_overloaded<Ts...>(); }
+
+template <class F0> struct overload<F0> : F0 {
+	overload(F0 f0) : F0(f0) {}
+
+	using F0::operator();
+};
+
+template <class... Fs> auto make_visitor(Fs... fs) { return overload<Fs...>(std::forward<Fs>(fs)...); }
 
 // weak_ptr bind helper
 template <typename F, typename T, typename... Args> auto weak_bind(F &&f, T *t, Args &&..._args) {
