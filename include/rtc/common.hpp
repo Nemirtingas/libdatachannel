@@ -54,8 +54,6 @@
 #include <boost/optional.hpp>
 #include <vector>
 
-#include "workarounds.hpp"
-
 namespace rtc {
 
 using nonstd::byte;

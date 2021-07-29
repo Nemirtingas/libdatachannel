@@ -23,6 +23,7 @@
 #include <memory>
 #include <mutex>
 #include <boost/optional.hpp>
+#include "workarounds.hpp"
 #include <tuple>
 #include <utility>
 

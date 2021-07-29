@@ -99,6 +99,9 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediahandlerrootelement.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtcpnackresponder.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/utils.hpp
+	
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/byte.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/workarounds.hpp
 )
 
 set(LIBDATACHANNEL_IMPL_SOURCES
