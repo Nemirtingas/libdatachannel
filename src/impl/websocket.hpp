@@ -73,7 +73,7 @@ struct WebSocket final : public Channel, public std::enable_shared_from_this<Web
 
 	const Configuration config;
 
-	std::atomic<State> state;
+	boost::atomic<State> state;
 
 private:
 	const init_token mInitToken = Init::Token();

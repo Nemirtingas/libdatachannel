@@ -91,16 +91,16 @@ static LogCounter COUNTER_BAD_SCTP_STATUS(plog::warning,
 class SctpTransport::InstancesSet {
 public:
 	void insert(SctpTransport *instance) {
-		std::unique_lock<std::shared_mutex> lock(mMutex);
+		std::unique_lock<boost::shared_mutex> lock(mMutex);
 		mSet.insert(instance);
 	}
 
 	void erase(SctpTransport *instance) {
-		std::unique_lock<std::shared_mutex> lock(mMutex);
+		std::unique_lock<boost::shared_mutex> lock(mMutex);
 		mSet.erase(instance);
 	}
 
-	using shared_lock = std::shared_lock<std::shared_mutex>;
+	using shared_lock = boost::shared_lock<boost::shared_mutex>;
 	optional<shared_lock> lock(SctpTransport *instance) {
 		shared_lock lock(mMutex);
 		return mSet.find(instance) != mSet.end() ? boost::make_optional(std::move(lock)) : none;
@@ -108,7 +108,7 @@ public:
 
 private:
 	std::unordered_set<SctpTransport *> mSet;
-	std::shared_mutex mMutex;
+	boost::shared_mutex mMutex;
 };
 
 SctpTransport::InstancesSet *SctpTransport::Instances = new InstancesSet;

@@ -32,7 +32,8 @@
 #include <mutex>
 #include <queue>
 #include <stdexcept>
-#include <thread>
+#include <boost/thread.hpp>
+#include <boost/atomic.hpp>
 #include <vector>
 
 namespace rtc {
@@ -96,8 +97,8 @@ protected:
 	std::function<void()> dequeue(); // returns null function if joining
 
 	std::vector<std::thread> mWorkers;
-	std::atomic<int> mBusyWorkers;
-	std::atomic<bool> mJoining;
+	boost::atomic<int> mBusyWorkers;
+	boost::atomic<bool> mJoining;
 
 	struct Task {
 		clock::time_point time;

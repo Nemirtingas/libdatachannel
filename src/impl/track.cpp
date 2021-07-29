@@ -35,22 +35,22 @@ Track::Track(weak_ptr<PeerConnection> pc, Description::Media description)
 	  mIsClosed (false){}
 
 string Track::mid() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mMediaDescription.mid();
 }
 
 Description::Direction Track::direction() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mMediaDescription.direction();
 }
 
 Description::Media Track::description() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mMediaDescription;
 }
 
 void Track::setDescription(Description::Media description) {
-	std::unique_lock<std::shared_mutex> lock(mMutex);
+	std::unique_lock<boost::shared_mutex> lock(mMutex);
 	if (description.mid() != mMediaDescription.mid())
 		throw std::logic_error("Media description mid does not match track mid");
 
@@ -82,7 +82,7 @@ size_t Track::availableAmount() const { return mRecvQueue.amount(); }
 
 bool Track::isOpen(void) const {
 #if RTC_ENABLE_MEDIA
-	std::shared_lock lock(mMutex);
+	boost::shared_lock lock(mMutex);
 	return !mIsClosed && mDtlsSrtpTransport.lock();
 #else
 	return !mIsClosed;
@@ -161,7 +161,7 @@ bool Track::transportSend(message_ptr message) {
 #if RTC_ENABLE_MEDIA
 	shared_ptr<DtlsSrtpTransport> transport;
 	{
-		std::shared_lock lock(mMutex);
+		boost::shared_lock lock(mMutex);
 		transport = mDtlsSrtpTransport.lock();
 		if (!transport)
 			throw std::runtime_error("Track is closed");
@@ -183,7 +183,7 @@ bool Track::transportSend(message_ptr message) {
 
 void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
 	{
-		std::unique_lock<std::shared_mutex> lock(mMutex);
+		std::unique_lock<boost::shared_mutex> lock(mMutex);
 		if (mMediaHandler)
 			mMediaHandler->onOutgoing(nullptr);
 
@@ -195,7 +195,7 @@ void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
 }
 
 shared_ptr<MediaHandler> Track::getMediaHandler() {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mMediaHandler;
 }
 

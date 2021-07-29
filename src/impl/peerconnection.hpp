@@ -103,10 +103,10 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	void outgoingMedia(message_ptr message);
 
 	const Configuration config;
-	std::atomic<State> state;
-	std::atomic<GatheringState> gatheringState;
-	std::atomic<SignalingState> signalingState;
-	std::atomic<bool> negotiationNeeded;
+	boost::atomic<State> state;
+	boost::atomic<GatheringState> gatheringState;
+	boost::atomic<SignalingState> signalingState;
+	boost::atomic<bool> negotiationNeeded;
 
 	synchronized_callback<shared_ptr<rtc::DataChannel>> dataChannelCallback;
 	synchronized_callback<Description> localDescriptionCallback;
@@ -132,7 +132,7 @@ private:
 	std::unordered_map<uint16_t, weak_ptr<DataChannel>> mDataChannels; // by stream ID
 	std::unordered_map<string, weak_ptr<Track>> mTracks;               // by mid
 	std::vector<weak_ptr<Track>> mTrackLines;                          // by SDP order
-	std::shared_mutex mDataChannelsMutex, mTracksMutex;
+	boost::shared_mutex mDataChannelsMutex, mTracksMutex;
 
 	Queue<shared_ptr<DataChannel>> mPendingDataChannels;
 	Queue<shared_ptr<Track>> mPendingTracks;

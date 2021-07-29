@@ -72,12 +72,12 @@ protected:
 	string mProtocol;
 	shared_ptr<Reliability> mReliability;
 
-	mutable std::shared_mutex mMutex;
+	mutable boost::shared_mutex mMutex;
 
 	Queue<message_ptr> mRecvQueue;
 
-	std::atomic<bool> mIsOpen;
-	std::atomic<bool> mIsClosed;
+	boost::atomic<bool> mIsOpen;
+	boost::atomic<bool> mIsClosed;
 };
 
 struct NegotiatedDataChannel final : public DataChannel {

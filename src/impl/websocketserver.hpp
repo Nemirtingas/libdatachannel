@@ -57,7 +57,7 @@ private:
 
 	certificate_ptr mCertificate;
 	std::thread mThread;
-	std::atomic<bool> mStopped;
+	boost::atomic<bool> mStopped;
 };
 
 } // namespace impl

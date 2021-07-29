@@ -29,8 +29,8 @@
 #include "dtlssrtptransport.hpp"
 #endif
 
-#include <atomic>
-#include <shared_mutex>
+#include <boost/atomic.hpp>
+#include <boost/thread.hpp>
 
 namespace rtc {
 namespace impl {
@@ -77,9 +77,9 @@ private:
 	Description::Media mMediaDescription;
 	shared_ptr<MediaHandler> mMediaHandler;
 
-	mutable std::shared_mutex mMutex;
+	mutable boost::shared_mutex mMutex;
 
-	std::atomic<bool> mIsClosed;
+	boost::atomic<bool> mIsClosed;
 
 	Queue<message_ptr> mRecvQueue;
 };

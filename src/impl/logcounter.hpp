@@ -37,7 +37,7 @@ private:
 		std::string mText;
 		std::chrono::steady_clock::duration mDuration;
 
-		std::atomic<int> mCount;
+		boost::atomic<int> mCount;
 	};
 
 	shared_ptr<LogData> mData;

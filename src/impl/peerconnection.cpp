@@ -428,7 +428,7 @@ void PeerConnection::forwardMessage(message_ptr message) {
 			channel->openCallback = weak_bind(&PeerConnection::triggerDataChannel, this,
 			                                  weak_ptr<DataChannel>{channel});
 
-			std::unique_lock<std::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
+			std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
 			mDataChannels.emplace(stream, channel);
 		} else {
 			// Invalid, close the DataChannel
@@ -487,7 +487,7 @@ void PeerConnection::forwardMedia(message_ptr message) {
 		if (!ssrcs.empty()) {
 			for (uint32_t ssrc : ssrcs) {
 				if (auto mid = getMidFromSsrc(ssrc)) {
-					std::shared_lock<std::shared_mutex> lock(mTracksMutex); // read-only
+					boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 					auto it = mTracks.find(*mid);
 					if (it != mTracks.end())
 						if (auto track = it->second.lock())
@@ -500,7 +500,7 @@ void PeerConnection::forwardMedia(message_ptr message) {
 
 	uint32_t ssrc = uint32_t(message->stream);
 	if (auto mid = getMidFromSsrc(ssrc)) {
-		std::shared_lock<std::shared_mutex> lock(mTracksMutex); // read-only
+		boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 		auto it = mTracks.find(*mid); 
 		if (it != mTracks.end())
 			if (auto track = it->second.lock())
@@ -575,7 +575,7 @@ void PeerConnection::forwardBufferedAmount(uint16_t stream, size_t amount) {
 }
 
 shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataChannelInit init) {
-	std::unique_lock<std::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
+	std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
 	uint16_t stream;
 	if (init.id) {
 		stream = *init.id;
@@ -615,7 +615,7 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 }
 
 shared_ptr<DataChannel> PeerConnection::findDataChannel(uint16_t stream) {
-	std::shared_lock<std::shared_mutex> lock(mDataChannelsMutex); // read-only
+	boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex); // read-only
 	auto it = mDataChannels.find(stream);
 	if (it != mDataChannels.end())
 		if (auto channel = it->second.lock())
@@ -628,7 +628,7 @@ void PeerConnection::shiftDataChannels() {
 	auto iceTransport = std::atomic_load(&mIceTransport);
 	auto sctpTransport = std::atomic_load(&mSctpTransport);
 	if (!sctpTransport && iceTransport && iceTransport->role() == Description::Role::Active) {
-		std::unique_lock<std::shared_mutex> lock(mDataChannelsMutex); // we are going to swap the container
+		std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to swap the container
 		decltype(mDataChannels) newDataChannels;
 		auto it = mDataChannels.begin();
 		while (it != mDataChannels.end()) {
@@ -645,7 +645,7 @@ void PeerConnection::iterateDataChannels(
     std::function<void(shared_ptr<DataChannel> channel)> func) {
 	// Iterate
 	{
-		std::shared_lock<std::shared_mutex> lock(mDataChannelsMutex); // read-only
+		boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex); // read-only
 		auto it = mDataChannels.begin();
 		while (it != mDataChannels.end()) {
 			auto channel = it->second.lock();
@@ -658,7 +658,7 @@ void PeerConnection::iterateDataChannels(
 
 	// Cleanup
 	{
-		std::unique_lock<std::shared_mutex> lock(mDataChannelsMutex); // we are going to erase
+		std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to erase
 		auto it = mDataChannels.begin();
 		while (it != mDataChannels.end()) {
 			if (!it->second.lock()) {
@@ -702,7 +702,7 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 }
 
 void PeerConnection::incomingTrack(Description::Media description) {
-	std::unique_lock<std::shared_mutex> lock(mTracksMutex); // we are going to emplace
+	std::unique_lock<boost::shared_mutex> lock(mTracksMutex); // we are going to emplace
 #if !RTC_ENABLE_MEDIA
 	if (mTracks.empty()) {
 		PLOG_WARNING << "Tracks will be inative (not compiled with media support)";
@@ -720,7 +720,7 @@ void PeerConnection::openTracks() {
 #if RTC_ENABLE_MEDIA
 	if (auto transport = std::atomic_load(&mDtlsTransport)) {
 		auto srtpTransport = std::dynamic_pointer_cast<DtlsSrtpTransport>(transport);
-		std::shared_lock lock(mTracksMutex); // read-only
+		boost::shared_lock lock(mTracksMutex); // read-only
 		for (auto it = mTracks.begin(); it != mTracks.end(); ++it)
 			if (auto track = it->second.lock())
 				if (!track->isOpen())
@@ -779,7 +779,7 @@ void PeerConnection::processLocalDescription(Description description) {
 			boost::apply_visitor( // reciprocate each media
 			    rtc::make_visitor(
 			        [&](Description::Application *remoteApp) {
-				        std::shared_lock<std::shared_mutex> lock(mDataChannelsMutex);
+				        boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex);
 				        if (!mDataChannels.empty()) {
 					        // Prefer local description
 					        Description::Application app(remoteApp->mid());
@@ -803,7 +803,7 @@ void PeerConnection::processLocalDescription(Description description) {
 				        description.addMedia(std::move(reciprocated));
 			        },
 					[&](Description::Media *remoteMedia) {
-				        std::shared_lock<std::shared_mutex> lock(mTracksMutex);
+				        boost::shared_lock<boost::shared_mutex> lock(mTracksMutex);
 				        auto it = mTracks.find(remoteMedia->mid());
 				        if (it != mTracks.end()) {
 					        // Prefer local description
@@ -855,7 +855,7 @@ void PeerConnection::processLocalDescription(Description description) {
 		// This is an offer, add locally created data channels and tracks
 		// Add application for data channels
 		if (!description.hasApplication()) {
-			std::shared_lock<std::shared_mutex> lock(mDataChannelsMutex);
+			boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex);
 			if (!mDataChannels.empty()) {
 				unsigned int m = 0;
 				while (description.hasMid(std::to_string(m)))
@@ -872,7 +872,7 @@ void PeerConnection::processLocalDescription(Description description) {
 		}
 
 		// Add media for local tracks
-		std::shared_lock<std::shared_mutex> lock(mTracksMutex);
+		boost::shared_lock<boost::shared_mutex> lock(mTracksMutex);
 		for (auto it = mTrackLines.begin(); it != mTrackLines.end(); ++it) {
 			if (auto track = it->lock()) {
 				if (description.hasMid(track->mid()))

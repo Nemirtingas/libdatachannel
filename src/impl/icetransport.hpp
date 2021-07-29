@@ -80,7 +80,7 @@ private:
 	Description::Role mRole;
 	string mMid;
 	std::chrono::milliseconds mTrickleTimeout;
-	std::atomic<GatheringState> mGatheringState;
+	boost::atomic<GatheringState> mGatheringState;
 
 	candidate_callback mCandidateCallback;
 	gathering_state_callback mGatheringStateChangeCallback;

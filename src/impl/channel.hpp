@@ -22,7 +22,7 @@
 #include "common.hpp"
 #include "message.hpp"
 
-#include <atomic>
+#include <boost/atomic.hpp>
 #include <functional>
 
 namespace rtc{
@@ -51,12 +51,12 @@ struct Channel {
 
 	synchronized_callback<message_variant> messageCallback;
 
-	std::atomic<size_t> bufferedAmount;
-	std::atomic<size_t> bufferedAmountLowThreshold;
+	boost::atomic<size_t> bufferedAmount;
+	boost::atomic<size_t> bufferedAmountLowThreshold;
 
 	Channel();
 private:
-	std::atomic<bool> mOpenTriggered;
+	boost::atomic<bool> mOpenTriggered;
 };
 
 } // namespace impl

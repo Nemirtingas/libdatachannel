@@ -94,7 +94,7 @@ DataChannel::~DataChannel() { close(); }
 void DataChannel::close() {
 	shared_ptr<SctpTransport> transport;
 	{
-		std::shared_lock<std::shared_mutex> lock(mMutex);
+		boost::shared_lock<boost::shared_mutex> lock(mMutex);
 		transport = mSctpTransport.lock();
 	}
 
@@ -145,22 +145,22 @@ optional<message_variant> DataChannel::peek() {
 size_t DataChannel::availableAmount() const { return mRecvQueue.amount(); }
 
 uint16_t DataChannel::stream() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mStream;
 }
 
 string DataChannel::label() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mLabel;
 }
 
 string DataChannel::protocol() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mProtocol;
 }
 
 Reliability DataChannel::reliability() const {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return *mReliability;
 }
 
@@ -174,14 +174,14 @@ size_t DataChannel::maxMessageSize() const {
 }
 
 void DataChannel::shiftStream() {
-	std::shared_lock<std::shared_mutex> lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	if (mStream % 2 == 1)
 		mStream -= 1;
 }
 
 void DataChannel::open(shared_ptr<SctpTransport> transport) {
 	{
-		std::unique_lock<std::shared_mutex> lock(mMutex);
+		std::unique_lock<boost::shared_mutex> lock(mMutex);
 		mSctpTransport = transport;
 	}
 
@@ -197,7 +197,7 @@ void DataChannel::processOpenMessage(message_ptr) {
 bool DataChannel::outgoing(message_ptr message) {
 	shared_ptr<SctpTransport> transport;
 	{
-		std::shared_lock<std::shared_mutex> lock(mMutex);
+		boost::shared_lock<boost::shared_mutex> lock(mMutex);
 		transport = mSctpTransport.lock();
 
 		if (!transport || mIsClosed)
@@ -267,7 +267,7 @@ NegotiatedDataChannel::NegotiatedDataChannel(weak_ptr<PeerConnection> pc,
 NegotiatedDataChannel::~NegotiatedDataChannel() {}
 
 void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
-	std::unique_lock<std::shared_mutex> lock(mMutex);
+	std::unique_lock<boost::shared_mutex> lock(mMutex);
 	mSctpTransport = transport;
 
 	uint8_t channelType;
@@ -312,7 +312,7 @@ void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
 }
 
 void NegotiatedDataChannel::processOpenMessage(message_ptr message) {
-	std::unique_lock<std::shared_mutex> lock(mMutex);
+	std::unique_lock<boost::shared_mutex> lock(mMutex);
 	auto transport = mSctpTransport.lock();
 	if (!transport)
 		throw std::runtime_error("DataChannel has no transport");

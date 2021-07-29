@@ -61,19 +61,23 @@ struct invoke_result : detail::invoke_result<void, F, ArgTypes...> {};
 template <class F, class... ArgTypes>
 using invoke_result_t = typename invoke_result<F, ArgTypes...>::type;
 
+template <class F, class... Args>
+invoke_result_t<F, Args...>
+invoke(F &&f, Args &&... args) {
+		return std::forward<F>(f)(std::forward<Args>(args)...);
+}
+
 namespace detail {
 template <class F, class Tuple, std::size_t... I>
-constexpr decltype(auto) apply_impl(F &&f, Tuple &&t, std::index_sequence<I...>) {
-	// This implementation is valid since C++20 (via P1065R2)
-	// In C++17, a constexpr counterpart of std::invoke is actually needed here
-	return std::invoke(std::forward<F>(f), std::get<I>(std::forward<Tuple>(t))...);
+decltype(auto) apply_impl(F &&f, Tuple &&t, std::index_sequence<I...>) {
+	return invoke(std::forward<F>(f), std::get<I>(std::forward<Tuple>(t))...);
 }
 } // namespace detail
 
 template <class F, class Tuple> constexpr decltype(auto) apply(F &&f, Tuple &&t) {
 	return detail::apply_impl(
 	    std::forward<F>(f), std::forward<Tuple>(t),
-	    std::make_index_sequence<std::tuple_size_v<std::remove_reference_t<Tuple>>>{});
+	    std::make_index_sequence<std::tuple_size<std::remove_reference_t<Tuple>>::value>{});
 }
 
 // Scoped lock

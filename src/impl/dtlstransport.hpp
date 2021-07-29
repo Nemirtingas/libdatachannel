@@ -25,11 +25,11 @@
 #include "tls.hpp"
 #include "transport.hpp"
 
-#include <atomic>
+#include <boost/atomic.hpp>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <thread>
+#include <boost/thread.hpp>
 
 namespace rtc{
 namespace impl {
@@ -66,7 +66,7 @@ protected:
 
 	Queue<message_ptr> mIncomingQueue;
 	std::thread mRecvThread;
-	std::atomic<unsigned int> mCurrentDscp;
+	boost::atomic<unsigned int> mCurrentDscp;
 
 #if USE_GNUTLS
 	gnutls_session_t mSession;
