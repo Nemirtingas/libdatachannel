@@ -26,7 +26,7 @@
 #include "message.hpp"
 
 #include <atomic>
-#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 
 namespace rtc {
 

@@ -69,7 +69,7 @@ std::vector<shared_ptr<NalUnitFragmentA>> NalUnitFragmentA::fragmentsFrom(shared
 			fragmentType = FragmentType::End;
 		}
 		fragmentData = {payload.begin() + offset, payload.begin() + offset + maximumFragmentSize};
-		auto fragment = std::make_shared<NalUnitFragmentA>(fragmentType, f, nri, naluType, fragmentData);
+		auto fragment = boost::make_shared<NalUnitFragmentA>(fragmentType, f, nri, naluType, fragmentData);
 		result.push_back(fragment);
 		offset += maximumFragmentSize;
 	}

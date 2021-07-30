@@ -247,7 +247,7 @@ optional<string> PeerConnection::remoteAddress() const {
 
 shared_ptr<DataChannel> PeerConnection::createDataChannel(string label, DataChannelInit init) {
 	auto channelImpl = impl()->emplaceDataChannel(std::move(label), std::move(init));
-	auto channel = std::make_shared<DataChannel>(channelImpl);
+	auto channel = boost::make_shared<DataChannel>(channelImpl);
 
 	if (auto transport = impl()->getSctpTransport())
 		if (transport->state() == impl::SctpTransport::State::Connected)
@@ -270,9 +270,9 @@ void PeerConnection::onDataChannel(
 	impl()->flushPendingDataChannels();
 }
 
-std::shared_ptr<Track> PeerConnection::addTrack(Description::Media description) {
+boost::shared_ptr<Track> PeerConnection::addTrack(Description::Media description) {
 	auto trackImpl = impl()->emplaceTrack(std::move(description));
-	auto track = std::make_shared<Track>(trackImpl);
+	auto track = boost::make_shared<Track>(trackImpl);
 
 	// Renegotiation is needed for the new or updated track
 	impl()->negotiationNeeded = true;
@@ -280,7 +280,7 @@ std::shared_ptr<Track> PeerConnection::addTrack(Description::Media description) 
 	return track;
 }
 
-void PeerConnection::onTrack(std::function<void(std::shared_ptr<Track>)> callback) {
+void PeerConnection::onTrack(std::function<void(boost::shared_ptr<Track>)> callback) {
 	impl()->trackCallback = callback;
 	impl()->flushPendingTracks();
 }

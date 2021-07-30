@@ -46,6 +46,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <boost/smart_ptr.hpp>
 #include <mutex>
 #include <string>
 #include "byte.hpp"
@@ -59,15 +60,15 @@ namespace rtc {
 using nonstd::byte;
 using boost::none;
 using boost::optional;
-using std::shared_ptr;
+using boost::shared_ptr;
 using std::string;
 using boost::string_view;
 using std::unique_ptr;
 using boost::variant;
-using std::weak_ptr;
+using boost::weak_ptr;
 
 using binary = std::vector<byte>;
-using binary_ptr = std::shared_ptr<binary>;
+using binary_ptr = boost::shared_ptr<binary>;
 
 using std::ptrdiff_t;
 using std::size_t;

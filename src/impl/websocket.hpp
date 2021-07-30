@@ -38,7 +38,7 @@
 namespace rtc{
 namespace impl {
 
-struct WebSocket final : public Channel, public std::enable_shared_from_this<WebSocket> {
+struct WebSocket final : public Channel, public boost::enable_shared_from_this<WebSocket> {
 	using State = rtc::WebSocket::State;
 	using Configuration = rtc::WebSocket::Configuration;
 

@@ -83,7 +83,7 @@ DataChannel::DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string la
                          string protocol, Reliability reliability)
     : mPeerConnection(pc), mStream(stream), mLabel(std::move(label)),
       mProtocol(std::move(protocol)),
-      mReliability(std::make_shared<Reliability>(std::move(reliability))),
+      mReliability(boost::make_shared<Reliability>(std::move(reliability))),
       mRecvQueue(RECV_QUEUE_LIMIT, message_size_func),
       mIsOpen(false),
       mIsClosed(false)

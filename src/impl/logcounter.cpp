@@ -25,7 +25,7 @@ LogCounter::LogData::LogData() : mCount(0) {}
 
 LogCounter::LogCounter(plog::Severity severity, const std::string &text,
                        std::chrono::seconds duration) {
-	mData = std::make_shared<LogData>();
+	mData = boost::make_shared<LogData>();
 	mData->mDuration = duration;
 	mData->mSeverity = severity;
 	mData->mText = text;

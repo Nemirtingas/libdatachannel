@@ -28,14 +28,14 @@
 #include "sctptransport.hpp"
 
 #include <atomic>
-#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 
 namespace rtc{
 namespace impl {
 
 struct PeerConnection;
 
-struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
+struct DataChannel : Channel, boost::enable_shared_from_this<DataChannel> {
 	DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label, string protocol,
 	            Reliability reliability);
 	virtual ~DataChannel();

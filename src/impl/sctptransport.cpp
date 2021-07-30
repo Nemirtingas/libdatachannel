@@ -25,7 +25,7 @@
 #include <exception>
 #include <iostream>
 #include <limits>
-#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 #include <thread>
 #include <unordered_set>
 #include <vector>

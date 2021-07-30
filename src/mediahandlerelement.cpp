@@ -27,12 +27,12 @@
 namespace rtc {
 
 ChainedMessagesProduct make_chained_messages_product() {
-	return std::make_shared<std::vector<binary_ptr>>();
+	return boost::make_shared<std::vector<binary_ptr>>();
 }
 
 ChainedMessagesProduct make_chained_messages_product(message_ptr msg) {
 	std::vector<binary_ptr> msgs = {msg};
-	return std::make_shared<std::vector<binary_ptr>>(msgs);
+	return boost::make_shared<std::vector<binary_ptr>>(msgs);
 }
 
 ChainedOutgoingProduct::ChainedOutgoingProduct(ChainedMessagesProduct messages, message_ptr control)

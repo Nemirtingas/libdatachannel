@@ -29,14 +29,14 @@
 #include "rtc/peerconnection.hpp"
 
 #include <mutex>
-#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 #include <unordered_map>
 #include <vector>
 
 namespace rtc {
 namespace impl {
 
-struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
+struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	using State = rtc::PeerConnection::State;
 	using GatheringState = rtc::PeerConnection::GatheringState;
 	using SignalingState = rtc::PeerConnection::SignalingState;

@@ -27,9 +27,9 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 #include <type_traits>
-#include <shared_mutex>
+#include <boost/thread/shared_mutex.hpp>
 
 namespace rtc {
 

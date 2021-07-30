@@ -37,7 +37,7 @@ namespace impl {
 
 struct PeerConnection;
 
-class Track final : public std::enable_shared_from_this<Track>, public Channel {
+class Track final : public boost::enable_shared_from_this<Track>, public Channel {
 public:
 	Track(weak_ptr<PeerConnection> pc, Description::Media description);
 	~Track() = default;

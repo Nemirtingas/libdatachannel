@@ -94,10 +94,10 @@ public:
 	void addRemoteCandidate(Candidate candidate);
 
 	shared_ptr<DataChannel> createDataChannel(string label, DataChannelInit init = {});
-	void onDataChannel(std::function<void(std::shared_ptr<DataChannel> dataChannel)> callback);
+	void onDataChannel(std::function<void(boost::shared_ptr<DataChannel> dataChannel)> callback);
 
 	shared_ptr<Track> addTrack(Description::Media description);
-	void onTrack(std::function<void(std::shared_ptr<Track> track)> callback);
+	void onTrack(std::function<void(boost::shared_ptr<Track> track)> callback);
 
 	void onLocalDescription(std::function<void(Description description)> callback);
 	void onLocalCandidate(std::function<void(Candidate candidate)> callback);
