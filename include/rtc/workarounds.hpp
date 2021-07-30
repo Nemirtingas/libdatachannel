@@ -70,7 +70,7 @@ invoke(F &&f, Args &&... args) {
 namespace detail {
 template <class F, class Tuple, std::size_t... I>
 decltype(auto) apply_impl(F &&f, Tuple &&t, std::index_sequence<I...>) {
-	return invoke(std::forward<F>(f), std::get<I>(std::forward<Tuple>(t))...);
+	return workarounds::invoke(std::forward<F>(f), std::get<I>(std::forward<Tuple>(t))...);
 }
 } // namespace detail
 
