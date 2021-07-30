@@ -21,6 +21,7 @@
 
 #include <functional>
 #include <memory>
+#include <boost/smart_ptr.hpp>
 #include <mutex>
 #include <boost/optional.hpp>
 #include "workarounds.hpp"
