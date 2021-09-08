@@ -167,7 +167,7 @@ bool Track::transportSend(message_ptr message) {
 			throw std::runtime_error("Track is closed");
 
 		// Set recommended medium-priority DSCP value
-		// See https://tools.ietf.org/html/draft-ietf-tsvwg-rtcweb-qos-18
+		// See https://datatracker.ietf.org/doc/html/rfc8837#section-5
 		if (mMediaDescription.type() == "audio")
 			message->dscp = 46; // EF: Expedited Forwarding
 		else

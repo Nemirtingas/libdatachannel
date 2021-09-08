@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.7)
 project(libdatachannel
-	VERSION 0.14.0
+	VERSION 0.14.3
 	LANGUAGES CXX)
-set(PROJECT_DESCRIPTION "WebRTC Data Channels Library")
+set(PROJECT_DESCRIPTION "C/C++ WebRTC network library featuring Data Channels, Media Transport, and WebSockets")
 
 # Options
 option(USE_GNUTLS "Use GnuTLS instead of OpenSSL" OFF)
@@ -86,6 +86,7 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtp.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/track.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/websocket.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/websocketserver.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizationconfig.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtcpsrreporter.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizer.hpp

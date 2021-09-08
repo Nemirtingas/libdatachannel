@@ -71,6 +71,7 @@ int rtcCreatePeerConnection(const rtcConfiguration *config)
 typedef struct {
 	const char **iceServers;
 	int iceServersCount;
+	const char *bindAddress;
 	rtcCertificateType certificateType;
 	rtcTransportPolicy iceTransportPolicy;
 	bool enableIceTcp;
@@ -78,6 +79,7 @@ typedef struct {
 	uint16_t portRangeBegin;
 	uint16_t portRangeEnd;
 	int mtu;
+	int maxMessageSize;
 } rtcConfiguration;
 ```
 
