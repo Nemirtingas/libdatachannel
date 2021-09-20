@@ -21,8 +21,8 @@
 #include "certificate.hpp"
 #include "common.hpp"
 #include "dtlstransport.hpp"
-#include "internals.hpp"
 #include "icetransport.hpp"
+#include "internals.hpp"
 #include "logcounter.hpp"
 #include "peerconnection.hpp"
 #include "processor.hpp"
@@ -891,12 +891,20 @@ void PeerConnection::processLocalDescription(Description description) {
 				description.addMedia(std::move(media));
 			}
 		}
+
+		// There might be no media at this point if the user created a Track, deleted it,
+		// then called setLocalDescription().
+		if (description.mediaCount() == 0)
+			throw std::runtime_error("No DataChannel or Track to negotiate");
 	}
 
 	// Set local fingerprint (wait for certificate if necessary)
 	description.setFingerprint(mCertificate.get()->fingerprint());
 
 	PLOG_VERBOSE << "Issuing local description: " << description;
+
+	if (description.mediaCount() == 0)
+		throw std::logic_error("Local description has no media line");
 
 	{
 		// Set as local description
@@ -925,7 +933,8 @@ void PeerConnection::processLocalCandidate(Candidate candidate) {
 	if (!mLocalDescription)
 		throw std::logic_error("Got a local candidate without local description");
 
-	if(config.iceTransportPolicy == TransportPolicy::Relay && candidate.type() != Candidate::Type::Relayed) {
+	if (config.iceTransportPolicy == TransportPolicy::Relay &&
+	    candidate.type() != Candidate::Type::Relayed) {
 		PLOG_VERBOSE << "Not issuing local candidate because of transport policy: " << candidate;
 		return;
 	}
