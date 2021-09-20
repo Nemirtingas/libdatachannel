@@ -27,7 +27,6 @@
 #include <type_traits>
 
 namespace rtc {
-
 namespace impl {
 
 struct DataChannel;

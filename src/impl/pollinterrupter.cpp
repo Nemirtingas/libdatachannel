@@ -26,7 +26,8 @@
 #include <unistd.h>
 #endif
 
-namespace rtc::impl {
+namespace rtc{
+namespace impl {
 
 PollInterrupter::PollInterrupter() {
 #ifndef _WIN32
@@ -41,7 +42,7 @@ PollInterrupter::PollInterrupter() {
 }
 
 PollInterrupter::~PollInterrupter() {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 #ifdef _WIN32
 	if (mDummySock != INVALID_SOCKET)
 		::closesocket(mDummySock);
@@ -52,7 +53,7 @@ PollInterrupter::~PollInterrupter() {
 }
 
 void PollInterrupter::prepare(struct pollfd &pfd) {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 #ifdef _WIN32
 	if (mDummySock == INVALID_SOCKET)
 		mDummySock = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -69,7 +70,7 @@ void PollInterrupter::prepare(struct pollfd &pfd) {
 }
 
 void PollInterrupter::interrupt() {
-	std::lock_guard lock(mMutex);
+	std::lock_guard<std::mutex> lock(mMutex);
 #ifdef _WIN32
 	if (mDummySock != INVALID_SOCKET) {
 		::closesocket(mDummySock);
@@ -83,6 +84,7 @@ void PollInterrupter::interrupt() {
 #endif
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

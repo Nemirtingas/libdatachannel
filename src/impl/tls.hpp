@@ -29,7 +29,8 @@
 #include <gnutls/dtls.h>
 #include <gnutls/x509.h>
 
-namespace rtc::gnutls {
+namespace rtc {
+namespace gnutls {
 
 bool check(int ret, const string &message = "GnuTLS error");
 
@@ -44,7 +45,8 @@ void free_privkey(gnutls_x509_privkey_t *privkey);
 
 gnutls_datum_t make_datum(char *data, size_t size);
 
-} // namespace rtc::gnutls
+} // namespace gnutls
+} // namespace rtc
 
 #else // USE_GNUTLS==0
 
