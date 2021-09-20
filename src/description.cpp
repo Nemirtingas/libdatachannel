@@ -1015,7 +1015,7 @@ string Description::typeToString(Type type) {
 } // namespace rtc
 
 std::ostream &operator<<(std::ostream &out, const rtc::Description &description) {
-	return out << string(description);
+	return out << std::string(description);
 }
 
 std::ostream &operator<<(std::ostream &out, rtc::Description::Type type) {

@@ -65,4 +65,3 @@ binary Sha1(const string &input) {
 } // namespace rtc
 
 #endif
-

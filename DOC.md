@@ -1,4 +1,4 @@
-# libdatachannel - C API Documentation
+## libdatachannel - C API Documentation
 
 The following details the C API of libdatachannel. The C API is available by including the `rtc/rtc.h` header.
 
@@ -7,6 +7,7 @@ The following details the C API of libdatachannel. The C API is available by inc
 Unless stated otherwise, functions return `RTC_ERR_SUCCESS`, defined as `0`, on success.
 
 All functions can return the following negative error codes:
+
 - `RTC_ERR_INVALID`: an invalid argument was provided
 - `RTC_ERR_FAILURE`: a runtime error happened
 - `RTC_ERR_NOT_AVAIL`: an element is not available at the moment
@@ -23,6 +24,7 @@ void rtcInitLogger(rtcLogLevel level, rtcLogCallbackFunc cb)
 ```
 
 Arguments:
+
 - `level`: the log level. It must be one of the following: `RTC_LOG_NONE`, `RTC_LOG_FATAL`, `RTC_LOG_ERROR`, `RTC_LOG_WARNING`, `RTC_LOG_INFO`, `RTC_LOG_DEBUG`, `RTC_LOG_VERBOSE`.
 - `cb` (optional): the callback to pass the log lines to. If the callback is already set, it is replaced. If NULL after a callback is set, the callback is unset. If NULL on first call, the library will log to stdout instead.
 
@@ -30,6 +32,7 @@ Arguments:
 `void myLogCallback(rtcLogLevel level, const char *message)`
 
 Arguments:
+
 - `level`: the log level for the current message. It will be one of the following: `RTC_LOG_FATAL`, `RTC_LOG_ERROR`, `RTC_LOG_WARNING`, `RTC_LOG_INFO`, `RTC_LOG_DEBUG`, `RTC_LOG_VERBOSE`.
 - `message`: a null-terminated string containing the log message
 
@@ -58,6 +61,7 @@ void rtcSetUserPointer(int id, void *user_ptr)
 Sets a opaque user pointer for a Peer Connection, Data Channel, Track, or WebSocket. The user pointer will be passed as last argument in each corresponding callback. It will never be accessed in any way. The initial user pointer of a Peer Connection or WebSocket is `NULL`, and the initial one of a Data Channel or Track is the one of the Peer Connection at the time of creation.
 
 Arguments:
+
 - `id`: the identifier of Peer Connection, Data Channel, Track, or WebSocket
 - `user_ptr`: an opaque pointer whose meaning is up to the user
 
@@ -86,6 +90,7 @@ typedef struct {
 Creates a Peer Connection.
 
 Arguments:
+
 - `config`: the configuration structure, containing:
   - `iceServers` (optional): an array of pointers on null-terminated ice server URIs (NULL if unused)
   - `iceServersCount` (optional): number of URLs in the array pointed by `iceServers` (0 if unused)
@@ -114,6 +119,7 @@ int rtcDeletePeerConnection(int pc)
 Deletes the specified Peer Connection.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 
 Return value: `RTC_ERR_SUCCESS` or a negative error code
@@ -173,6 +179,7 @@ int rtcSetLocalDescription(int pc, const char *type)
 Initiates the handshake process. Following this call, the local description callback will be called with the local description, which must be sent to the remote peer by the user's method of choice. Note this call is implicit after `rtcSetRemoteDescription` and `rtcCreateDataChannel` if `disableAutoNegotiation` was not set on Peer Connection creation.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `type` (optional): type of the description ("offer", "answer", "pranswer", or "rollback") or NULL for autodetection.
 
@@ -185,6 +192,7 @@ int rtcSetRemoteDescription(int pc, const char *sdp, const char *type)
 Sets the remote description received from the remote peer by the user's method of choice. The remote description may have candidates or not.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `type` (optional): type of the description ("offer", "answer", "pranswer", or "rollback") or NULL for autodetection.
 
@@ -199,6 +207,7 @@ int rtcAddRemoteCandidate(int pc, const char *cand, const char *mid)
 Adds a trickled remote candidate received from the remote peer by the user's method of choice.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `cand`: a null-terminated SDP string representing the candidate (with or without the `"a="` prefix)
 - `mid` (optional): a null-terminated string representing the mid of the candidate in the remote SDP description or NULL for autodetection
@@ -216,6 +225,7 @@ int rtcGetLocalDescription(int pc, char *buffer, int size)
 Retrieves the current local description in SDP format.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `buffer`: a user-supplied buffer to store the description
 - `size`: the size of `buffer`
@@ -233,6 +243,7 @@ int rtcGetRemoteDescription(int pc, char *buffer, int size)
 Retrieves the current remote description in SDP format.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `buffer`: a user-supplied buffer to store the description
 - `size`: the size of `buffer`
@@ -250,6 +261,7 @@ int rtcGetLocalDescriptionType(int pc, char *buffer, int size)
 Retrieves the current local description type as string.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `buffer`: a user-supplied buffer to store the type
 - `size`: the size of `buffer`
@@ -267,6 +279,7 @@ int rtcGetRemoteDescriptionType(int pc, char *buffer, int size)
 Retrieves the current remote description type as string.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `buffer`: a user-supplied buffer to store the type
 - `size`: the size of `buffer`
@@ -285,6 +298,7 @@ int rtcGetLocalAddress(int pc, char *buffer, int size)
 Retrieves the current local address, i.e. the network address of the currently selected local candidate. The address will have the format `"IP_ADDRESS:PORT"`, where `IP_ADDRESS` may be either IPv4 or IPv6. The call might fail if the PeerConnection is not in state `RTC_CONNECTED`, and the address might change if the state is not `RTC_COMPLETED`.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `buffer`: a user-supplied buffer to store the address
 - `size`: the size of `buffer`
@@ -302,6 +316,7 @@ int rtcGetRemoteAddress(int pc, char *buffer, int size)
 Retrieves the current remote address, i.e. the network address of the currently selected remote candidate. The address will have the format `"IP_ADDRESS:PORT"`, where `IP_ADDRESS` may be either IPv4 or IPv6. The call may fail if the state is not `RTC_CONNECTED`, and the address might change if the state is not `RTC_COMPLETED`.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `buffer`: a user-supplied buffer to store the address
 - `size`: the size of `buffer`
@@ -319,6 +334,7 @@ int rtcGetSelectedCandidatePair(int pc, char *local, int localSize, char *remote
 Retrieve the currently selected candidate pair. The call may fail if the state is not `RTC_CONNECTED`, and the selected candidate pair might change if the state is not `RTC_COMPLETED`.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `local`: a user-supplied buffer to store the local candidate
 - `localSize`: the size of `local`
@@ -335,7 +351,7 @@ The following common functions might be called with a generic channel identifier
 
 #### rtcSetXCallback
 
-These functions set, change, or unset (if `cb` is `NULL`) the different callbacks of a channel.
+These functions set, change, or unset (if `cb` is `NULL`) the different callbacks of a channel identified by the argument `id`.
 
 ```
 int rtcSetOpenCallback(int id, rtcOpenCallbackFunc cb)
@@ -343,11 +359,15 @@ int rtcSetOpenCallback(int id, rtcOpenCallbackFunc cb)
 
 `cb` must have the following signature: `void myOpenCallback(int id, void *user_ptr)`
 
+It is called when the channel was previously connecting and is now open.
+
 ```
 int rtcSetClosedCallback(int id, rtcClosedCallbackFunc cb)
 ```
 
 `cb` must have the following signature: `void myClosedCallback(int id, void *user_ptr)`
+
+It is called when the channel was previously open and is now closed.
 
 ```
 int rtcSetErrorCallback(int id, rtcErrorCallbackFunc cb)
@@ -355,11 +375,15 @@ int rtcSetErrorCallback(int id, rtcErrorCallbackFunc cb)
 
 `cb` must have the following signature: `void myErrorCallback(int id, const char *error, void *user_ptr)`
 
+It is called when the channel experience an error, either while connecting or open.
+
 ```
 int rtcSetMessageCallback(int id, rtcMessageCallbackFunc cb)
 ```
 
 `cb` must have the following signature: `void myMessageCallback(int id, const char *message, int size, void *user_ptr)`
+
+It is called when the channel receives a message. While it is set, messages can't be received with `rtcReceiveMessage`.
 
 ```
 int rtcSetBufferedAmountLowCallback(int id, rtcBufferedAmountLowCallbackFunc cb)
@@ -367,11 +391,27 @@ int rtcSetBufferedAmountLowCallback(int id, rtcBufferedAmountLowCallbackFunc cb)
 
 `cb` must have the following signature: `void myBufferedAmountLowCallback(int id, void *user_ptr)`
 
+It is called when the buffered amount was strictly higher than the threshold (see `rtcSetBufferedAmountLowThreshold`) and is now lower or equal than the threshold.
+
 ```
 int rtcSetAvailableCallback(int id, rtcAvailableCallbackFunc cb)
 ```
 
 `cb` must have the following signature: `void myAvailableCallback(int id, void *user_ptr)`
+
+It is called when messages are now available to be received with `rtcReceiveMessage`.
+
+#### rtcIsOpen
+
+```
+bool rtcIsOpen(int id)
+```
+
+Arguments:
+
+- `id`: the channel identifier
+
+Return value: `true` if the channel exists and is open, `false` otherwise
 
 #### rtcSendMessage
 
@@ -379,14 +419,17 @@ int rtcSetAvailableCallback(int id, rtcAvailableCallbackFunc cb)
 int rtcSendMessage(int id, const char *data, int size)
 ```
 
+Sends a message in the channel.
+
 Arguments:
+
 - `id`: the channel identifier
 - `data`: the message data
 - `size`: if size >= 0, `data` is interpreted as a binary message of length `size`, otherwise it is interpreted as a null-terminated UTF-8 string.
 
 Return value: `RTC_ERR_SUCCESS` or a negative error code
 
-Sends a message immediately if possible.
+The message is sent immediately if possible, otherwise it is buffered to be sent later.
 
 Data Channel and WebSocket: If the message may not be sent immediately due to flow control or congestion control, it is buffered until it can actually be sent. You can retrieve the current buffered data size with `rtcGetBufferedAmount`.
 Tracks are an exception: There is no flow or congestion control, messages are never buffered and `rtcGetBufferedAmount` always returns 0.
@@ -399,6 +442,10 @@ int rtcGetBufferedAmount(int id)
 
 Retrieves the current buffered amount, i.e. the total size of currently buffered messages waiting to be actually sent in the channel. This does not account for the data buffered at the transport level.
 
+Arguments:
+
+- `id`: the channel identifier
+
 Return value: the buffered amount or a negative error code
 
 #### rtcGetBufferedAmountLowThreshold
@@ -410,6 +457,7 @@ int rtcSetBufferedAmountLowThreshold(int id, int amount)
 Changes the buffered amount threshold under which `BufferedAmountLowCallback` is called. The callback is called when the buffered amount was strictly superior and gets equal to or lower than the threshold when a message is sent. The initial threshold is 0, meaning the the callback is called each time the buffered amount goes back to zero after being non-zero.
 
 Arguments:
+
 - `id`: the channel identifier
 - `amount`: the new buffer level threshold
 
@@ -424,6 +472,7 @@ int rtcReceiveMessage(int id, char *buffer, int *size)
 Receives a pending message if possible. The function may only be called if `MessageCallback` is not set.
 
 Arguments:
+
 - `id`: the channel identifier
 - `buffer`: a user-supplied buffer where to write the message data
 - `size`: a pointer to a user-supplied int which must be initialized to the size of `buffer`. On success, the function will write the size of the message to it before returning.
@@ -441,6 +490,7 @@ int rtcGetAvailableAmount(int id)
 Retrieves the available amount, i.e. the total size of messages pending reception with `rtcReceiveMessage`. The function may only be called if `MessageCallback` is not set.
 
 Arguments:
+
 - `id`: the channel identifier
 
 Return value: the available amount or a negative error code
@@ -472,6 +522,7 @@ typedef struct {
 Adds a Data Channel on a Peer Connection. The Peer Connection does not need to be connected, however, the Data Channel will be open only when the Peer Connection is connected.
 
 Arguments:
+
 - `pc`: identifier of the PeerConnection on which to add a Data Channel
 - `label`: a user-defined UTF-8 string representing the Data Channel name
 - `init`: a structure of initialization settings containing:
@@ -502,6 +553,7 @@ int rtcDeleteDataChannel(int dc)
 Deletes a Data Channel.
 
 Arguments:
+
 - `dc`: the Data Channel identifier
 
 After this function has been called, `dc` must not be used in a function call anymore. This function will block until all scheduled callbacks of `dc` return (except the one this function might be called in) and no other callback will be called for `dc` after it returns.
@@ -515,6 +567,7 @@ int rtcGetDataChannelStream(int dc)
 Retrieves the stream ID of the Data Channel.
 
 Arguments:
+
 - `dc`: the Data Channel identifier
 
 Return value: the stream ID (0-65534) or a negative error code
@@ -528,6 +581,7 @@ int rtcGetDataChannelLabel(int dc, char *buffer, int size)
 Retrieves the label of a Data Channel.
 
 Arguments:
+
 - `dc`: the Data Channel identifier
 - `buffer`: a user-supplied buffer to store the label
 - `size`: the size of `buffer`
@@ -545,6 +599,7 @@ int rtcGetDataChannelProtocol(int dc, char *buffer, int size)
 Retrieves the protocol of a Data Channel.
 
 Arguments:
+
 - `dc`: the Data Channel identifier
 - `buffer`: a user-supplied buffer to store the protocol
 - `size`: the size of `buffer`
@@ -562,6 +617,7 @@ int rtcGetDataChannelReliability(int dc, rtcReliability *reliability)
 Retrieves the reliability settings of a Data Channel. The function may be called irrelevant of how the Data Channel was created.
 
 Arguments:
+
 - `dc`: the Data Channel identifier
 - `reliability` a user-supplied structure to fill
 
@@ -578,6 +634,7 @@ int rtcAddTrack(int pc, const char *mediaDescriptionSdp)
 Adds a new Track on a Peer Connection. The Peer Connection does not need to be connected, however, the Track will be open only when the Peer Connection is connected.
 
 Arguments:
+
 - `pc`: the Peer Connection identifier
 - `mediaDescriptionSdp`: a null-terminated string specifying the corresponding media SDP. It must start with a m-line and include a mid parameter.
 
@@ -596,6 +653,7 @@ int rtcDeleteTrack(int tr)
 Deletes a Track.
 
 Arguments:
+
 - `tr`: the Track identifier
 
 After this function has been called, `tr` must not be used in a function call anymore. This function will block until all scheduled callbacks of `tr` return (except the one this function might be called in) and no other callback will be called for `tr` after it returns.
@@ -609,6 +667,7 @@ int rtcGetTrackDescription(int tr, char *buffer, int size)
 Retrieves the SDP media description of a Track.
 
 Arguments:
+
 - `dc`: the Track identifier
 - `buffer`: a user-supplied buffer to store the description
 - `size`: the size of `buffer`
@@ -637,6 +696,7 @@ typedef struct {
 Creates a new client WebSocket.
 
 Arguments:
+
 - `url`: a null-terminated string representing the fully-qualified URL to open.
 - `config`: a structure with the following parameters:
   - `bool disableTlsVerification`: if true, don't verify the TLS certificate, else try to verify it if possible
@@ -652,6 +712,7 @@ int rtcDeleteWebSocket(int ws)
 ```
 
 Arguments:
+
 - `ws`: the identifier of the WebSocket to delete
 
 After this function has been called, `ws` must not be used in a function call anymore. This function will block until all scheduled callbacks of `ws` return (except the one this function might be called in) and no other callback will be called for `ws` after it returns.
@@ -665,6 +726,7 @@ int rtcGetWebSocketRemoteAddress(int ws, char *buffer, int size)
 Retrieves the remote address, i.e. the network address of the remote endpoint. The address will have the format `"HOST:PORT"`. The call may fail if the underlying TCP transport of the WebSocket is not connected. This function is useful for a client WebSocket received by a WebSocket Server.
 
 Arguments:
+
 - `ws`: the identifier of the WebSocket
 - `buffer`: a user-supplied buffer to store the description
 - `size`: the size of `buffer`
@@ -682,6 +744,7 @@ int rtcGetWebSocketPath(int ws, char *buffer, int size)
 Retrieves the path of the WebSocket, i.e. the HTTP requested path. This function is useful for a client WebSocket received by a WebSocket Server. Warning: The WebSocket must be open for the call to succeed.
 
 Arguments:
+
 - `ws`: the identifier of the WebSocket
 - `buffer`: a user-supplied buffer to store the description
 - `size`: the size of `buffer`
@@ -710,6 +773,7 @@ typedef struct {
 Creates a new WebSocket server.
 
 Arguments:
+
 - `config`: a structure with the following parameters:
   - `uint16_t port`: the port to listen on (if 0, automatically select an available port)
   - `bool enableTls`: if true, enable the TLS layer (WSS)
@@ -731,6 +795,7 @@ int rtcDeleteWebSocketServer(int wsserver)
 ```
 
 Arguments:
+
 - `wsserver`: the identifier of the WebSocket Server to delete
 
 After this function has been called, `wsserver` must not be used in a function call anymore. This function will block until all scheduled callbacks of `wsserver` return (except the one this function might be called in) and no other callback will be called for `wsserver` after it returns.
@@ -743,6 +808,7 @@ int rtcGetWebSocketServerPort(int wsserver);
 Retrieves the port which the WebSocket Server is listening on.
 
 Arguments:
+
 - `wsserver`: the identifier of the WebSocket Server
 
 Return value: The port of the WebSocket Server or a negative error code

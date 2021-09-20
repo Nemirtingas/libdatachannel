@@ -24,15 +24,9 @@
 #include "message.hpp"
 #include "reliability.hpp"
 
-#include <atomic>
-#include <chrono>
-#include <functional>
-#include <boost/thread/shared_mutex.hpp>
 #include <type_traits>
-#include <boost/thread/shared_mutex.hpp>
 
 namespace rtc {
-
 namespace impl {
 
 struct DataChannel;

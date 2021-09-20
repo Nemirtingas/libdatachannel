@@ -20,6 +20,7 @@
 #define RTC_IMPL_TCP_SERVER_H
 
 #include "common.hpp"
+#include "pollinterrupter.hpp"
 #include "queue.hpp"
 #include "socket.hpp"
 #include "tcptransport.hpp"
@@ -45,7 +46,7 @@ private:
 	uint16_t mPort;
 	socket_t mSock = INVALID_SOCKET;
 	std::mutex mSockMutex;
-	SelectInterrupter mInterrupter;
+	PollInterrupter mInterrupter;
 };
 
 } // namespace impl

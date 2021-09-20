@@ -25,9 +25,6 @@
 #include "mediahandler.hpp"
 #include "message.hpp"
 
-#include <atomic>
-#include <boost/thread/shared_mutex.hpp>
-
 namespace rtc {
 
 namespace impl {
