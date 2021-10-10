@@ -173,7 +173,7 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 
 		boost::atomic_store(&mIceTransport, transport);
 		if (state.load() == State::Closed) {
-			mIceTransport.reset();
+			std::atomic_store(&mIceTransport, decltype(mIceTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -253,7 +253,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 		boost::atomic_store(&mDtlsTransport, transport);
 		if (state.load() == State::Closed) {
-			mDtlsTransport.reset();
+			std::atomic_store(&mDtlsTransport, decltype(mDtlsTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -315,7 +315,7 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 
 		boost::atomic_store(&mSctpTransport, transport);
 		if (state.load() == State::Closed) {
-			mSctpTransport.reset();
+			std::atomic_store(&mSctpTransport, decltype(mSctpTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();

@@ -218,7 +218,7 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 
 		boost::atomic_store(&mTcpTransport, transport);
 		if (state == WebSocket::State::Closed) {
-			mTcpTransport.reset();
+			std::atomic_store(&mTcpTransport, decltype(mTcpTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -281,7 +281,7 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 
 		boost::atomic_store(&mTlsTransport, transport);
 		if (state == WebSocket::State::Closed) {
-			mTlsTransport.reset();
+			std::atomic_store(&mTlsTransport, decltype(mTlsTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -349,7 +349,7 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 
 		boost::atomic_store(&mWsTransport, transport);
 		if (state == WebSocket::State::Closed) {
-			mWsTransport.reset();
+			std::atomic_store(&mWsTransport, decltype(mWsTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
