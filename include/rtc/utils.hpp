@@ -49,7 +49,8 @@ template <class... Fs> auto make_visitor(Fs... fs) { return overload<Fs...>(std:
 
 // weak_ptr bind helper
 template <typename F, typename T, typename... Args> auto weak_bind(F &&f, T *t, Args &&..._args) {
-	return [bound = std::bind(f, t, _args...), weak_this = t->weak_from_this()](auto &&...args) {
+	return [bound = std::bind(f, t, _args...),
+	        weak_this = workarounds::weak_from_this(*t)](auto &&... args) {
 		if (auto shared_this = weak_this.lock())
 			return bound(args...);
 		else
