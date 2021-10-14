@@ -81,7 +81,7 @@ NalUnitStartSequenceMatch StartSequenceMatchSucc(NalUnitStartSequenceMatch match
 }
 
 shared_ptr<NalUnits> H264RtpPacketizer::splitMessage(binary_ptr message) {
-	auto nalus = boost::make_shared<NalUnits>();
+	auto nalus = std::make_shared<NalUnits>();
 	if (separator == Separator::Length) {
 		unsigned long long index = 0;
 		while (index < message->size()) {
@@ -102,7 +102,7 @@ shared_ptr<NalUnits> H264RtpPacketizer::splitMessage(binary_ptr message) {
 			}
 			auto begin = message->begin() + naluStartIndex;
 			auto end = message->begin() + naluEndIndex;
-			nalus->push_back(boost::make_shared<NalUnit>(begin, end));
+			nalus->push_back(std::make_shared<NalUnit>(begin, end));
 			index = naluEndIndex;
 		}
 	} else {
@@ -126,14 +126,14 @@ shared_ptr<NalUnits> H264RtpPacketizer::splitMessage(binary_ptr message) {
 				match = NUSM_noMatch;
 				auto begin = message->begin() + naluStartIndex;
 				auto end = message->begin() + naluEndIndex + 1;
-				nalus->push_back(boost::make_shared<NalUnit>(begin, end));
+				nalus->push_back(std::make_shared<NalUnit>(begin, end));
 				naluStartIndex = index + 1;
 			}
 			index++;
 		}
 		auto begin = message->begin() + naluStartIndex;
 		auto end = message->end();
-		nalus->push_back(boost::make_shared<NalUnit>(begin, end));
+		nalus->push_back(std::make_shared<NalUnit>(begin, end));
 	}
 	return nalus;
 }
@@ -152,7 +152,7 @@ H264RtpPacketizer::H264RtpPacketizer(H264RtpPacketizer::Separator separator,
 ChainedOutgoingProduct
 H264RtpPacketizer::processOutgoingBinaryMessage(ChainedMessagesProduct messages,
                                                 message_ptr control) {
-	ChainedMessagesProduct packets = boost::make_shared<std::vector<binary_ptr>>();
+	ChainedMessagesProduct packets = std::make_shared<std::vector<binary_ptr>>();
 	for (auto message : *messages) {
 		auto nalus = splitMessage(message);
 		auto fragments = nalus->generateFragments(maximumFragmentSize);

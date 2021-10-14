@@ -70,7 +70,7 @@ NalUnitFragmentA::fragmentsFrom(shared_ptr<NalUnit> nalu, uint16_t maximumFragme
 		}
 		fragmentData = {payload.begin() + offset, payload.begin() + offset + maximumFragmentSize};
 		auto fragment =
-            boost::make_shared<NalUnitFragmentA>(fragmentType, f, nri, naluType, fragmentData);
+            std::make_shared<NalUnitFragmentA>(fragmentType, f, nri, naluType, fragmentData);
 		result.push_back(fragment);
 		offset += maximumFragmentSize;
 	}

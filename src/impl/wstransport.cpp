@@ -56,7 +56,7 @@ using random_bytes_engine =
 WsTransport::WsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<TlsTransport>> lower,
                          shared_ptr<WsHandshake> handshake, message_callback recvCallback,
                          state_callback stateCallback)
-    : Transport(boost::apply_visitor([](auto l) { return boost::static_pointer_cast<Transport>(l); },
+    : Transport(boost::apply_visitor([](auto l) { return std::static_pointer_cast<Transport>(l); },
                                      lower),
                 std::move(stateCallback)),
       mHandshake(std::move(handshake)),

@@ -35,7 +35,7 @@ namespace impl {
 
 struct PeerConnection;
 
-struct DataChannel : Channel, boost::enable_shared_from_this<DataChannel> {
+struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
 	DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label, string protocol,
 	            Reliability reliability);
 	virtual ~DataChannel();
@@ -76,8 +76,8 @@ protected:
 
 	Queue<message_ptr> mRecvQueue;
 
-	boost::atomic<bool> mIsOpen;
-	boost::atomic<bool> mIsClosed;
+	std::atomic<bool> mIsOpen;
+	std::atomic<bool> mIsClosed;
 };
 
 struct NegotiatedDataChannel final : public DataChannel {

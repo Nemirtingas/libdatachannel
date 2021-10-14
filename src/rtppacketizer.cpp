@@ -27,7 +27,7 @@ namespace rtc {
 RtpPacketizer::RtpPacketizer(shared_ptr<RtpPacketizationConfig> rtpConfig) : rtpConfig(rtpConfig) {}
 
 binary_ptr RtpPacketizer::packetize(shared_ptr<binary> payload, bool setMark) {
-	auto msg = boost::make_shared<binary>(rtpHeaderSize + payload->size());
+	auto msg = std::make_shared<binary>(rtpHeaderSize + payload->size());
 	auto *rtp = (RTP *)msg->data();
 	rtp->setPayloadType(rtpConfig->payloadType);
 	// increase sequence number

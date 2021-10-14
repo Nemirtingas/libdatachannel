@@ -74,7 +74,7 @@ public:
 		std::unique_lock<std::mutex> lock(mMutex);
 		using R = workarounds::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
 		auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
-		auto task = boost::make_shared<std::packaged_task<R()>>([bound = std::move(bound)]() mutable {
+		auto task = std::make_shared<std::packaged_task<R()>>([bound = std::move(bound)]() mutable {
 			try {
 				return bound();
 			} catch (const std::exception &e) {
@@ -97,8 +97,8 @@ protected:
 	std::function<void()> dequeue(); // returns null function if joining
 
 	std::vector<std::thread> mWorkers;
-	boost::atomic<int> mBusyWorkers;
-	boost::atomic<bool> mJoining;
+	std::atomic<int> mBusyWorkers;
+	std::atomic<bool> mJoining;
 
 	struct Task {
 		clock::time_point time;

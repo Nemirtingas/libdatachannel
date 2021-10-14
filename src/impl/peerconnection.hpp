@@ -36,7 +36,7 @@
 namespace rtc {
 namespace impl {
 
-struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
+struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	using State = rtc::PeerConnection::State;
 	using GatheringState = rtc::PeerConnection::GatheringState;
 	using SignalingState = rtc::PeerConnection::SignalingState;
@@ -103,10 +103,10 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	void outgoingMedia(message_ptr message);
 
 	const Configuration config;
-	boost::atomic<State> state;
-	boost::atomic<GatheringState> gatheringState;
-	boost::atomic<SignalingState> signalingState;
-	boost::atomic<bool> negotiationNeeded;
+	std::atomic<State> state;
+	std::atomic<GatheringState> gatheringState;
+	std::atomic<SignalingState> signalingState;
+	std::atomic<bool> negotiationNeeded;
 
 	synchronized_callback<shared_ptr<rtc::DataChannel>> dataChannelCallback;
 	synchronized_callback<Description> localDescriptionCallback;

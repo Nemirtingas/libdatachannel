@@ -104,10 +104,10 @@ void WebSocket::open(const string &url) {
 	}
 
 	mHostname = hostname; // for TLS SNI
-	boost::atomic_store(&mWsHandshake, boost::make_shared<WsHandshake>(host, path, config.protocols));
+	std::atomic_store(&mWsHandshake, std::make_shared<WsHandshake>(host, path, config.protocols));
 
 	changeState(State::Connecting);
-	setTcpTransport(boost::make_shared<TcpTransport>(hostname, service, nullptr));
+	setTcpTransport(std::make_shared<TcpTransport>(hostname, service, nullptr));
 }
 
 void WebSocket::close() {
@@ -115,7 +115,7 @@ void WebSocket::close() {
 	if (s == State::Connecting || s == State::Open) {
 		PLOG_VERBOSE << "Closing WebSocket";
 		changeState(State::Closing);
-		if (auto transport = boost::atomic_load(&mWsTransport))
+		if (auto transport = std::atomic_load(&mWsTransport))
 			transport->close();
 		else
 			changeState(State::Closed);
@@ -189,7 +189,7 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 
 	using State = TcpTransport::State;
 	try {
-		if (boost::atomic_load(&mTcpTransport))
+		if (std::atomic_load(&mTcpTransport))
 			throw std::logic_error("TCP transport is already set");
 
 		transport->onStateChange([this, weak_this = weak_from_this()](State transportState) {
@@ -216,9 +216,9 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 			}
 		});
 
-		boost::atomic_store(&mTcpTransport, transport);
+		std::atomic_store(&mTcpTransport, transport);
 		if (state == WebSocket::State::Closed) {
-			boost::atomic_store(&mTcpTransport, decltype(mTcpTransport)(nullptr));
+			std::atomic_store(&mTcpTransport, decltype(mTcpTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -235,10 +235,10 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 	PLOG_VERBOSE << "Starting TLS transport";
 	using State = TlsTransport::State;
 	try {
-		if (auto transport = boost::atomic_load(&mTlsTransport))
+		if (auto transport = std::atomic_load(&mTlsTransport))
 			return transport;
 
-		auto lower = boost::atomic_load(&mTcpTransport);
+		auto lower = std::atomic_load(&mTcpTransport);
 		if (!lower)
 			throw std::logic_error("No underlying TCP transport for TLS transport");
 
@@ -273,15 +273,15 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 
 		shared_ptr<TlsTransport> transport;
 		if (verify)
-			transport = boost::make_shared<VerifiedTlsTransport>(lower, mHostname.value(),
+			transport = std::make_shared<VerifiedTlsTransport>(lower, mHostname.value(),
 			                                                   mCertificate, stateChangeCallback);
 		else
 			transport =
-			    boost::make_shared<TlsTransport>(lower, mHostname, mCertificate, stateChangeCallback);
+			    std::make_shared<TlsTransport>(lower, mHostname, mCertificate, stateChangeCallback);
 
-		boost::atomic_store(&mTlsTransport, transport);
+		std::atomic_store(&mTlsTransport, transport);
 		if (state == WebSocket::State::Closed) {
-			boost::atomic_store(&mTlsTransport, decltype(mTlsTransport)(nullptr));
+			std::atomic_store(&mTlsTransport, decltype(mTlsTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -298,18 +298,18 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 	PLOG_VERBOSE << "Starting WebSocket transport";
 	using State = WsTransport::State;
 	try {
-		if (auto transport = boost::atomic_load(&mWsTransport))
+		if (auto transport = std::atomic_load(&mWsTransport))
 			return transport;
 
 		variant<shared_ptr<TcpTransport>, shared_ptr<TlsTransport>> lower;
 		if (mIsSecure) {
-			auto transport = boost::atomic_load(&mTlsTransport);
+			auto transport = std::atomic_load(&mTlsTransport);
 			if (!transport)
 				throw std::logic_error("No underlying TLS transport for WebSocket transport");
 
 			lower = transport;
 		} else {
-			auto transport = boost::atomic_load(&mTcpTransport);
+			auto transport = std::atomic_load(&mTcpTransport);
 			if (!transport)
 				throw std::logic_error("No underlying TCP transport for WebSocket transport");
 
@@ -317,7 +317,7 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 		}
 
 		if (!atomic_load(&mWsHandshake))
-			atomic_store(&mWsHandshake, boost::make_shared<WsHandshake>());
+			atomic_store(&mWsHandshake, std::make_shared<WsHandshake>());
 
 		auto stateChangeCallback = [this, weak_this = weak_from_this()](State transportState) {
 			auto shared_this = weak_this.lock();
@@ -344,12 +344,12 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 			}
 		};
 
-		auto transport = boost::make_shared<WsTransport>(
+		auto transport = std::make_shared<WsTransport>(
 		    lower, mWsHandshake, weak_bind(&WebSocket::incoming, this, _1), stateChangeCallback);
 
-		boost::atomic_store(&mWsTransport, transport);
+		std::atomic_store(&mWsTransport, transport);
 		if (state == WebSocket::State::Closed) {
-			boost::atomic_store(&mWsTransport, decltype(mWsTransport)(nullptr));
+			std::atomic_store(&mWsTransport, decltype(mWsTransport)(nullptr));
 			throw std::runtime_error("Connection is closed");
 		}
 		transport->start();
@@ -363,19 +363,19 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 }
 
 shared_ptr<TcpTransport> WebSocket::getTcpTransport() const {
-	return boost::atomic_load(&mTcpTransport);
+	return std::atomic_load(&mTcpTransport);
 }
 
 shared_ptr<TlsTransport> WebSocket::getTlsTransport() const {
-	return boost::atomic_load(&mTlsTransport);
+	return std::atomic_load(&mTlsTransport);
 }
 
 shared_ptr<WsTransport> WebSocket::getWsTransport() const {
-	return boost::atomic_load(&mWsTransport);
+	return std::atomic_load(&mWsTransport);
 }
 
 shared_ptr<WsHandshake> WebSocket::getWsHandshake() const {
-	return boost::atomic_load(&mWsHandshake);
+	return std::atomic_load(&mWsHandshake);
 }
 
 void WebSocket::closeTransports() {
@@ -390,9 +390,9 @@ void WebSocket::closeTransports() {
 	resetCallbacks();
 
 	// Pass the pointers to a thread, allowing to terminate a transport from its own thread
-	auto ws = boost::atomic_exchange(&mWsTransport, decltype(mWsTransport)(nullptr));
-	auto tls = boost::atomic_exchange(&mTlsTransport, decltype(mTlsTransport)(nullptr));
-	auto tcp = boost::atomic_exchange(&mTcpTransport, decltype(mTcpTransport)(nullptr));
+	auto ws = std::atomic_exchange(&mWsTransport, decltype(mWsTransport)(nullptr));
+	auto tls = std::atomic_exchange(&mTlsTransport, decltype(mTlsTransport)(nullptr));
+	auto tcp = std::atomic_exchange(&mTcpTransport, decltype(mTcpTransport)(nullptr));
 	ThreadPool::Instance().enqueue([ws, tls, tcp]() mutable {
 		if (ws)
 			ws->stop();

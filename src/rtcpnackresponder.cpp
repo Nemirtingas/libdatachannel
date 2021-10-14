@@ -53,10 +53,10 @@ void RtcpNackResponder::Storage::store(binary_ptr packet) {
 	assert((storage.empty() && !oldest && !newest) || (!storage.empty() && oldest && newest));
 
 	if (size() == 0) {
-		newest = boost::make_shared<Element>(packet, sequenceNumber);
+		newest = std::make_shared<Element>(packet, sequenceNumber);
 		oldest = newest;
 	} else {
-		auto current = boost::make_shared<Element>(packet, sequenceNumber);
+		auto current = std::make_shared<Element>(packet, sequenceNumber);
 		newest->next = current;
 		newest = current;
 	}
@@ -73,7 +73,7 @@ void RtcpNackResponder::Storage::store(binary_ptr packet) {
 }
 
 RtcpNackResponder::RtcpNackResponder(unsigned maxStoredPacketCount)
-: MediaHandlerElement(), storage(boost::make_shared<Storage>(maxStoredPacketCount)) { }
+: MediaHandlerElement(), storage(std::make_shared<Storage>(maxStoredPacketCount)) { }
 
 ChainedIncomingControlProduct
 RtcpNackResponder::processIncomingControlMessage(message_ptr message) {
