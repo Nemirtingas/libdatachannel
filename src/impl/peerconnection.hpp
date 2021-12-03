@@ -104,10 +104,10 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	void outgoingMedia(message_ptr message);
 
 	const Configuration config;
-	boost::atomic<State> state = State::New;
-	boost::atomic<GatheringState> gatheringState = GatheringState::New;
-	boost::atomic<SignalingState> signalingState = SignalingState::Stable;
-	boost::atomic<bool> negotiationNeeded = false;
+	boost::atomic<State> state;
+	boost::atomic<GatheringState> gatheringState;
+	boost::atomic<SignalingState> signalingState;
+	boost::atomic<bool> negotiationNeeded;
 	std::mutex signalingMutex;
 
 	synchronized_callback<shared_ptr<rtc::DataChannel>> dataChannelCallback;
