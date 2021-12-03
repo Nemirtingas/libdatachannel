@@ -48,7 +48,13 @@ PeerConnection::PeerConnection() : PeerConnection(Configuration()) {}
 PeerConnection::PeerConnection(Configuration config)
     : CheshireCat<impl::PeerConnection>(std::move(config)) {}
 
-PeerConnection::~PeerConnection() { close(); }
+PeerConnection::~PeerConnection() {
+	try {
+		close();
+	} catch (const std::exception &e) {
+		PLOG_ERROR << e.what();
+	}
+}
 
 void PeerConnection::close() { impl()->close(); }
 
@@ -78,6 +84,7 @@ bool PeerConnection::hasMedia() const {
 }
 
 void PeerConnection::setLocalDescription(Description::Type type) {
+	std::unique_lock<std::mutex> signalingLock(impl()->signalingMutex);
 	PLOG_VERBOSE << "Setting local description, type=" << Description::typeToString(type);
 
 	SignalingState signalingState = impl()->signalingState.load();
@@ -137,11 +144,14 @@ void PeerConnection::setLocalDescription(Description::Type type) {
 	}
 
 	auto iceTransport = impl()->initIceTransport();
+	if (!iceTransport)
+		return; // closed
 
 	Description local = iceTransport->getLocalDescription(type);
 	impl()->processLocalDescription(std::move(local));
 
 	impl()->changeSignalingState(newSignalingState);
+	signalingLock.unlock();
 
 	if (impl()->gatheringState == GatheringState::New) {
 		iceTransport->gatherLocalCandidates(impl()->localBundleMid());
@@ -149,6 +159,7 @@ void PeerConnection::setLocalDescription(Description::Type type) {
 }
 
 void PeerConnection::setRemoteDescription(Description description) {
+	std::unique_lock<std::mutex> signalingLock(impl()->signalingMutex);
 	PLOG_VERBOSE << "Setting remote description: " << string(description);
 
 	if (description.type() == Description::Type::Rollback) {
@@ -180,7 +191,9 @@ void PeerConnection::setRemoteDescription(Description description) {
 		if (description.type() == Description::Type::Offer) {
 			// The ICE agent will automatically initiate a rollback when a peer that had previously
 			// created an offer receives an offer from the remote peer
-			setLocalDescription(Description::Type::Rollback);
+			impl()->rollbackLocalDescription();
+			impl()->changeSignalingState(SignalingState::Stable);
+			signalingState = SignalingState::Stable;
 			newSignalingState = SignalingState::HaveRemoteOffer;
 			break;
 		}
@@ -219,6 +232,7 @@ void PeerConnection::setRemoteDescription(Description description) {
 	impl()->processRemoteDescription(std::move(description));
 
 	impl()->changeSignalingState(newSignalingState);
+	signalingLock.unlock();
 
 	if (type == Description::Type::Offer) {
 		// This is an offer, we need to answer
@@ -231,6 +245,7 @@ void PeerConnection::setRemoteDescription(Description description) {
 }
 
 void PeerConnection::addRemoteCandidate(Candidate candidate) {
+	std::unique_lock<std::mutex> signalingLock(impl()->signalingMutex);
 	PLOG_VERBOSE << "Adding remote candidate: " << string(candidate);
 	impl()->processRemoteCandidate(std::move(candidate));
 }

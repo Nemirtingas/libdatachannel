@@ -76,7 +76,7 @@ struct WebSocket final : public Channel, public boost::enable_shared_from_this<W
 	boost::atomic<State> state;
 
 private:
-	const init_token mInitToken = Init::Token();
+	const init_token mInitToken = Init::Instance().token();
 
 	const certificate_ptr mCertificate;
 	bool mIsSecure;

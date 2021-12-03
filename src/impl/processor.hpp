@@ -52,7 +52,7 @@ protected:
 	void schedule();
 
 	// Keep an init token
-	const init_token mInitToken = Init::Token();
+	const init_token mInitToken = Init::Instance().token();
 
 	Queue<std::function<void()>> mTasks;
 	bool mPending = false; // true iff a task is pending in the thread pool

@@ -70,6 +70,7 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	shared_ptr<DataChannel> findDataChannel(uint16_t stream);
 	void shiftDataChannels();
 	void iterateDataChannels(std::function<void(shared_ptr<DataChannel> channel)> func);
+	void cleanupDataChannels();
 	void openDataChannels();
 	void closeDataChannels();
 	void remoteCloseDataChannels();
@@ -103,10 +104,11 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	void outgoingMedia(message_ptr message);
 
 	const Configuration config;
-	boost::atomic<State> state;
-	boost::atomic<GatheringState> gatheringState;
-	boost::atomic<SignalingState> signalingState;
-	boost::atomic<bool> negotiationNeeded;
+	boost::atomic<State> state = State::New;
+	boost::atomic<GatheringState> gatheringState = GatheringState::New;
+	boost::atomic<SignalingState> signalingState = SignalingState::Stable;
+	boost::atomic<bool> negotiationNeeded = false;
+	std::mutex signalingMutex;
 
 	synchronized_callback<shared_ptr<rtc::DataChannel>> dataChannelCallback;
 	synchronized_callback<Description> localDescriptionCallback;
@@ -117,7 +119,7 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	synchronized_callback<shared_ptr<rtc::Track>> trackCallback;
 
 private:
-	const init_token mInitToken = Init::Token();
+	const init_token mInitToken = Init::Instance().token();
 	const future_certificate_ptr mCertificate;
 	const unique_ptr<Processor> mProcessor;
 

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 project(libdatachannel
-	VERSION 0.15.1
+	VERSION 0.15.6
 	LANGUAGES CXX)
 set(PROJECT_DESCRIPTION "C/C++ WebRTC network library featuring Data Channels, Media Transport, and WebSockets")
 
@@ -15,6 +15,7 @@ option(NO_EXAMPLES "Disable examples" OFF)
 option(NO_TESTS "Disable tests build" OFF)
 option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(CAPI_STDCALL "Set calling convention of C API callbacks stdcall" OFF)
+option(SCTP_DEBUG "Enable SCTP debugging output to verbose log" OFF)
 
 if(USE_GNUTLS)
 	option(USE_NETTLE "Use Nettle in libjuice" ON)
@@ -202,6 +203,9 @@ find_package(Threads REQUIRED)
 set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
 add_subdirectory(deps/plog EXCLUDE_FROM_ALL)
 
+if(SCTP_DEBUG)
+	add_definitions(-DSCTP_DEBUG)
+endif()
 option(sctp_build_programs 0)
 option(sctp_build_shared_lib 0)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
@@ -315,8 +319,16 @@ else()
 		# This is a bug in CMake that causes it to prefer the system version over
 		# the one in the specified ROOT folder
 		if(EXISTS ${OPENSSL_ROOT_DIR})
-			set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib" CACHE FILEPATH "" FORCE)
-			set(OPENSSL_SSL_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libssl.dylib" CACHE FILEPATH "" FORCE)
+            # Use static files when OPENSSL_USE_STATIC_LIBS is set.
+            # OPENSSL_USE_STATIC_LIBS is what CMake's FindOpenSSL looks at
+            # to decide whether to use static libraries.
+            if(OPENSSL_USE_STATIC_LIBS)
+                set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libcrypto.a" CACHE FILEPATH "" FORCE)
+                set(OPENSSL_SSL_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libssl.a" CACHE FILEPATH "" FORCE)
+            else()
+                set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libcrypto.dylib" CACHE FILEPATH "" FORCE)
+                set(OPENSSL_SSL_LIBRARY "${OPENSSL_ROOT_DIR}/lib/libssl.dylib" CACHE FILEPATH "" FORCE)
+            endif()
 		endif()
 	endif()
 	find_package(OpenSSL REQUIRED)

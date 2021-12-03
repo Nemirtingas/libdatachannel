@@ -51,7 +51,7 @@ struct WebSocketServer final : public boost::enable_shared_from_this<WebSocketSe
 	synchronized_callback<shared_ptr<rtc::WebSocket>> clientCallback;
 
 private:
-	const init_token mInitToken = Init::Token();
+	const init_token mInitToken = Init::Instance().token();
 
 	void runLoop();
 

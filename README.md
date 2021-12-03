@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/libdatachannel/community](https://badges.gitter.im/libdatachannel/community.svg)](https://gitter.im/libdatachannel/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-libdatachannel is a standalone implementation of WebRTC Data Channels, WebRTC Media Transport, and WebSockets in C++17 with C bindings for POSIX platforms (including GNU/Linux, Android, Apple macOS and iOS) and Microsoft Windows.
+libdatachannel is a standalone implementation of WebRTC Data Channels, WebRTC Media Transport, and WebSockets in C++17 with C bindings for POSIX platforms (including GNU/Linux, Android, FreeBSD, Apple macOS and iOS) and Microsoft Windows.
 
 The library aims at being both straightforward and lightweight with minimal external dependencies, to enable direct connectivity between native applications and web browsers without the pain of importing Google's bloated [reference library](https://webrtc.googlesource.com/src/). The interface consists of somewhat simplified versions of the JavaScript WebRTC and WebSocket APIs present in browsers, in order to ease the design of cross-environment applications.
 
@@ -46,7 +46,7 @@ Additionnaly, you might want to have a look at the [C API documentation](https:/
 rtc::Configuration config;
 config.iceServers.emplace_back("mystunserver.org:3478");
 
-rtc::PeerConection pc(config);
+rtc::PeerConnection pc(config);
 
 pc.onLocalDescription([](rtc::Description sdp) {
     // Send the SDP to the remote peer

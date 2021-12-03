@@ -104,24 +104,25 @@ void TcpServer::listen(uint16_t port) {
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
-	hints.ai_flags = AI_ADDRCONFIG;
+	hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
 
 	struct addrinfo *result = nullptr;
 	if (::getaddrinfo(nullptr, std::to_string(port).c_str(), &hints, &result))
 		throw std::runtime_error("Resolution failed for local address");
 
-	static const auto find_family = [](struct addrinfo *ai_list, int family) {
-		struct addrinfo *ai = ai_list;
-		while (ai && ai->ai_family != family)
-			ai = ai->ai_next;
-		return ai;
-	};
-
-	struct addrinfo *ai;
-	if ((ai = find_family(result, AF_INET6)) == NULL && (ai = find_family(result, AF_INET)) == NULL)
-		throw std::runtime_error("No suitable address family found");
-
 	try {
+		static const auto find_family = [](struct addrinfo *ai_list, int family) {
+			struct addrinfo *ai = ai_list;
+			while (ai && ai->ai_family != family)
+				ai = ai->ai_next;
+			return ai;
+		};
+
+		struct addrinfo *ai;
+		if ((ai = find_family(result, AF_INET6)) == NULL &&
+		    (ai = find_family(result, AF_INET)) == NULL)
+			throw std::runtime_error("No suitable address family found");
+
 		std::unique_lock<std::mutex> lock(mSockMutex);
 		PLOG_VERBOSE << "Creating TCP server socket";
 
@@ -133,8 +134,8 @@ void TcpServer::listen(uint16_t port) {
 		// Listen on both IPv6 and IPv4
 		const sockopt_t disabled = 0;
 		if (ai->ai_family == AF_INET6)
-			::setsockopt(mSock, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&disabled,
-			             sizeof(disabled));
+			::setsockopt(mSock, IPPROTO_IPV6, IPV6_V6ONLY,
+			             reinterpret_cast<const char *>(&disabled), sizeof(disabled));
 
 		// Set non-blocking
 		ctl_t b = 1;
@@ -142,7 +143,7 @@ void TcpServer::listen(uint16_t port) {
 			throw std::runtime_error("Failed to set socket non-blocking mode");
 
 		// Bind socket
-		if (::bind(mSock, ai->ai_addr, ai->ai_addrlen) < 0) {
+		if (::bind(mSock, ai->ai_addr, socklen_t(ai->ai_addrlen)) < 0) {
 			PLOG_WARNING << "TCP server socket binding on port " << port
 			             << " failed, errno=" << sockerrno;
 			throw std::runtime_error("TCP server socket binding failed");

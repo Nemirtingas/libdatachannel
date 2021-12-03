@@ -135,28 +135,32 @@ void TcpTransport::connect(const string &hostname, const string &service) {
 	if (getaddrinfo(hostname.c_str(), service.c_str(), &hints, &result))
 		throw std::runtime_error("Resolution failed for \"" + hostname + ":" + service + "\"");
 
-	for (auto p = result; p; p = p->ai_next) {
-		try {
-			connect(p->ai_addr, socklen_t(p->ai_addrlen));
+	try {
+		for (auto p = result; p; p = p->ai_next) {
+			try {
+				connect(p->ai_addr, socklen_t(p->ai_addrlen));
 
-			PLOG_INFO << "Connected to " << hostname << ":" << service;
-			freeaddrinfo(result);
-			return;
+				PLOG_INFO << "Connected to " << hostname << ":" << service;
+				freeaddrinfo(result);
+				return;
 
-		} catch (const std::runtime_error &e) {
-			if (p->ai_next) {
-				PLOG_DEBUG << e.what();
-			} else {
-				PLOG_WARNING << e.what();
+			} catch (const std::runtime_error &e) {
+				if (p->ai_next) {
+					PLOG_DEBUG << e.what();
+				} else {
+					PLOG_WARNING << e.what();
+				}
 			}
 		}
+
+		std::ostringstream msg;
+		msg << "Connection to " << hostname << ":" << service << " failed";
+		throw std::runtime_error(msg.str());
+
+	} catch (...) {
+		freeaddrinfo(result);
+		throw;
 	}
-
-	freeaddrinfo(result);
-
-	std::ostringstream msg;
-	msg << "Connection to " << hostname << ":" << service << " failed";
-	throw std::runtime_error(msg.str());
 }
 
 void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
@@ -183,8 +187,8 @@ void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
 
 #ifdef __APPLE__
 		// MacOS lacks MSG_NOSIGNAL and requires SO_NOSIGPIPE instead
-		int opt = 1;
-		if (::setsockopt(mSock, SOL_SOCKET, SO_NOSIGPIPE, &opt, sizeof(opt)) < 0)
+		const sockopt_t enabled = 1;
+		if (::setsockopt(mSock, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) < 0)
 			throw std::runtime_error("Failed to disable SIGPIPE for socket");
 #endif
 
@@ -206,7 +210,7 @@ void TcpTransport::connect(const sockaddr *addr, socklen_t addrlen) {
 
 		do {
 			auto timeout = std::max(clock::duration::zero(), end - clock::now());
-			ret = ::poll(pfd, 1, duration_cast<milliseconds>(timeout).count());
+			ret = ::poll(pfd, 1, int(duration_cast<milliseconds>(timeout).count()));
 
 		} while (ret < 0 && (sockerrno == SEINTR || sockerrno == SEAGAIN));
 
@@ -330,7 +334,7 @@ void TcpTransport::runLoop() {
 			lock.unlock();
 			do {
 				auto timeout = std::max(clock::duration::zero(), end - clock::now());
-				ret = ::poll(pfd, 2, duration_cast<milliseconds>(timeout).count());
+				ret = ::poll(pfd, 2, int(duration_cast<milliseconds>(timeout).count()));
 
 			} while (ret < 0 && (sockerrno == SEINTR || sockerrno == SEAGAIN));
 			lock.lock();
