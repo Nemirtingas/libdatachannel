@@ -89,9 +89,15 @@ DataChannel::DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string la
       mIsClosed(false)
 {}
 
-DataChannel::~DataChannel() { close(); }
+DataChannel::~DataChannel() {
+	PLOG_VERBOSE << "Destroying DataChannel";
+
+	close();
+}
 
 void DataChannel::close() {
+	PLOG_VERBOSE << "Closing DataChannel";
+
 	shared_ptr<SctpTransport> transport;
 	{
 		boost::shared_lock<boost::shared_mutex> lock(mMutex);

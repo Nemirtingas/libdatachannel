@@ -34,6 +34,12 @@ Track::Track(weak_ptr<PeerConnection> pc, Description::Media description)
       mRecvQueue(RECV_QUEUE_LIMIT, message_size_func), 
 	  mIsClosed (false){}
 
+Track::~Track() {
+	PLOG_VERBOSE << "Destroying Track";
+
+	close();
+}
+
 string Track::mid() const {
 	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mMediaDescription.mid();
@@ -58,6 +64,8 @@ void Track::setDescription(Description::Media description) {
 }
 
 void Track::close() {
+	PLOG_VERBOSE << "Closing Track";
+
 	mIsClosed = true;
 
 	setMediaHandler(nullptr);

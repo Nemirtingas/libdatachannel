@@ -24,7 +24,6 @@
 #include "configuration.hpp"
 #include "datachannel.hpp"
 #include "description.hpp"
-#include "message.hpp"
 #include "reliability.hpp"
 #include "track.hpp"
 
@@ -69,7 +68,7 @@ public:
 		HaveRemoteOffer = RTC_SIGNALING_HAVE_REMOTE_OFFER,
 		HaveLocalPranswer = RTC_SIGNALING_HAVE_LOCAL_PRANSWER,
 		HaveRemotePranswer = RTC_SIGNALING_HAVE_REMOTE_PRANSWER,
-	} rtcSignalingState;
+	};
 
 	PeerConnection();
 	PeerConnection(Configuration config);
@@ -92,10 +91,10 @@ public:
 	void setRemoteDescription(Description description);
 	void addRemoteCandidate(Candidate candidate);
 
-	shared_ptr<DataChannel> createDataChannel(string label, DataChannelInit init = {});
+	/*[[nodiscard]]*/ shared_ptr<DataChannel> createDataChannel(string label, DataChannelInit init = {});
 	void onDataChannel(std::function<void(boost::shared_ptr<DataChannel> dataChannel)> callback);
 
-	shared_ptr<Track> addTrack(Description::Media description);
+	/*[[nodiscard]]*/ shared_ptr<Track> addTrack(Description::Media description);
 	void onTrack(std::function<void(boost::shared_ptr<Track> track)> callback);
 
 	void onLocalDescription(std::function<void(Description description)> callback);

@@ -27,8 +27,9 @@ namespace rtc {
 RtpPacketizationConfig::RtpPacketizationConfig(SSRC ssrc, string cname, uint8_t payloadType,
                                                uint32_t clockRate,
                                                optional<uint16_t> sequenceNumber,
-                                               optional<uint32_t> timestamp)
-    : ssrc(ssrc), cname(cname), payloadType(payloadType), clockRate(clockRate) {
+                                               optional<uint32_t> timestamp,
+                                               uint8_t videoOrientationId)
+    : ssrc(ssrc), cname(cname), payloadType(payloadType), clockRate(clockRate), videoOrientationId(videoOrientationId) {
 	assert(clockRate > 0);
 	srand((unsigned)time(NULL));
 	if (sequenceNumber.has_value()) {
@@ -41,17 +42,17 @@ RtpPacketizationConfig::RtpPacketizationConfig(SSRC ssrc, string cname, uint8_t 
 	} else {
 		this->timestamp = rand();
 	}
-	this->_startTimestamp = this->timestamp;
+	this->mStartTimestamp = this->timestamp;
 }
 
-void RtpPacketizationConfig::setStartTime(double startTime_s, EpochStart epochStart,
+void RtpPacketizationConfig::setStartTime(double startTime, EpochStart epochStart,
                                           optional<uint32_t> startTimestamp) {
-	this->_startTime_s = startTime_s + static_cast<unsigned long long>(epochStart);
+	this->mStartTime = startTime + double(static_cast<uint64_t>(epochStart));
 	if (startTimestamp.has_value()) {
-		this->_startTimestamp = startTimestamp.value();
+		this->mStartTimestamp = startTimestamp.value();
 		timestamp = this->startTimestamp;
 	} else {
-		this->_startTimestamp = timestamp;
+		this->mStartTimestamp = timestamp;
 	}
 }
 

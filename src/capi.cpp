@@ -29,6 +29,7 @@
 #include <utility>
 
 using namespace rtc;
+using namespace std::chrono_literals;
 using std::chrono::milliseconds;
 
 namespace {
@@ -135,6 +136,27 @@ void eraseTrack(int tr) {
 	rtpConfigMap.erase(tr);
 #endif
 	userPointerMap.erase(tr);
+}
+
+size_t eraseAll() {
+	std::lock_guard lock(mutex);
+	size_t count = dataChannelMap.size() + trackMap.size() + peerConnectionMap.size();
+	dataChannelMap.clear();
+	trackMap.clear();
+	peerConnectionMap.clear();
+#if RTC_ENABLE_MEDIA
+	count += rtcpChainableHandlerMap.size() + rtcpSrReporterMap.size() + rtpConfigMap.size();
+	rtcpChainableHandlerMap.clear();
+	rtcpSrReporterMap.clear();
+	rtpConfigMap.clear();
+#endif
+#if RTC_ENABLE_WEBSOCKET
+	count += webSocketMap.size() + webSocketServerMap.size();
+	webSocketMap.clear();
+	webSocketServerMap.clear();
+#endif
+	userPointerMap.clear();
+	return count;
 }
 
 shared_ptr<Channel> getChannel(int id) {
@@ -694,7 +716,7 @@ bool rtcIsOpen(int id) {
 }
 
 bool rtcIsClosed(int id) {
-	return wrap([id] { return getChannel(id)->isClosed() ? 0 : 1; }) == 0 ? true : false ;
+	return wrap([id] { return getChannel(id)->isClosed() ? 0 : 1; }) == 0 ? true : false;
 }
 
 int rtcGetBufferedAmount(int id) {
@@ -1032,9 +1054,12 @@ int rtcSetH264PacketizationHandler(int tr, const rtcPacketizationHandlerInit *in
 		// create RTP configuration
 		auto rtpConfig = createRtpPacketizationConfig(init);
 		// create packetizer
+		auto nalSeparator = init ? init->nalSeparator : RTC_NAL_SEPARATOR_LENGTH;
 		auto maxFragmentSize = init && init->maxFragmentSize ? init->maxFragmentSize
 		                                                     : RTC_DEFAULT_MAXIMUM_FRAGMENT_SIZE;
-		auto packetizer = boost::make_shared<H264RtpPacketizer>(rtpConfig, maxFragmentSize);
+		auto packetizer = boost::make_shared<H264RtpPacketizer>(
+		    static_cast<rtc::H264RtpPacketizer::Separator>(nalSeparator), rtpConfig,
+		    maxFragmentSize);
 		// create H264 handler
 		auto h264Handler = boost::make_shared<H264PacketizationHandler>(packetizer);
 		emplaceMediaChainableHandler(h264Handler, tr);
@@ -1350,9 +1375,28 @@ RTC_EXPORT int rtcGetWebSocketServerPort(int wsserver) {
 
 #endif
 
-void rtcPreload() { rtc::Preload(); }
+void rtcPreload() {
+	try {
+		rtc::Preload();
+	} catch (const std::exception &e) {
+		PLOG_ERROR << e.what();
+	}
+}
 
-void rtcCleanup() { rtc::Cleanup(); }
+void rtcCleanup() {
+	try {
+		size_t count = eraseAll();
+		if(count != 0) {
+			PLOG_INFO << count << " objects were not properly destroyed before cleanup";
+		}
+
+		if(rtc::Cleanup().wait_for(10s) == std::future_status::timeout)
+			throw std::runtime_error("Cleanup timeout (possible deadlock or undestructible object)");
+
+	} catch (const std::exception &e) {
+		PLOG_ERROR << e.what();
+	}
+}
 
 int rtcSetSctpSettings(const rtcSctpSettings *settings) {
 	return wrap([&] {

@@ -65,7 +65,7 @@ bool WebSocket::send(message_variant data) {
 }
 
 bool WebSocket::send(const byte *data, size_t size) {
-	return impl()->outgoing(make_message(data, data + size));
+	return impl()->outgoing(make_message(data, data + size, Message::Binary));
 }
 
 optional<string> WebSocket::remoteAddress() const {

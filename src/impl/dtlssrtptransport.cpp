@@ -67,11 +67,11 @@ DtlsSrtpTransport::DtlsSrtpTransport(shared_ptr<IceTransport> lower,
 	PLOG_DEBUG << "Initializing DTLS-SRTP transport";
 
 	if (srtp_err_status_t err = srtp_create(&mSrtpIn, nullptr)) {
-		throw std::runtime_error("SRTP create failed, status=" + to_string(static_cast<int>(err)));
+		throw std::runtime_error("srtp_create failed, status=" + to_string(static_cast<int>(err)));
 	}
 	if (srtp_err_status_t err = srtp_create(&mSrtpOut, nullptr)) {
 		srtp_dealloc(mSrtpIn);
-		throw std::runtime_error("SRTP create failed, status=" + to_string(static_cast<int>(err)));
+		throw std::runtime_error("srtp_create failed, status=" + to_string(static_cast<int>(err)));
 	}
 }
 
@@ -201,8 +201,8 @@ void DtlsSrtpTransport::incoming(message_ptr message) {
 				return;
 			}
 			PLOG_VERBOSE << "Unprotected SRTCP packet, size=" << size;
-			message->type = Message::Type::Control;
-			message->stream = reinterpret_cast<RTCP_SR *>(message->data())->senderSSRC();
+			message->type = Message::Control;
+			message->stream = reinterpret_cast<RtcpSr *>(message->data())->senderSSRC();
 
 		} else {
 			PLOG_VERBOSE << "Incoming SRTP packet, size=" << size;
@@ -220,8 +220,8 @@ void DtlsSrtpTransport::incoming(message_ptr message) {
 				return;
 			}
 			PLOG_VERBOSE << "Unprotected SRTP packet, size=" << size;
-			message->type = Message::Type::Binary;
-			message->stream = reinterpret_cast<RTP *>(message->data())->ssrc();
+			message->type = Message::Binary;
+			message->stream = reinterpret_cast<RtpHeader *>(message->data())->ssrc();
 		}
 
 		message->resize(size);

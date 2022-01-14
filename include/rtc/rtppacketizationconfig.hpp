@@ -27,8 +27,8 @@ namespace rtc {
 
 /// RTP configuration used in packetization process
 class RTC_CPP_EXPORT RtpPacketizationConfig {
-	uint32_t _startTimestamp = 0;
-	double _startTime_s = 0;
+	uint32_t mStartTimestamp = 0;
+	double mStartTime = 0;
 	RtpPacketizationConfig(const RtpPacketizationConfig &) = delete;
 
 public:
@@ -36,21 +36,46 @@ public:
 	const std::string cname;
 	const uint8_t payloadType;
 	const uint32_t clockRate;
-	const double &startTime_s = _startTime_s;
-	const uint32_t &startTimestamp = _startTimestamp;
+	const double &startTime = mStartTime;
+	const uint32_t &startTimestamp = mStartTimestamp;
+	const uint8_t videoOrientationId;
 
 	/// current sequence number
 	uint16_t sequenceNumber;
+
 	/// current timestamp
 	uint32_t timestamp;
 
-	enum class EpochStart : unsigned long long {
+	/// Current video orientation
+	///
+	/// Bit#       7  6  5  4  3  2  1  0
+	/// Definition 0  0  0  0  C  F  R1 R0
+	///
+	/// C
+	///   0 - Front-facing camera (use this if unsure)
+	///   1 - Back-facing camera
+	///
+	/// F
+	///   0 - No Flip
+	///   1 - Horizontal flip
+	///
+	/// R1 R0 - CW rotation that receiver must apply
+	///   0 - 0 degrees
+	///   1 - 90 degrees
+	///   2 - 180 degrees
+	///   3 - 270 degrees
+	uint8_t videoOrientation = 0;
+
+	// For backward compatibility, do not use
+	const double &startTime_s = mStartTime;
+
+	enum class EpochStart : uint64_t {
 		T1970 = 2208988800, // number of seconds between 1970 and 1900
 		T1900 = 0
 	};
 
 	/// Creates relation between time and timestamp mapping given start time and start timestamp
-	/// @param startTime_s Start time of the stream
+	/// @param startTime Start time of the stream
 	/// @param epochStart Type of used epoch
 	/// @param startTimestamp Corresponding timestamp for given start time (current timestamp will
 	/// be used if value is none)
@@ -67,7 +92,8 @@ public:
 	/// @param timestamp Initial timastamp of RTP packets (random number is choosed if none)
 	RtpPacketizationConfig(SSRC ssrc, std::string cname, uint8_t payloadType, uint32_t clockRate,
 	                       optional<uint16_t> sequenceNumber = std::none,
-	                       optional<uint32_t> timestamp = std::none);
+	                       optional<uint32_t> timestamp = std::none,
+	                       uint8_t videoOrientationId = 0);
 
 	/// Convert timestamp to seconds
 	/// @param timestamp Timestamp
