@@ -651,10 +651,10 @@ void Description::Entry::ExtMap::setDescription(string_view description) {
 	const size_t attributeSplit = uriAndAttributes.find(' ');
 
 	if (attributeSplit == string::npos)
-		this->uri = uriAndAttributes;
+		this->uri = uriAndAttributes.to_string();
 	else {
-		this->uri = uriAndAttributes.substr(0, attributeSplit);
-		this->attributes = uriAndAttributes.substr(attributeSplit + 1);
+		this->uri = uriAndAttributes.substr(0, attributeSplit).to_string();
+		this->attributes = uriAndAttributes.substr(attributeSplit + 1).to_string();
 	}
 }
 

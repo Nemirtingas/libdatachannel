@@ -139,7 +139,7 @@ void eraseTrack(int tr) {
 }
 
 size_t eraseAll() {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	size_t count = dataChannelMap.size() + trackMap.size() + peerConnectionMap.size();
 	dataChannelMap.clear();
 	trackMap.clear();
