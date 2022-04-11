@@ -125,13 +125,21 @@ size_t PeerConnection::remoteMaxMessageSize() const {
 // Helper for PeerConnection::initXTransport methods: start and emplace the transport
 template <typename T>
 shared_ptr<T> emplaceTransport(PeerConnection *pc, shared_ptr<T> *member, shared_ptr<T> transport) {
-	transport->start();
-	boost::atomic_store(member, transport);
+	std::atomic_store(member, transport);
+	try {
+		transport->start();
+	} catch (...) {
+		std::atomic_store(member, decltype(transport)(nullptr));
+		transport->stop();
+		throw;
+	}
+
 	if (pc->state.load() == PeerConnection::State::Closed) {
 		boost::atomic_store(member, decltype(transport)(nullptr));
 		transport->stop();
 		return nullptr;
 	}
+
 	return transport;
 }
 
@@ -285,7 +293,8 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 
 		auto remote = remoteDescription();
 		if (!remote || !remote->application())
-			throw std::logic_error("Starting SCTP transport without remote application description");
+			throw std::logic_error(
+			    "Starting SCTP transport without remote application description");
 
 		SctpTransport::Ports ports = {};
 		ports.local = local->application()->sctpPort().value_or(DEFAULT_SCTP_PORT);
@@ -422,33 +431,47 @@ void PeerConnection::forwardMessage(message_ptr message) {
 		return;
 	}
 
-	uint16_t stream = uint16_t(message->stream);
+	const uint16_t stream = uint16_t(message->stream);
 	auto channel = findDataChannel(stream);
-	if (!channel) {
+
+	if (DataChannel::IsOpenMessage(message)) {
 		auto iceTransport = getIceTransport();
 		auto sctpTransport = getSctpTransport();
 		if (!iceTransport || !sctpTransport)
 			return;
 
-		const byte dataChannelOpenMessage{0x03};
-		uint16_t remoteParity = (iceTransport->role() == Description::Role::Active) ? 1 : 0;
-		if (message->type == Message::Control && *message->data() == dataChannelOpenMessage &&
-		    stream % 2 == remoteParity) {
-
-			channel =
-			    boost::make_shared<NegotiatedDataChannel>(weak_from_this(), sctpTransport, stream);
-			channel->openCallback = weak_bind(&PeerConnection::triggerDataChannel, this,
-			                                  weak_ptr<DataChannel>{channel});
-
-			std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
-			mDataChannels.emplace(stream, channel);
-		} else {
-			// Invalid, close the DataChannel
+		const uint16_t remoteParity = (iceTransport->role() == Description::Role::Active) ? 1 : 0;
+		if (stream % 2 != remoteParity) {
+			// The odd/even rule is violated, close the DataChannel
+			PLOG_WARNING << "Got open message violating the odd/even rule on stream " << stream;
 			sctpTransport->closeStream(message->stream);
 			return;
 		}
+
+		if (channel && channel->isOpen()) {
+			PLOG_WARNING << "Got open message on stream " << stream
+			             << " for an already open DataChannel, closing it first";
+			channel->close();
+		}
+
+		channel = std::make_shared<IncomingDataChannel>(weak_from_this(), sctpTransport, stream);
+		channel->openCallback =
+		    weak_bind(&PeerConnection::triggerDataChannel, this, weak_ptr<DataChannel>{channel});
+
+		std::unique_lock lock(mDataChannelsMutex); // we are going to emplace
+		mDataChannels.emplace(stream, channel);
 	}
 
+	if (!channel) {
+		// Invalid, close the DataChannel
+		PLOG_WARNING << "Got unexpected message on stream " << stream;
+		if (auto sctpTransport = getSctpTransport())
+			sctpTransport->closeStream(message->stream);
+
+		return;
+	}
+
+	// Forward the message
 	channel->incoming(message);
 }
 
@@ -615,7 +638,7 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 			stream += 2;
 		}
 	}
-	// If the DataChannel is user-negotiated, do not negociate it here
+	// If the DataChannel is user-negotiated, do not negotiate it here
 	auto channel =
 	    init.negotiated
 	        ? boost::make_shared<DataChannel>(weak_from_this(), stream, std::move(label),
@@ -869,24 +892,6 @@ void PeerConnection::processLocalDescription(Description description) {
 
 	if (description.type() == Description::Type::Offer) {
 		// This is an offer, add locally created data channels and tracks
-		// Add application for data channels
-		if (!description.hasApplication()) {
-			boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex);
-			if (!mDataChannels.empty()) {
-				unsigned int m = 0;
-				while (description.hasMid(std::to_string(m)))
-					++m;
-				Description::Application app(std::to_string(m));
-				app.setSctpPort(localSctpPort);
-				app.setMaxMessageSize(localMaxMessageSize);
-
-				PLOG_DEBUG << "Adding application to local description, mid=\"" << app.mid()
-				           << "\"";
-
-				description.addMedia(std::move(app));
-			}
-		}
-
 		// Add media for local tracks
 		boost::shared_lock<boost::shared_mutex> lock(mTracksMutex);
 		for (auto it = mTrackLines.begin(); it != mTrackLines.end(); ++it) {
@@ -904,6 +909,25 @@ void PeerConnection::processLocalDescription(Description description) {
 				           << (media.direction() != Description::Direction::Inactive);
 
 				description.addMedia(std::move(media));
+			}
+		}
+
+		// Add application for data channels
+		if (!description.hasApplication()) {
+			std::shared_lock lock(mDataChannelsMutex);
+			if (!mDataChannels.empty()) {
+				// Prevents mid collision with remote or local tracks
+				unsigned int m = 0;
+				while (description.hasMid(std::to_string(m)))
+					++m;
+				Description::Application app(std::to_string(m));
+				app.setSctpPort(localSctpPort);
+				app.setMaxMessageSize(localMaxMessageSize);
+
+				PLOG_DEBUG << "Adding application to local description, mid=\"" << app.mid()
+				           << "\"";
+
+				description.addMedia(std::move(app));
 			}
 		}
 
@@ -1126,7 +1150,7 @@ bool PeerConnection::changeSignalingState(SignalingState newState) {
 		return false;
 
 	std::ostringstream s;
-	s << state;
+	s << newState;
 	PLOG_INFO << "Changed signaling state to " << s.str();
 	mProcessor->enqueue(signalingStateChangeCallback.wrap(), newState);
 	return true;

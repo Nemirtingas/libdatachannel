@@ -780,30 +780,37 @@ int rtcReceiveMessage(int id, char *buffer, int *size) {
 			return RTC_ERR_NOT_AVAIL;
 
 		return boost::apply_visitor( //
-		    make_visitor(
-		        [&](binary b) {
-			        int ret = copyAndReturn(std::move(b), buffer, *size);
-			        if (ret >= 0) {
-				        channel->receive(); // discard
-				        *size = ret;
-				        return RTC_ERR_SUCCESS;
-			        } else {
-				        *size = int(b.size());
-				        return ret;
-			        }
-		        },
-		        [&](string s) {
-			        int ret = copyAndReturn(std::move(s), buffer, *size);
-			        if (ret >= 0) {
-				        channel->receive(); // discard
-				        *size = -ret;
-				        return RTC_ERR_SUCCESS;
-			        } else {
-				        *size = -int(s.size() + 1);
-				        return ret;
-			        }
-		        }),
-		    *message);
+		make_visitor(
+			[&](binary b) {
+				int ret = copyAndReturn(std::move(b), buffer, *size);
+				if (ret >= 0) {
+					*size = ret;
+					if (buffer) {
+						channel->receive(); // discard
+					}
+					
+					return RTC_ERR_SUCCESS;
+				} else {
+					*size = int(b.size());
+					return ret;
+				}
+			},
+			[&](string s) {
+				int ret = copyAndReturn(std::move(s), buffer, *size);
+				if (ret >= 0) {
+					*size = -ret;
+					if (buffer) {
+						channel->receive(); // discard
+					}
+					
+					return RTC_ERR_SUCCESS;
+				} else {
+					*size = -int(s.size() + 1);
+					return ret;
+				}
+			}
+		),
+		*message);
 	});
 }
 
@@ -1022,6 +1029,24 @@ int rtcGetTrackDescription(int tr, char *buffer, int size) {
 	return wrap([&] {
 		auto track = getTrack(tr);
 		return copyAndReturn(track->description(), buffer, size);
+	});
+}
+
+int rtcGetTrackMid(int tr, char *buffer, int size) {
+	return wrap([&] {
+		auto track = getTrack(tr);
+		return copyAndReturn(track->mid(), buffer, size);
+	});
+}
+
+int rtcGetTrackDirection(int tr, rtcDirection *direction) {
+	return wrap([&] {
+		if (!direction)
+			throw std::invalid_argument("Unexpected null pointer for track direction");
+
+		auto track = getTrack(tr);
+		*direction = static_cast<rtcDirection>(track->direction());
+		return RTC_ERR_SUCCESS;
 	});
 }
 
@@ -1386,12 +1411,13 @@ void rtcPreload() {
 void rtcCleanup() {
 	try {
 		size_t count = eraseAll();
-		if(count != 0) {
+		if (count != 0) {
 			PLOG_INFO << count << " objects were not properly destroyed before cleanup";
 		}
 
-		if(rtc::Cleanup().wait_for(10s) == std::future_status::timeout)
-			throw std::runtime_error("Cleanup timeout (possible deadlock or undestructible object)");
+		if (rtc::Cleanup().wait_for(10s) == std::future_status::timeout)
+			throw std::runtime_error(
+			    "Cleanup timeout (possible deadlock or undestructible object)");
 
 	} catch (const std::exception &e) {
 		PLOG_ERROR << e.what();

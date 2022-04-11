@@ -119,7 +119,7 @@ void WebSocket::close() {
 		if (auto transport = boost::atomic_load(&mWsTransport))
 			transport->close();
 		else
-			changeState(State::Closed);
+			remoteClose();
 	}
 }
 
@@ -185,13 +185,21 @@ void WebSocket::incoming(message_ptr message) {
 // Helper for WebSocket::initXTransport methods: start and emplace the transport
 template <typename T>
 shared_ptr<T> emplaceTransport(WebSocket *ws, shared_ptr<T> *member, shared_ptr<T> transport) {
-	transport->start();
 	boost::atomic_store(member, transport);
+	try {
+		transport->start();
+	} catch (...) {
+		boost::atomic_store(member, decltype(transport)(nullptr));
+		transport->stop();
+		throw;
+	}
+
 	if (ws->state == WebSocket::State::Closed) {
 		boost::atomic_store(member, decltype(transport)(nullptr));
 		transport->stop();
 		return nullptr;
 	}
+
 	return transport;
 }
 
