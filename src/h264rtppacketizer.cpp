@@ -44,7 +44,7 @@ typedef enum {
 NalUnitStartSequenceMatch StartSequenceMatchSucc(NalUnitStartSequenceMatch match, byte _byte,
                                                  H264RtpPacketizer::Separator separator) {
 	assert(separator != H264RtpPacketizer::Separator::Length);
-	auto byte = (uint8_t)_byte;
+	auto byte = (uint8_t)_byte.v;
 	auto detectShort = separator == H264RtpPacketizer::Separator::ShortStartSequence ||
 	                   separator == H264RtpPacketizer::Separator::StartSequence;
 	auto detectLong = separator == H264RtpPacketizer::Separator::LongStartSequence ||

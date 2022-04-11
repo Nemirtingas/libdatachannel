@@ -17,7 +17,7 @@ else()
 endif()
 
 set_target_properties(datachannel-sfu-media PROPERTIES
-	CXX_STANDARD 17
+	CXX_STANDARD 14
 	OUTPUT_NAME sfu-media)
 
 set_target_properties(datachannel-sfu-media PROPERTIES

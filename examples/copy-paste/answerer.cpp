@@ -26,7 +26,8 @@
 using namespace rtc;
 using namespace std;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 int main(int argc, char **argv) {
 	rtc::InitLogger(LogLevel::Warning);
@@ -53,15 +54,15 @@ int main(int argc, char **argv) {
 		cout << "[Gathering State: " << state << "]" << endl;
 	});
 
-	shared_ptr<DataChannel> dc = nullptr;
-	pc->onDataChannel([&](shared_ptr<DataChannel> _dc) {
+	boost::shared_ptr<DataChannel> dc = nullptr;
+	pc->onDataChannel([&](boost::shared_ptr<DataChannel> _dc) {
 		cout << "[Got a DataChannel with label: " << _dc->label() << "]" << endl;
 		dc = _dc;
 
 		dc->onClosed([&]() { cout << "[DataChannel closed: " << dc->label() << "]" << endl; });
 
 		dc->onMessage([](variant<binary, string> message) {
-			if (holds_alternative<string>(message)) {
+			if (workarounds::holds_alternative<string>(message)) {
 				cout << "[Received message: " << get<string>(message) << "]" << endl;
 			}
 		});
@@ -128,7 +129,7 @@ int main(int argc, char **argv) {
 				break;
 			}
 			Candidate local, remote;
-			std::optional<std::chrono::milliseconds> rtt = pc->rtt();
+			boost::optional<std::chrono::milliseconds> rtt = pc->rtt();
 			if (pc->getSelectedCandidatePair(&local, &remote)) {
 				cout << "Local: " << local << endl;
 				cout << "Remote: " << remote << endl;

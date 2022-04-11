@@ -30,7 +30,7 @@ using nlohmann::json;
 
 struct Receiver {
 	std::shared_ptr<rtc::PeerConnection> conn;
-	std::shared_ptr<rtc::Track> track;
+	boost::shared_ptr<rtc::Track> track;
 };
 int main() {
 	std::vector<std::shared_ptr<Receiver>> receivers;
@@ -59,7 +59,7 @@ int main() {
 		auto track = pc->addTrack(media);
 		pc->setLocalDescription();
 
-		auto session = std::make_shared<rtc::RtcpReceivingSession>();
+		auto session = boost::make_shared<rtc::RtcpReceivingSession>();
 		track->setMediaHandler(session);
 
 		const rtc::SSRC targetSSRC = 4;
@@ -110,7 +110,7 @@ int main() {
 			media.setBitrate(
 			    3000); // Request 3Mbps (Browsers do not encode more than 2.5MBps from a webcam)
 
-			media.addSSRC(targetSSRC, "video-send");
+			media.addSSRC(targetSSRC, std::string("video-send"));
 
 			pc->track = pc->conn->addTrack(media);
 			pc->conn->setLocalDescription();

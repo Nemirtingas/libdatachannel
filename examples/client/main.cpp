@@ -42,15 +42,16 @@ using namespace std::chrono_literals;
 
 using json = nlohmann::json;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
-unordered_map<string, shared_ptr<PeerConnection>> peerConnectionMap;
-unordered_map<string, shared_ptr<DataChannel>> dataChannelMap;
+unordered_map<string, std::shared_ptr<PeerConnection>> peerConnectionMap;
+unordered_map<string, boost::shared_ptr<DataChannel>> dataChannelMap;
 
 string localId;
 
-shared_ptr<PeerConnection> createPeerConnection(const Configuration &config,
-                                                weak_ptr<WebSocket> wws, string id);
+std::shared_ptr<PeerConnection> createPeerConnection(const Configuration &config,
+                                                     std::weak_ptr<WebSocket> wws, string id);
 string randomId(size_t length);
 
 int main(int argc, char **argv) try {
@@ -93,7 +94,7 @@ int main(int argc, char **argv) try {
 	ws->onClosed([]() { cout << "WebSocket closed" << endl; });
 
 	ws->onMessage([&](variant<binary, string> data) {
-		if (!holds_alternative<string>(data))
+		if (!workarounds::holds_alternative<string>(data))
 			return;
 
 		json message = json::parse(get<string>(data));
@@ -108,8 +109,9 @@ int main(int argc, char **argv) try {
 			return;
 		string type = it->get<string>();
 
-		shared_ptr<PeerConnection> pc;
-		if (auto jt = peerConnectionMap.find(id); jt != peerConnectionMap.end()) {
+		std::shared_ptr<PeerConnection> pc;
+		auto jt = peerConnectionMap.find(id);
+		if (jt != peerConnectionMap.end()) {
 			pc = jt->second;
 		} else if (type == "offer") {
 			cout << "Answering to " + id << endl;
@@ -167,7 +169,7 @@ int main(int argc, char **argv) try {
 		dc->onClosed([id]() { cout << "DataChannel from " << id << " closed" << endl; });
 
 		dc->onMessage([id, wdc = make_weak_ptr(dc)](variant<binary, string> data) {
-			if (holds_alternative<string>(data))
+			if (workarounds::holds_alternative<string>(data))
 				cout << "Message from " << id << " received: " << get<string>(data) << endl;
 			else
 				cout << "Binary message from " << id
@@ -191,8 +193,8 @@ int main(int argc, char **argv) try {
 }
 
 // Create and setup a PeerConnection
-shared_ptr<PeerConnection> createPeerConnection(const Configuration &config,
-                                                weak_ptr<WebSocket> wws, string id) {
+std::shared_ptr<PeerConnection> createPeerConnection(const Configuration &config,
+                                                     std::weak_ptr<WebSocket> wws, string id) {
 	auto pc = make_shared<PeerConnection>(config);
 
 	pc->onStateChange([](PeerConnection::State state) { cout << "State: " << state << endl; });
@@ -218,7 +220,7 @@ shared_ptr<PeerConnection> createPeerConnection(const Configuration &config,
 			ws->send(message.dump());
 	});
 
-	pc->onDataChannel([id](shared_ptr<DataChannel> dc) {
+	pc->onDataChannel([id](boost::shared_ptr<DataChannel> dc) {
 		cout << "DataChannel from " << id << " received with label \"" << dc->label() << "\""
 		     << endl;
 
@@ -230,7 +232,7 @@ shared_ptr<PeerConnection> createPeerConnection(const Configuration &config,
 		dc->onClosed([id]() { cout << "DataChannel from " << id << " closed" << endl; });
 
 		dc->onMessage([id](variant<binary, string> data) {
-			if (holds_alternative<string>(data))
+			if (workarounds::holds_alternative<string>(data))
 				cout << "Message from " << id << " received: " << get<string>(data) << endl;
 			else
 				cout << "Binary message from " << id

@@ -35,18 +35,19 @@ using namespace std::chrono_literals;
 
 using json = nlohmann::json;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 /// all connected clients
-unordered_map<string, shared_ptr<Client>> clients{};
+unordered_map<string, std::shared_ptr<Client>> clients{};
 
 /// Creates peer connection and client representation
 /// @param config Configuration
 /// @param wws Websocket for signaling
 /// @param id Client ID
 /// @returns Client
-shared_ptr<Client> createPeerConnection(const Configuration &config,
-                                        weak_ptr<WebSocket> wws,
+std::shared_ptr<Client> createPeerConnection(const Configuration &config,
+                                        std::weak_ptr<WebSocket> wws,
                                         string id);
 
 /// Creates stream
@@ -54,12 +55,13 @@ shared_ptr<Client> createPeerConnection(const Configuration &config,
 /// @param fps Video FPS
 /// @param opusSamples Directory with opus samples
 /// @returns Stream object
-shared_ptr<Stream> createStream(const string h264Samples, const unsigned fps, const string opusSamples);
+std::shared_ptr<Stream> createStream(const string h264Samples, const unsigned fps,
+                                     const string opusSamples);
 
 /// Add client to stream
 /// @param client Client
 /// @param adding_video True if adding video
-void addToStream(shared_ptr<Client> client, bool isAddingVideo);
+void addToStream(std::shared_ptr<Client> client, bool isAddingVideo);
 
 /// Start stream
 void startStream();
@@ -68,7 +70,7 @@ void startStream();
 DispatchQueue MainThread("Main");
 
 /// Audio and video stream
-optional<shared_ptr<Stream>> avStream = nullopt;
+boost::optional<std::shared_ptr<Stream>> avStream = boost::none;
 
 const string defaultRootDirectory = "../../../examples/streamer/samples/";
 const string defaultH264SamplesDirectory = defaultRootDirectory + "h264/";
@@ -84,7 +86,7 @@ uint16_t port = defaultPort;
 /// @param message Incommint message
 /// @param config Configuration
 /// @param ws Websocket
-void wsOnMessage(json message, Configuration config, shared_ptr<WebSocket> ws) {
+void wsOnMessage(json message, Configuration config, std::shared_ptr<WebSocket> ws) {
     auto it = message.find("id");
     if (it == message.end())
         return;
@@ -95,11 +97,13 @@ void wsOnMessage(json message, Configuration config, shared_ptr<WebSocket> ws) {
     string type = it->get<string>();
 
     if (type == "streamRequest") {
-        shared_ptr<Client> c = createPeerConnection(config, make_weak_ptr(ws), id);
+		std::shared_ptr<Client> c = createPeerConnection(config, make_weak_ptr(ws), id);
         clients.emplace(id, c);
     } else if (type == "answer") {
-        shared_ptr<Client> c;
-        if (auto jt = clients.find(id); jt != clients.end()) {
+		std::shared_ptr<Client> c;
+
+		auto jt = clients.find(id);
+        if (jt != clients.end()) {
             auto pc = clients.at(id)->peerConnection;
             auto sdp = message["sdp"].get<string>();
             auto description = Description(sdp, type);
@@ -175,7 +179,7 @@ int main(int argc, char **argv) try {
     ws->onError([](const string &error) { cout << "WebSocket failed: " << error << endl; });
 
     ws->onMessage([&](variant<binary, string> data) {
-        if (!holds_alternative<string>(data))
+        if (!workarounds::holds_alternative<string>(data))
             return;
 
         json message = json::parse(get<string>(data));
@@ -212,57 +216,65 @@ int main(int argc, char **argv) try {
     return -1;
 }
 
-shared_ptr<ClientTrackData> addVideo(const shared_ptr<PeerConnection> pc, const uint8_t payloadType, const uint32_t ssrc, const string cname, const string msid, const function<void (void)> onOpen) {
+std::shared_ptr<ClientTrackData> addVideo(const std::shared_ptr<PeerConnection> pc,
+                                     const uint8_t payloadType, const uint32_t ssrc,
+                                     const string cname, const string msid,
+                                     const function<void(void)> onOpen) {
     auto video = Description::Video(cname);
     video.addH264Codec(payloadType);
     video.addSSRC(ssrc, cname, msid, cname);
     auto track = pc->addTrack(video);
     // create RTP configuration
-    auto rtpConfig = make_shared<RtpPacketizationConfig>(ssrc, cname, payloadType, H264RtpPacketizer::defaultClockRate);
+	auto rtpConfig = boost::make_shared<RtpPacketizationConfig>(
+	    ssrc, cname, payloadType, H264RtpPacketizer::defaultClockRate);
     // create packetizer
-    auto packetizer = make_shared<H264RtpPacketizer>(H264RtpPacketizer::Separator::Length, rtpConfig);
+    auto packetizer = boost::make_shared<H264RtpPacketizer>(H264RtpPacketizer::Separator::Length, rtpConfig);
     // create H264 handler
-    auto h264Handler = make_shared<H264PacketizationHandler>(packetizer);
+	auto h264Handler = boost::make_shared<H264PacketizationHandler>(packetizer);
     // add RTCP SR handler
-    auto srReporter = make_shared<RtcpSrReporter>(rtpConfig);
+    auto srReporter = boost::make_shared<RtcpSrReporter>(rtpConfig);
     h264Handler->addToChain(srReporter);
     // add RTCP NACK handler
-    auto nackResponder = make_shared<RtcpNackResponder>();
+	auto nackResponder = boost::make_shared<RtcpNackResponder>();
     h264Handler->addToChain(nackResponder);
     // set handler
     track->setMediaHandler(h264Handler);
     track->onOpen(onOpen);
-    auto trackData = make_shared<ClientTrackData>(track, srReporter);
+    auto trackData = std::make_shared<ClientTrackData>(track, srReporter);
     return trackData;
 }
 
-shared_ptr<ClientTrackData> addAudio(const shared_ptr<PeerConnection> pc, const uint8_t payloadType, const uint32_t ssrc, const string cname, const string msid, const function<void (void)> onOpen) {
+std::shared_ptr<ClientTrackData> addAudio(const std::shared_ptr<PeerConnection> pc,
+                                          const uint8_t payloadType, const uint32_t ssrc,
+                                          const string cname, const string msid,
+                                          const function<void(void)> onOpen) {
     auto audio = Description::Audio(cname);
     audio.addOpusCodec(payloadType);
     audio.addSSRC(ssrc, cname, msid, cname);
     auto track = pc->addTrack(audio);
     // create RTP configuration
-    auto rtpConfig = make_shared<RtpPacketizationConfig>(ssrc, cname, payloadType, OpusRtpPacketizer::defaultClockRate);
+	auto rtpConfig = boost::make_shared<RtpPacketizationConfig>(
+	    ssrc, cname, payloadType, OpusRtpPacketizer::defaultClockRate);
     // create packetizer
-    auto packetizer = make_shared<OpusRtpPacketizer>(rtpConfig);
+	auto packetizer = boost::make_shared<OpusRtpPacketizer>(rtpConfig);
     // create opus handler
-    auto opusHandler = make_shared<OpusPacketizationHandler>(packetizer);
+	auto opusHandler = boost::make_shared<OpusPacketizationHandler>(packetizer);
     // add RTCP SR handler
-    auto srReporter = make_shared<RtcpSrReporter>(rtpConfig);
+	auto srReporter = boost::make_shared<RtcpSrReporter>(rtpConfig);
     opusHandler->addToChain(srReporter);
     // add RTCP NACK handler
-    auto nackResponder = make_shared<RtcpNackResponder>();
+	auto nackResponder = boost::make_shared<RtcpNackResponder>();
     opusHandler->addToChain(nackResponder);
     // set handler
     track->setMediaHandler(opusHandler);
     track->onOpen(onOpen);
-    auto trackData = make_shared<ClientTrackData>(track, srReporter);
+    auto trackData = std::make_shared<ClientTrackData>(track, srReporter);
     return trackData;
 }
 
 // Create and setup a PeerConnection
-shared_ptr<Client> createPeerConnection(const Configuration &config,
-                                                weak_ptr<WebSocket> wws,
+std::shared_ptr<Client> createPeerConnection(const Configuration &config,
+                                                std::weak_ptr<WebSocket> wws,
                                                 string id) {
     auto pc = make_shared<PeerConnection>(config);
     auto client = make_shared<Client>(pc);
@@ -336,7 +348,7 @@ shared_ptr<Client> createPeerConnection(const Configuration &config,
 };
 
 /// Create stream
-shared_ptr<Stream> createStream(const string h264Samples, const unsigned fps, const string opusSamples) {
+std::shared_ptr<Stream> createStream(const string h264Samples, const unsigned fps, const string opusSamples) {
     // video source
     auto video = make_shared<H264FileParser>(h264Samples, fps, true);
     // audio source
@@ -348,7 +360,7 @@ shared_ptr<Stream> createStream(const string h264Samples, const unsigned fps, co
         vector<ClientTrack> tracks{};
         string streamType = type == Stream::StreamSourceType::Video ? "video" : "audio";
         // get track for given type
-        function<optional<shared_ptr<ClientTrackData>> (shared_ptr<Client>)> getTrackData = [type](shared_ptr<Client> client) {
+        function<boost::optional<std::shared_ptr<ClientTrackData>> (std::shared_ptr<Client>)> getTrackData = [type](std::shared_ptr<Client> client) {
             return type == Stream::StreamSourceType::Video ? client->video : client->audio;
         };
         // get all clients with Ready state
@@ -408,7 +420,7 @@ shared_ptr<Stream> createStream(const string h264Samples, const unsigned fps, co
 
 /// Start stream
 void startStream() {
-    shared_ptr<Stream> stream;
+    std::shared_ptr<Stream> stream;
     if (avStream.has_value()) {
         stream = avStream.value();
         if (stream->isRunning) {
@@ -425,7 +437,7 @@ void startStream() {
 /// Send previous key frame so browser can show something to user
 /// @param stream Stream
 /// @param video Video track data
-void sendInitialNalus(shared_ptr<Stream> stream, shared_ptr<ClientTrackData> video) {
+void sendInitialNalus(std::shared_ptr<Stream> stream, std::shared_ptr<ClientTrackData> video) {
     auto h264 = dynamic_cast<H264FileParser *>(stream->video.get());
     auto initialNalus = h264->initialNALUS();
 
@@ -444,7 +456,7 @@ void sendInitialNalus(shared_ptr<Stream> stream, shared_ptr<ClientTrackData> vid
 /// Add client to stream
 /// @param client Client
 /// @param adding_video True if adding video
-void addToStream(shared_ptr<Client> client, bool isAddingVideo) {
+void addToStream(std::shared_ptr<Client> client, bool isAddingVideo) {
     if (client->getState() == Client::State::Waiting) {
         client->setState(isAddingVideo ? Client::State::WaitingForAudio : Client::State::WaitingForVideo);
     } else if ((client->getState() == Client::State::WaitingForAudio && !isAddingVideo)

@@ -26,7 +26,8 @@
 #include <future>
 #include <mutex>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 using init_token = shared_ptr<void>;
 
@@ -61,6 +62,7 @@ private:
 	struct TokenPayload;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

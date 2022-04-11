@@ -1,6 +1,10 @@
 #include <type_traits>
 
+#define STATIC_ASSERT(PRED) \
+{ const char _code_static_assert[(PRED) ? 1 : -1] = {0}; }
+
 namespace workarounds {
+
 	// Implementation from: https://en.cppreference.com/w/cpp/types/result_of
 namespace detail {
 template <class T> struct is_reference_wrapper : std::false_type {};

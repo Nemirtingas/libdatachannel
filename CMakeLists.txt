@@ -336,6 +336,11 @@ else()
 	target_compile_definitions(datachannel-static PRIVATE USE_GNUTLS=0)
 	target_link_libraries(datachannel PRIVATE OpenSSL::SSL)
 	target_link_libraries(datachannel-static PRIVATE OpenSSL::SSL)
+	
+	if(WIN32)
+		target_link_libraries(datachannel PUBLIC crypt32)
+		target_link_libraries(datachannel-static PUBLIC crypt32)
+	endif()
 endif()
 
 if (USE_NICE)
@@ -432,7 +437,7 @@ if(NOT NO_TESTS)
 
 	set_target_properties(datachannel-tests PROPERTIES
 		VERSION ${PROJECT_VERSION}
-		CXX_STANDARD 17
+		CXX_STANDARD 14
 		OUTPUT_NAME tests)
 
 	set_target_properties(datachannel-tests PROPERTIES
@@ -451,7 +456,7 @@ if(NOT NO_TESTS)
 
 	set_target_properties(datachannel-benchmark PROPERTIES
 		VERSION ${PROJECT_VERSION}
-		CXX_STANDARD 17
+		CXX_STANDARD 14
 		OUTPUT_NAME benchmark)
 
 	set_target_properties(datachannel-benchmark PROPERTIES

@@ -27,7 +27,7 @@ namespace rtc {
 OpusRtpPacketizer::OpusRtpPacketizer(shared_ptr<RtpPacketizationConfig> rtpConfig)
     : RtpPacketizer(rtpConfig), MediaHandlerRootElement() {}
 
-binary_ptr OpusRtpPacketizer::packetize(binary_ptr payload, [[maybe_unused]] bool setMark) {
+binary_ptr OpusRtpPacketizer::packetize(binary_ptr payload, bool setMark) {
 	assert(!setMark);
 	return RtpPacketizer::packetize(payload, false);
 }

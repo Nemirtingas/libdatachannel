@@ -55,6 +55,14 @@
 #include <boost/optional.hpp>
 #include <vector>
 
+namespace workarounds {
+
+template <typename T, typename... U> bool holds_alternative(boost::variant<U...> const&v) {
+	return boost::get<T>(&v) != nullptr;
+}
+
+}
+
 namespace rtc {
 
 using nonstd::byte;

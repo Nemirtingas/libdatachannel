@@ -17,7 +17,7 @@ else()
 endif()
 
 set_target_properties(datachannel-media PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 14
     OUTPUT_NAME media)
 
 set_target_properties(datachannel-media PROPERTIES

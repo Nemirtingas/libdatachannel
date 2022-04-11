@@ -65,22 +65,23 @@ int gettimeofday(struct timeval *tv, struct timezone *tz) {
 using namespace std;
 using namespace rtc;
 
-ClientTrackData::ClientTrackData(shared_ptr<Track> track, shared_ptr<RtcpSrReporter> sender) {
+ClientTrackData::ClientTrackData(boost::shared_ptr<Track> track,
+                                 boost::shared_ptr<RtcpSrReporter> sender) {
 	this->track = track;
 	this->sender = sender;
 }
 
 void Client::setState(State state) {
-	std::unique_lock lock(_mutex);
+	std::unique_lock<boost::shared_mutex> lock(_mutex);
 	this->state = state;
 }
 
 Client::State Client::getState() {
-	std::shared_lock lock(_mutex);
+	boost::shared_lock<boost::shared_mutex> lock(_mutex);
 	return state;
 }
 
-ClientTrack::ClientTrack(string id, shared_ptr<ClientTrackData> trackData) {
+ClientTrack::ClientTrack(string id, std::shared_ptr<ClientTrackData> trackData) {
 	this->id = id;
 	this->trackData = trackData;
 }

@@ -80,7 +80,7 @@ public:
 	/// @param startTimestamp Corresponding timestamp for given start time (current timestamp will
 	/// be used if value is none)
 	void setStartTime(double startTime_s, EpochStart epochStart,
-	                  optional<uint32_t> startTimestamp = std::none);
+	                  optional<uint32_t> startTimestamp = boost::none);
 
 	/// Construct RTP configuration used in packetization process
 	/// @param ssrc SSRC of source
@@ -91,8 +91,8 @@ public:
 	/// none)
 	/// @param timestamp Initial timastamp of RTP packets (random number is choosed if none)
 	RtpPacketizationConfig(SSRC ssrc, std::string cname, uint8_t payloadType, uint32_t clockRate,
-	                       optional<uint16_t> sequenceNumber = std::none,
-	                       optional<uint32_t> timestamp = std::none,
+	                       optional<uint16_t> sequenceNumber = boost::none,
+	                       optional<uint32_t> timestamp = boost::none,
 	                       uint8_t videoOrientationId = 0);
 
 	/// Convert timestamp to seconds

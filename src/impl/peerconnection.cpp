@@ -125,11 +125,11 @@ size_t PeerConnection::remoteMaxMessageSize() const {
 // Helper for PeerConnection::initXTransport methods: start and emplace the transport
 template <typename T>
 shared_ptr<T> emplaceTransport(PeerConnection *pc, shared_ptr<T> *member, shared_ptr<T> transport) {
-	std::atomic_store(member, transport);
+	boost::atomic_store(member, transport);
 	try {
 		transport->start();
 	} catch (...) {
-		std::atomic_store(member, decltype(transport)(nullptr));
+		boost::atomic_store(member, decltype(transport)(nullptr));
 		transport->stop();
 		throw;
 	}
@@ -454,11 +454,11 @@ void PeerConnection::forwardMessage(message_ptr message) {
 			channel->close();
 		}
 
-		channel = std::make_shared<IncomingDataChannel>(weak_from_this(), sctpTransport, stream);
+		channel = boost::make_shared<IncomingDataChannel>(weak_from_this(), sctpTransport, stream);
 		channel->openCallback =
 		    weak_bind(&PeerConnection::triggerDataChannel, this, weak_ptr<DataChannel>{channel});
 
-		std::unique_lock lock(mDataChannelsMutex); // we are going to emplace
+		std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
 		mDataChannels.emplace(stream, channel);
 	}
 
@@ -759,7 +759,7 @@ void PeerConnection::openTracks() {
 #if RTC_ENABLE_MEDIA
 	if (auto transport = boost::atomic_load(&mDtlsTransport)) {
 		auto srtpTransport = boost::dynamic_pointer_cast<DtlsSrtpTransport>(transport);
-		boost::shared_lock lock(mTracksMutex); // read-only
+		boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 		for (auto it = mTracks.begin(); it != mTracks.end(); ++it)
 			if (auto track = it->second.lock())
 				if (!track->isOpen())
@@ -914,7 +914,7 @@ void PeerConnection::processLocalDescription(Description description) {
 
 		// Add application for data channels
 		if (!description.hasApplication()) {
-			std::shared_lock lock(mDataChannelsMutex);
+			boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex);
 			if (!mDataChannels.empty()) {
 				// Prevents mid collision with remote or local tracks
 				unsigned int m = 0;

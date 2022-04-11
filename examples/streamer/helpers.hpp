@@ -21,13 +21,15 @@
 
 #include "rtc/rtc.hpp"
 
-#include <shared_mutex>
+#include <boost/thread/lock_types.hpp>
+#include <boost/thread/shared_mutex.hpp>
 
 struct ClientTrackData {
-    std::shared_ptr<rtc::Track> track;
-	std::shared_ptr<rtc::RtcpSrReporter> sender;
+	boost::shared_ptr<rtc::Track> track;
+	boost::shared_ptr<rtc::RtcpSrReporter> sender;
 
-	ClientTrackData(std::shared_ptr<rtc::Track> track, std::shared_ptr<rtc::RtcpSrReporter> sender);
+	ClientTrackData(boost::shared_ptr<rtc::Track> track,
+	                boost::shared_ptr<rtc::RtcpSrReporter> sender);
 };
 
 struct Client {
@@ -41,14 +43,14 @@ struct Client {
     Client(std::shared_ptr<rtc::PeerConnection> pc) {
         _peerConnection = pc;
     }
-    std::optional<std::shared_ptr<ClientTrackData>> video;
-    std::optional<std::shared_ptr<ClientTrackData>> audio;
-    std::optional<std::shared_ptr<rtc::DataChannel>> dataChannel{};
+    boost::optional<std::shared_ptr<ClientTrackData>> video;
+    boost::optional<std::shared_ptr<ClientTrackData>> audio;
+    boost::optional<boost::shared_ptr<rtc::DataChannel>> dataChannel{};
     void setState(State state);
     State getState();
 
 private:
-    std::shared_mutex _mutex;
+	boost::shared_mutex _mutex;
     State state = State::Waiting;
     std::string id;
     std::shared_ptr<rtc::PeerConnection> _peerConnection;

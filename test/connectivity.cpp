@@ -29,7 +29,8 @@
 using namespace rtc;
 using namespace std;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 void test_connectivity() {
 	InitLogger(LogLevel::Debug);
@@ -99,8 +100,8 @@ void test_connectivity() {
 		cout << "Signaling state 2: " << state << endl;
 	});
 
-	shared_ptr<DataChannel> dc2;
-	pc2.onDataChannel([&dc2](shared_ptr<DataChannel> dc) {
+	boost::shared_ptr<DataChannel> dc2;
+	pc2.onDataChannel([&dc2](boost::shared_ptr<DataChannel> dc) {
 		cout << "DataChannel 2: Received with label \"" << dc->label() << "\"" << endl;
 		if (dc->label() != "test") {
 			cerr << "Wrong DataChannel label" << endl;
@@ -115,12 +116,12 @@ void test_connectivity() {
 		});
 
 		dc->onMessage([](variant<binary, string> message) {
-			if (holds_alternative<string>(message)) {
+			if (workarounds::holds_alternative<string>(message)) {
 				cout << "Message 2: " << get<string>(message) << endl;
 			}
 		});
 
-		std::atomic_store(&dc2, dc);
+		boost::atomic_store(&dc2, dc);
 	});
 
 	auto dc1 = pc1.createDataChannel("test");
@@ -133,15 +134,15 @@ void test_connectivity() {
 	});
 
 	dc1->onMessage([](const variant<binary, string> &message) {
-		if (holds_alternative<string>(message)) {
+		if (workarounds::holds_alternative<string>(message)) {
 			cout << "Message 1: " << get<string>(message) << endl;
 		}
 	});
 
 	// Wait a bit
 	int attempts = 10;
-	shared_ptr<DataChannel> adc2;
-	while ((!(adc2 = std::atomic_load(&dc2)) || !adc2->isOpen() || !dc1->isOpen()) && attempts--)
+	boost::shared_ptr<DataChannel> adc2;
+	while ((!(adc2 = boost::atomic_load(&dc2)) || !adc2->isOpen() || !dc1->isOpen()) && attempts--)
 		this_thread::sleep_for(1s);
 
 	if (pc1.state() != PeerConnection::State::Connected &&
@@ -175,8 +176,8 @@ void test_connectivity() {
 	}
 
 	// Try to open a second data channel with another label
-	shared_ptr<DataChannel> second2;
-	pc2.onDataChannel([&second2](shared_ptr<DataChannel> dc) {
+	boost::shared_ptr<DataChannel> second2;
+	pc2.onDataChannel([&second2](boost::shared_ptr<DataChannel> dc) {
 		cout << "Second DataChannel 2: Received with label \"" << dc->label() << "\"" << endl;
 		if (dc->label() != "second") {
 			cerr << "Wrong second DataChannel label" << endl;
@@ -189,12 +190,12 @@ void test_connectivity() {
 		});
 
 		dc->onMessage([](variant<binary, string> message) {
-			if (holds_alternative<string>(message)) {
+			if (workarounds::holds_alternative<string>(message)) {
 				cout << "Second Message 2: " << get<string>(message) << endl;
 			}
 		});
 
-		std::atomic_store(&second2, dc);
+		boost::atomic_store(&second2, dc);
 	});
 
 	auto second1 = pc1.createDataChannel("second");
@@ -205,16 +206,16 @@ void test_connectivity() {
 		}
 	});
 	dc1->onMessage([](const variant<binary, string> &message) {
-		if (holds_alternative<string>(message)) {
+		if (workarounds::holds_alternative<string>(message)) {
 			cout << "Second Message 1: " << get<string>(message) << endl;
 		}
 	});
 
 	// Wait a bit
 	attempts = 10;
-	shared_ptr<DataChannel> asecond2;
+	boost::shared_ptr<DataChannel> asecond2;
 	while (
-	    (!(asecond2 = std::atomic_load(&second2)) || !asecond2->isOpen() || !second1->isOpen()) &&
+	    (!(asecond2 = boost::atomic_load(&second2)) || !asecond2->isOpen() || !second1->isOpen()) &&
 	    attempts--)
 		this_thread::sleep_for(1s);
 
@@ -233,7 +234,7 @@ void test_connectivity() {
 
 	std::atomic<bool> received = false;
 	negotiated2->onMessage([&received](const variant<binary, string> &message) {
-		if (holds_alternative<string>(message)) {
+		if (workarounds::holds_alternative<string>(message)) {
 			cout << "Second Message 2: " << get<string>(message) << endl;
 			received = true;
 		}

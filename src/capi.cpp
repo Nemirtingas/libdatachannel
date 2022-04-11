@@ -239,7 +239,9 @@ string lowercased(string str) {
 
 shared_ptr<RtcpSrReporter> getRtcpSrReporter(int id) {
 	std::lock_guard<std::mutex> lock(mutex);
-	if (auto it = rtcpSrReporterMap.find(id); it != rtcpSrReporterMap.end()) {
+
+	auto it = rtcpSrReporterMap.find(id);
+	if (it != rtcpSrReporterMap.end()) {
 		return it->second;
 	} else {
 		throw std::invalid_argument("RTCP SR reporter ID does not exist");
@@ -253,7 +255,9 @@ void emplaceRtcpSrReporter(shared_ptr<RtcpSrReporter> ptr, int tr) {
 
 shared_ptr<MediaChainableHandler> getMediaChainableHandler(int id) {
 	std::lock_guard<std::mutex> lock(mutex);
-	if (auto it = rtcpChainableHandlerMap.find(id); it != rtcpChainableHandlerMap.end()) {
+
+	auto it = rtcpChainableHandlerMap.find(id);
+	if (it != rtcpChainableHandlerMap.end()) {
 		return it->second;
 	} else {
 		throw std::invalid_argument("RTCP chainable handler ID does not exist");
@@ -267,7 +271,9 @@ void emplaceMediaChainableHandler(shared_ptr<MediaChainableHandler> ptr, int tr)
 
 shared_ptr<RtpPacketizationConfig> getRtpConfig(int id) {
 	std::lock_guard<std::mutex> lock(mutex);
-	if (auto it = rtpConfigMap.find(id); it != rtpConfigMap.end()) {
+
+	auto it = rtpConfigMap.find(id);
+	if (it != rtpConfigMap.end()) {
 		return it->second;
 	} else {
 		throw std::invalid_argument("RTP configuration ID does not exist");
@@ -1251,8 +1257,9 @@ int rtcGetSsrcsForType(const char *mediaType, const char *sdp, uint32_t *buffer,
 		auto description = Description(oldSDP, "unspec");
 		auto mediaCount = description.mediaCount();
 		for (unsigned int i = 0; i < mediaCount; i++) {
-			if (std::holds_alternative<Description::Media *>(description.media(i))) {
-				auto media = boost::get<Description::Media *>(description.media(i));
+			auto var_media = description.media(i);
+			if (workarounds::holds_alternative<Description::Media *>(var_media)) {
+				auto media = boost::get<Description::Media *>(var_media);
 				auto currentMediaType = lowercased(media->type());
 				if (currentMediaType == type) {
 					auto ssrcs = media->getSSRCs();
@@ -1272,8 +1279,9 @@ int rtcSetSsrcForType(const char *mediaType, const char *sdp, char *buffer, cons
 		auto description = Description(prevSDP, "unspec");
 		auto mediaCount = description.mediaCount();
 		for (unsigned int i = 0; i < mediaCount; i++) {
-			if (std::holds_alternative<Description::Media *>(description.media(i))) {
-				auto media = boost::get<Description::Media *>(description.media(i));
+			auto var_media = description.media(i);
+			if (workarounds::holds_alternative<Description::Media *>(var_media)) {
+				auto media = boost::get<Description::Media *>(var_media);
 				auto currentMediaType = lowercased(media->type());
 				if (currentMediaType == type) {
 					setSSRC(media, init->ssrc, init->name, init->msid, init->trackId);

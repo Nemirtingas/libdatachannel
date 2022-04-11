@@ -32,7 +32,8 @@ using chrono::duration_cast;
 using chrono::milliseconds;
 using chrono::steady_clock;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 size_t benchmark(milliseconds duration) {
 	rtc::InitLogger(LogLevel::Warning);
@@ -88,10 +89,10 @@ size_t benchmark(milliseconds duration) {
 
 	steady_clock::time_point startTime, openTime, receivedTime, endTime;
 
-	shared_ptr<DataChannel> dc2;
-	pc2.onDataChannel([&dc2, &receivedSize, &receivedTime](shared_ptr<DataChannel> dc) {
+	boost::shared_ptr<DataChannel> dc2;
+	pc2.onDataChannel([&dc2, &receivedSize, &receivedTime](boost::shared_ptr<DataChannel> dc) {
 		dc->onMessage([&receivedTime, &receivedSize](variant<binary, string> message) {
-			if (holds_alternative<binary>(message)) {
+			if (workarounds::holds_alternative<binary>(message)) {
 				const auto &bin = get<binary>(message);
 				if (receivedSize == 0)
 					receivedTime = steady_clock::now();
@@ -101,7 +102,7 @@ size_t benchmark(milliseconds duration) {
 
 		dc->onClosed([]() { cout << "DataChannel closed." << endl; });
 
-		std::atomic_store(&dc2, dc);
+		boost::atomic_store(&dc2, dc);
 	});
 
 	startTime = steady_clock::now();

@@ -90,7 +90,7 @@ size_t Track::availableAmount() const { return mRecvQueue.amount(); }
 
 bool Track::isOpen(void) const {
 #if RTC_ENABLE_MEDIA
-	boost::shared_lock lock(mMutex);
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return !mIsClosed && mDtlsSrtpTransport.lock();
 #else
 	return !mIsClosed;
@@ -110,7 +110,7 @@ size_t Track::maxMessageSize() const {
 #if RTC_ENABLE_MEDIA
 void Track::open(shared_ptr<DtlsSrtpTransport> transport) {
 	{
-		std::lock_guard<std::mutex> lock(mMutex);
+		std::lock_guard<boost::shared_mutex> lock(mMutex);
 		mDtlsSrtpTransport = transport;
 	}
 
@@ -169,7 +169,7 @@ bool Track::transportSend(message_ptr message) {
 #if RTC_ENABLE_MEDIA
 	shared_ptr<DtlsSrtpTransport> transport;
 	{
-		boost::shared_lock lock(mMutex);
+		boost::shared_lock<boost::shared_mutex> lock(mMutex);
 		transport = mDtlsSrtpTransport.lock();
 		if (!transport)
 			throw std::runtime_error("Track is closed");

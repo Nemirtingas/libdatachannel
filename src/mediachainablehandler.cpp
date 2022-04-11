@@ -158,12 +158,12 @@ bool MediaChainableHandler::send(message_ptr msg) {
 }
 
 shared_ptr<MediaHandlerElement> MediaChainableHandler::getLeaf() const {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	return leaf;
 }
 
 void MediaChainableHandler::addToChain(shared_ptr<MediaHandlerElement> chainable) {
-	std::lock_guard lock(mutex);
+	std::lock_guard<std::mutex> lock(mutex);
 	assert(leaf);
 	leaf = leaf->chainWith(chainable);
 }

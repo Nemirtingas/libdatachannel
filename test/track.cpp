@@ -27,7 +27,8 @@
 using namespace rtc;
 using namespace std;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 void test_track() {
 	InitLogger(LogLevel::Debug);
@@ -79,16 +80,16 @@ void test_track() {
 		cout << "Gathering state 2: " << state << endl;
 	});
 
-	shared_ptr<Track> t2;
+	boost::shared_ptr<Track> t2;
 	string newTrackMid;
-	pc2.onTrack([&t2, &newTrackMid](shared_ptr<Track> t) {
+	pc2.onTrack([&t2, &newTrackMid](boost::shared_ptr<Track> t) {
 		cout << "Track 2: Received with mid \"" << t->mid() << "\"" << endl;
 		if (t->mid() != newTrackMid) {
 			cerr << "Wrong track mid" << endl;
 			return;
 		}
 
-		std::atomic_store(&t2, t);
+		boost::atomic_store(&t2, t);
 	});
 
 	// Test opening a track
@@ -98,8 +99,8 @@ void test_track() {
 	pc1.setLocalDescription();
 
 	int attempts = 10;
-	shared_ptr<Track> at2;
-	while ((!(at2 = std::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
+	boost::shared_ptr<Track> at2;
+	while ((!(at2 = boost::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
 		this_thread::sleep_for(1s);
 
 	if (pc1.state() != PeerConnection::State::Connected &&
@@ -117,7 +118,7 @@ void test_track() {
 
 	attempts = 10;
 	t2.reset();
-	while ((!(at2 = std::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
+	while ((!(at2 = boost::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
 		this_thread::sleep_for(1s);
 
 	if (!at2 || !at2->isOpen() || !t1->isOpen())

@@ -22,7 +22,7 @@ else()
 endif()
 
 set_target_properties(datachannel-client-benchmark PROPERTIES
-	CXX_STANDARD 17
+	CXX_STANDARD 14
 	OUTPUT_NAME client-benchmark)
 
 set_target_properties(datachannel-client-benchmark PROPERTIES

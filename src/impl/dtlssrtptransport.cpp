@@ -26,10 +26,11 @@
 #include <cstring>
 #include <exception>
 
-using std::to_integer;
+using nonstd::to_integer;
 using std::to_string;
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 static LogCounter COUNTER_MEDIA_TRUNCATED(plog::warning,
                                           "Number of truncated SRT(C)P packets received");
@@ -237,7 +238,7 @@ void DtlsSrtpTransport::postHandshake() {
 	if (mInitDone)
 		return;
 
-	static_assert(SRTP_AES_ICM_128_KEY_LEN_WSALT == SRTP_AES_128_KEY_LEN + SRTP_SALT_LEN);
+	STATIC_ASSERT(SRTP_AES_ICM_128_KEY_LEN_WSALT == SRTP_AES_128_KEY_LEN + SRTP_SALT_LEN);
 
 	const size_t materialLen = SRTP_AES_ICM_128_KEY_LEN_WSALT * 2;
 	unsigned char material[materialLen];
@@ -322,6 +323,7 @@ void DtlsSrtpTransport::postHandshake() {
 	mInitDone = true;
 }
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

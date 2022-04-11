@@ -38,7 +38,7 @@ else()
 endif()
 
 set_target_properties(streamer PROPERTIES
-	CXX_STANDARD 17
+	CXX_STANDARD 14
 	OUTPUT_NAME streamer)
 
 set_target_properties(streamer PROPERTIES

@@ -27,7 +27,7 @@ else()
 endif()
 
 set_target_properties(datachannel-copy-paste-offerer PROPERTIES
-	CXX_STANDARD 17
+	CXX_STANDARD 14
 	OUTPUT_NAME offerer)
 
 set_target_properties(datachannel-copy-paste-offerer PROPERTIES
@@ -42,7 +42,7 @@ else()
 endif()
 
 set_target_properties(datachannel-copy-paste-answerer PROPERTIES
-	CXX_STANDARD 17
+	CXX_STANDARD 14
 	OUTPUT_NAME answerer)
 
 set_target_properties(datachannel-copy-paste-answerer PROPERTIES

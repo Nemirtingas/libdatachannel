@@ -32,7 +32,8 @@
 
 #include <atomic>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class DtlsSrtpTransport final : public DtlsTransport {
 public:
@@ -60,7 +61,8 @@ private:
 	std::mutex sendMutex;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

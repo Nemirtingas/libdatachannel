@@ -29,7 +29,8 @@
 using namespace rtc;
 using namespace std;
 
-template <class T> weak_ptr<T> make_weak_ptr(shared_ptr<T> ptr) { return ptr; }
+template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
+template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 void test_websocketserver() {
 	InitLogger(LogLevel::Debug);
@@ -43,8 +44,8 @@ void test_websocketserver() {
 	// serverConfig.keyPemFile = ...
 	WebSocketServer server(std::move(serverConfig));
 
-	shared_ptr<WebSocket> client;
-	server.onClient([&client](shared_ptr<WebSocket> incoming) {
+	boost::shared_ptr<WebSocket> client;
+	server.onClient([&client](boost::shared_ptr<WebSocket> incoming) {
 		cout << "WebSocketServer: Client connection received" << endl;
 		client = incoming;
 
@@ -81,7 +82,7 @@ void test_websocketserver() {
 
 	std::atomic<bool> received = false;
 	ws.onMessage([&received, &myMessage](variant<binary, string> message) {
-		if (holds_alternative<string>(message)) {
+		if (workarounds::holds_alternative<string>(message)) {
 			string str = std::move(get<string>(message));
 			if ((received = (str == myMessage)))
 				cout << "WebSocket: Received expected message" << endl;

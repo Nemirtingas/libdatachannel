@@ -46,21 +46,21 @@ void H264FileParser::loadNextSample() {
         auto type = header->unitType();
         switch (type) {
             case 7:
-                previousUnitType7 = {sample.begin() + i, sample.begin() + naluEndIndex};
+                previousUnitType7 = rtc::binary{sample.begin() + i, sample.begin() + naluEndIndex};
                 break;
             case 8:
-                previousUnitType8 = {sample.begin() + i, sample.begin() + naluEndIndex};;
+			    previousUnitType8 = rtc::binary{sample.begin() + i, sample.begin() + naluEndIndex};
                 break;
             case 5:
-                previousUnitType5 = {sample.begin() + i, sample.begin() + naluEndIndex};;
+			    previousUnitType5 = rtc::binary{sample.begin() + i, sample.begin() + naluEndIndex};
                 break;
         }
         i = naluEndIndex;
     }
 }
 
-vector<byte> H264FileParser::initialNALUS() {
-    vector<byte> units{};
+vector<nonstd::byte> H264FileParser::initialNALUS() {
+    vector<nonstd::byte> units{};
     if (previousUnitType7.has_value()) {
         auto nalu = previousUnitType7.value();
         units.insert(units.end(), nalu.begin(), nalu.end());
