@@ -94,7 +94,7 @@ class scoped_lock {
 	template <typename... Args> struct templated_value_holder : value_holder {
 		template <std::size_t I = 0, typename... Tp>
 		inline typename std::enable_if<I == sizeof...(Tp), void>::type
-		unlock(std::tuple<Tp...> &t) {}
+		unlock(std::tuple<Tp...> &) {}
 
 		template <std::size_t I = 0, typename... Tp>
 		    inline typename std::enable_if <

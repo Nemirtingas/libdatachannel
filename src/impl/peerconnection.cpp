@@ -54,11 +54,13 @@ static LogCounter
                                 "Number of unknown RTCP packet types over past second");
 
 PeerConnection::PeerConnection(Configuration config_)
-    : config(std::move(config_)), mCertificate(make_certificate(config.certificateType)),
+    : config(std::move(config_)),
       state(State::New),
       gatheringState(GatheringState::New),
       signalingState(SignalingState::Stable),
-      negotiationNeeded(false)
+      negotiationNeeded(false),
+      mInitToken(Init::Instance().token()),
+      mCertificate(make_certificate(config.certificateType))
 {
 	PLOG_VERBOSE << "Creating PeerConnection";
 
@@ -752,10 +754,11 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 
 	shared_ptr<Track> track;
 	auto it = mTracks.find(description.mid());
-	if (it != mTracks.end())
-		track = it->second.lock();
-		if (track)
+	if (it != mTracks.end()) {		
+		if (track = it->second.lock()) {
 			track->setDescription(std::move(description));
+		}
+	}
 
 	if (!track) {
 		track = boost::make_shared<Track>(weak_from_this(), std::move(description));

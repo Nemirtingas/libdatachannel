@@ -22,7 +22,7 @@
 #include "peerconnection.hpp"
 
 namespace rtc{
-	namespace impl {
+namespace impl {
 
 static LogCounter COUNTER_MEDIA_BAD_DIRECTION(plog::warning,
                                               "Number of media packets sent in invalid directions");
@@ -30,9 +30,12 @@ static LogCounter COUNTER_QUEUE_FULL(plog::warning,
                                      "Number of media packets dropped due to a full queue");
 
 Track::Track(weak_ptr<PeerConnection> pc, Description::Media description)
-    : mPeerConnection(pc), mMediaDescription(std::move(description)),
-      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func), 
-	  mIsClosed (false){}
+    : mPeerConnection(pc),
+      mMediaDescription(std::move(description)),
+      mIsClosed (false),
+      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func)
+{
+}
 
 Track::~Track() {
 	PLOG_VERBOSE << "Destroying Track";

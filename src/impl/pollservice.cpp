@@ -67,7 +67,7 @@ void PollService::add(socket_t sock, Params params) {
 	PLOG_VERBOSE << "Registering socket in poll service, direction=" << params.direction;
 	auto until = params.timeout ? boost::make_optional(clock::now() + *params.timeout) : none;
 	assert(mSocks);
-	mSocks->insert_or_assign(sock, SocketEntry{std::move(params), std::move(until)});
+	(*mSocks)[sock] = SocketEntry{std::move(params), std::move(until)};
 
 	assert(mInterrupter);
 	mInterrupter->interrupt();

@@ -125,7 +125,7 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	synchronized_callback<shared_ptr<rtc::Track>> trackCallback;
 
 private:
-	const init_token mInitToken = Init::Instance().token();
+	const init_token mInitToken;
 	const future_certificate_ptr mCertificate;
 
 	Processor mProcessor;

@@ -196,8 +196,9 @@ void TcpTransport::connect() {
 		};
 
 		const auto timeout = 10s;
-		PollService::Instance().add(mSock,
-		                            {PollService::Direction::Out, timeout, std::move(callback)});
+		PollService::Instance().add(mSock, PollService::Params{PollService::Direction::Out,
+		                                                       boost::optional<std::chrono::steady_clock::duration>{timeout},
+		                                                       std::move(callback)});
 	};
 
 	attempt(result, attempt);
