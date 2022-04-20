@@ -85,6 +85,7 @@ public:
 	optional<Description> remoteDescription() const;
 	optional<string> localAddress() const;
 	optional<string> remoteAddress() const;
+	uint16_t maxDataChannelId() const;
 	bool getSelectedCandidatePair(Candidate *local, Candidate *remote);
 
 	void setLocalDescription(Description::Type type = Description::Type::Unspec);
@@ -102,6 +103,8 @@ public:
 	void onStateChange(std::function<void(State state)> callback);
 	void onGatheringStateChange(std::function<void(GatheringState state)> callback);
 	void onSignalingStateChange(std::function<void(SignalingState state)> callback);
+
+	void resetCallbacks();
 
 	// Stats
 	void clearStats();

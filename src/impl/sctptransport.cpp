@@ -34,7 +34,7 @@
 
 // RFC 8831: SCTP MUST support performing Path MTU discovery without relying on ICMP or ICMPv6 as
 // specified in [RFC4821] by using probing messages specified in [RFC4820].
-// See https://tools.ietf.org/html/rfc8831#section-5
+// See https://www.rfc-editor.org/rfc/rfc8831.html#section-5
 //
 // However, usrsctp does not implement Path MTU discovery, so we need to disable it for now.
 // See https://github.com/sctplab/usrsctp/issues/205
@@ -244,7 +244,7 @@ SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &c
 
 	// RFC 8831 6.6. Transferring User Data on a Data Channel
 	// The sender SHOULD disable the Nagle algorithm (see [RFC1122) to minimize the latency
-	// See https://tools.ietf.org/html/rfc8831#section-6.6
+	// See https://www.rfc-editor.org/rfc/rfc8831.html#section-6.6
 	int nodelay = 1;
 	if (usrsctp_setsockopt(mSock, IPPROTO_SCTP, SCTP_NODELAY, &nodelay, sizeof(nodelay)))
 		throw std::runtime_error("Could not set socket option SCTP_NODELAY, errno=" +
@@ -261,7 +261,7 @@ SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &c
 	// bit is not possible (for example, due to implementation restrictions), a safe value for the
 	// path MTU has to be used by the SCTP stack. It is RECOMMENDED that the safe value not exceed
 	// 1200 bytes.
-	// See https://tools.ietf.org/html/rfc8261#section-5
+	// See https://www.rfc-editor.org/rfc/rfc8261.html#section-5
 #if USE_PMTUD
 	if (!config.mtu.has_value()) {
 #else
@@ -288,10 +288,13 @@ SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &c
 	// RFC 8831 6.2. SCTP Association Management
 	// The number of streams negotiated during SCTP association setup SHOULD be 65535, which is the
 	// maximum number of streams that can be negotiated during the association setup.
-	// See https://tools.ietf.org/html/rfc8831#section-6.2
+	// See https://www.rfc-editor.org/rfc/rfc8831.html#section-6.2
+	// However, usrsctp allocates tables to hold the stream states. For 65535 streams, it results in
+	// the waste of a few MBs for each association. Therefore, we use a lower limit to save memory.
+	// See https://github.com/sctplab/usrsctp/issues/121
 	struct sctp_initmsg sinit = {};
-	sinit.sinit_num_ostreams = 65535;
-	sinit.sinit_max_instreams = 65535;
+	sinit.sinit_num_ostreams = MAX_SCTP_STREAMS_COUNT;
+	sinit.sinit_max_instreams = MAX_SCTP_STREAMS_COUNT;
 	if (usrsctp_setsockopt(mSock, IPPROTO_SCTP, SCTP_INITMSG, &sinit, sizeof(sinit)))
 		throw std::runtime_error("Could not set socket option SCTP_INITMSG, errno=" +
 		                         std::to_string(errno));
@@ -393,7 +396,7 @@ void SctpTransport::connect() {
 
 	// According to RFC 8841, both endpoints must initiate the SCTP association, in a
 	// simultaneous-open manner, irrelevent to the SDP setup role.
-	// See https://tools.ietf.org/html/rfc8841#section-9.3
+	// See https://www.rfc-editor.org/rfc/rfc8841.html#section-9.3
 	auto remote = getSockAddrConn(mPorts.remote);
 	int ret = usrsctp_connect(mSock, reinterpret_cast<struct sockaddr *>(&remote), sizeof(remote));
 	if (ret && errno != EINPROGRESS)
@@ -451,11 +454,16 @@ void SctpTransport::closeStream(unsigned int stream) {
 
 	// RFC 8831 6.7. Closing a Data Channel
 	// Closing of a data channel MUST be signaled by resetting the corresponding outgoing streams
-	// See https://tools.ietf.org/html/rfc8831#section-6.7
+	// See https://www.rfc-editor.org/rfc/rfc8831.html#section-6.7
 	mSendQueue.push(make_message(0, Message::Reset, to_uint16(stream)));
 
 	// This method must not call the buffered callback synchronously
-	mProcessor.enqueue(&SctpTransport::flush, this);
+	mProcessor.enqueue(&SctpTransport::flush, shared_from_this());
+}
+
+unsigned int SctpTransport::maxStream() const {
+	unsigned int streamsCount = mNegotiatedStreamsCount.value_or(MAX_SCTP_STREAMS_COUNT);
+	return streamsCount > 0 ? streamsCount - 1 : 0;
 }
 
 void SctpTransport::incoming(message_ptr message) {
@@ -481,7 +489,7 @@ void SctpTransport::incoming(message_ptr message) {
 
 bool SctpTransport::outgoing(message_ptr message) {
 	// Set recommended medium-priority DSCP value
-	// See https://datatracker.ietf.org/doc/html/rfc8837#section-5
+	// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
 	message->dscp = 10; // AF11: Assured Forwarding class 1, low drop probability
 	return Transport::outgoing(std::move(message));
 }
@@ -590,7 +598,7 @@ bool SctpTransport::trySendMessage(message_ptr message) {
 	PLOG_VERBOSE << "SCTP try send size=" << message->size();
 
 	// TODO: Implement SCTP ndata specification draft when supported everywhere
-	// See https://tools.ietf.org/html/draft-ietf-tsvwg-sctp-ndata-08
+	// See https://datatracker.ietf.org/doc/html/draft-ietf-tsvwg-sctp-ndata-08
 
 	const Reliability reliability = message->reliability ? *message->reliability : Reliability();
 
@@ -710,12 +718,12 @@ void SctpTransport::handleUpcall() {
 
 	if (events & SCTP_EVENT_READ && mPendingRecvCount == 0) {
 		++mPendingRecvCount;
-		mProcessor.enqueue(&SctpTransport::doRecv, this);
+		mProcessor.enqueue(&SctpTransport::doRecv, shared_from_this());
 	}
 
 	if (events & SCTP_EVENT_WRITE && mPendingFlushCount == 0) {
 		++mPendingFlushCount;
-		mProcessor.enqueue(&SctpTransport::doFlush, this);
+		mProcessor.enqueue(&SctpTransport::doFlush, shared_from_this());
 	}
 }
 
@@ -744,7 +752,7 @@ void SctpTransport::processData(binary &&data, uint16_t sid, PayloadId ppid) {
 	// RFC 8831: The usage of the PPIDs "WebRTC String Partial" and "WebRTC Binary Partial" is
 	// deprecated. They were used for a PPID-based fragmentation and reassembly of user messages
 	// belonging to reliable and ordered data channels.
-	// See https://tools.ietf.org/html/rfc8831#section-6.6
+	// See https://www.rfc-editor.org/rfc/rfc8831.html#section-6.6
 	// We handle those PPIDs at reception for compatibility reasons but shall never send them.
 	switch (ppid) {
 	case PPID_CONTROL:
@@ -812,8 +820,14 @@ void SctpTransport::processNotification(const union sctp_notification *notify, s
 
 	switch (type) {
 	case SCTP_ASSOC_CHANGE: {
-		const struct sctp_assoc_change &assoc_change = notify->sn_assoc_change;
-		if (assoc_change.sac_state == SCTP_COMM_UP) {
+		PLOG_VERBOSE << "SCTP association change event";
+		const struct sctp_assoc_change &sac = notify->sn_assoc_change;
+		if (sac.sac_state == SCTP_COMM_UP) {
+			PLOG_DEBUG << "SCTP negotiated streams: incoming=" << sac.sac_inbound_streams
+			           << ", outgoing=" << sac.sac_outbound_streams;
+			mNegotiatedStreamsCount.emplace(
+			    std::min(sac.sac_inbound_streams, sac.sac_outbound_streams));
+
 			PLOG_INFO << "SCTP connected";
 			changeState(State::Connected);
 		} else {
@@ -830,7 +844,7 @@ void SctpTransport::processNotification(const union sctp_notification *notify, s
 	}
 
 	case SCTP_SENDER_DRY_EVENT: {
-		PLOG_VERBOSE << "SCTP dry event";
+		PLOG_VERBOSE << "SCTP sender dry event";
 		// It should not be necessary since the send callback should have been called already,
 		// but to be sure, let's try to send now.
 		flush();
@@ -868,7 +882,7 @@ void SctpTransport::processNotification(const union sctp_notification *notify, s
 		// If one side decides to close the data channel, it resets the corresponding outgoing
 		// stream. When the peer sees that an incoming stream was reset, it also resets its
 		// corresponding outgoing stream.
-		// See https://tools.ietf.org/html/rfc8831#section-6.7
+		// See https://www.rfc-editor.org/rfc/rfc8831.html#section-6.7
 		if (flags & SCTP_STREAM_RESET_INCOMING_SSN) {
 			const byte dataChannelCloseMessage{0x04};
 			for (int i = 0; i < count; ++i) {

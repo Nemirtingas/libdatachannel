@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2020-2021 Paul-Louis Ageneau
+ * Copyright (c) 2020-2022 Paul-Louis Ageneau
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,41 +16,36 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef RTC_IMPL_POLL_INTERRUPTER_H
-#define RTC_IMPL_POLL_INTERRUPTER_H
+#include "utils.hpp"
 
-#include "common.hpp"
-#include "socket.hpp"
+#include <iterator>
+#include <sstream>
 
-#if RTC_ENABLE_WEBSOCKET
-
-namespace rtc {
+namespace rtc{
 namespace impl {
+namespace utils {
 
-// Utility class to interrupt poll()
-class PollInterrupter final {
-public:
-	PollInterrupter();
-	~PollInterrupter();
+std::vector<string> explode(const string &str, char delim) {
+	std::vector<std::string> result;
+	std::istringstream ss(str);
+	string token;
+	while (std::getline(ss, token, delim))
+		result.push_back(token);
 
-	PollInterrupter(const PollInterrupter &other) = delete;
-	void operator=(const PollInterrupter &other) = delete;
+	return result;
+}
 
-	void prepare(struct pollfd &pfd);
-	void process(struct pollfd &pfd);
-	void interrupt();
+string implode(const std::vector<string> &tokens, char delim) {
+	string sdelim(1, delim);
+	std::ostringstream ss;
+	std::copy(tokens.begin(), tokens.end(), std::ostream_iterator<string>(ss, sdelim.c_str()));
+	string result = ss.str();
+	if (result.size() > 0)
+		result.resize(result.size() - 1);
 
-private:
-#ifdef _WIN32
-	socket_t mSock;
-#else // assume POSIX
-	int mPipeIn, mPipeOut;
-#endif
-};
+	return result;
+}
 
+} // namespace utils
 } // namespace impl
 } // namespace rtc
-
-#endif
-
-#endif

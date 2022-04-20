@@ -25,7 +25,6 @@
 #include "internals.hpp"
 #include "logcounter.hpp"
 #include "peerconnection.hpp"
-#include "processor.hpp"
 #include "rtp.hpp"
 #include "sctptransport.hpp"
 #include "threadpool.hpp"
@@ -56,7 +55,6 @@ static LogCounter
 
 PeerConnection::PeerConnection(Configuration config_)
     : config(std::move(config_)), mCertificate(make_certificate(config.certificateType)),
-      mProcessor(std::make_unique<Processor>()),
       state(State::New),
       gatheringState(GatheringState::New),
       signalingState(SignalingState::Stable),
@@ -81,7 +79,7 @@ PeerConnection::PeerConnection(Configuration config_)
 
 PeerConnection::~PeerConnection() {
 	PLOG_VERBOSE << "Destroying PeerConnection";
-	mProcessor->join();
+	mProcessor.join();
 }
 
 void PeerConnection::close() {
@@ -89,8 +87,9 @@ void PeerConnection::close() {
 
 	negotiationNeeded = false;
 
-	// Close data channels asynchronously
-	mProcessor->enqueue(&PeerConnection::closeDataChannels, this);
+	// Close data channels and tracks asynchronously
+	mProcessor.enqueue(&PeerConnection::closeDataChannels, shared_from_this());
+	mProcessor.enqueue(&PeerConnection::closeTracks, shared_from_this());
 
 	closeTransports();
 }
@@ -230,13 +229,15 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 					    changeState(State::Connected);
 			    }
 
-				    mProcessor->enqueue(&PeerConnection::openTracks, this);
+				    mProcessor.enqueue(&PeerConnection::openTracks, shared_from_this());
 				    break;
 			    case DtlsTransport::State::Failed:
 				    changeState(State::Failed);
+				    mProcessor.enqueue(&PeerConnection::closeTracks, shared_from_this());
 				    break;
 			    case DtlsTransport::State::Disconnected:
 				    changeState(State::Disconnected);
+				    mProcessor.enqueue(&PeerConnection::closeTracks, shared_from_this());
 				    break;
 			    default:
 				    // Ignore
@@ -313,16 +314,18 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 			    switch (transportState) {
 			    case SctpTransport::State::Connected:
 				    changeState(State::Connected);
-				    mProcessor->enqueue(&PeerConnection::openDataChannels, this);
+				    mProcessor.enqueue(&PeerConnection::openDataChannels, shared_from_this());
 				    break;
 			    case SctpTransport::State::Failed:
 				    LOG_WARNING << "SCTP transport failed";
 				    changeState(State::Failed);
-				    mProcessor->enqueue(&PeerConnection::remoteCloseDataChannels, this);
+				    mProcessor.enqueue(&PeerConnection::remoteCloseDataChannels,
+				                       shared_from_this());
 				    break;
 			    case SctpTransport::State::Disconnected:
 				    changeState(State::Disconnected);
-				    mProcessor->enqueue(&PeerConnection::remoteCloseDataChannels, this);
+				    mProcessor.enqueue(&PeerConnection::remoteCloseDataChannels,
+				                       shared_from_this());
 				    break;
 			    default:
 				    // Ignore
@@ -379,7 +382,7 @@ void PeerConnection::closeTransports() {
 			t->onStateChange(nullptr);
 
 	// Initiate transport stop on the processor after closing the data channels
-	mProcessor->enqueue([transports = std::move(transports)]() {
+	mProcessor.enqueue([self = shared_from_this(), transports = std::move(transports)]() {
 		ThreadPool::Instance().enqueue([transports = std::move(transports)]() mutable {
 			for (const auto &t : transports)
 				if (t)
@@ -612,15 +615,16 @@ void PeerConnection::forwardBufferedAmount(uint16_t stream, size_t amount) {
 shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataChannelInit init) {
 	cleanupDataChannels();
 	std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
+	const uint16_t maxStream = maxDataChannelStream();
 	uint16_t stream;
 	if (init.id) {
 		stream = *init.id;
-		if (stream == 65535)
-			throw std::invalid_argument("Invalid DataChannel id");
+		if (stream > maxStream)
+			throw std::invalid_argument("DataChannel stream id is too high");
 	} else {
 		// RFC 5763: The answerer MUST use either a setup attribute value of setup:active or
 		// setup:passive. [...] Thus, setup:active is RECOMMENDED.
-		// See https://tools.ietf.org/html/rfc5763#section-5
+		// See https://www.rfc-editor.org/rfc/rfc5763.html#section-5
 		// Therefore, we assume passive role if we are the offerer.
 		auto iceTransport = getIceTransport();
 		auto role = iceTransport ? iceTransport->role() : Description::Role::Passive;
@@ -629,11 +633,15 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 		// which the corresponding incoming and outgoing streams are unused.  If the side is acting
 		// as the DTLS client, it MUST choose an even stream identifier; if the side is acting as
 		// the DTLS server, it MUST choose an odd one.
-		// See https://tools.ietf.org/html/rfc8832#section-6
+		// See https://www.rfc-editor.org/rfc/rfc8832.html#section-6
 		stream = (role == Description::Role::Active) ? 0 : 1;
-		while (mDataChannels.find(stream) != mDataChannels.end()) {
-			if (stream >= 65535 - 2)
+		while (true) {
+			if (stream > maxStream)
 				throw std::runtime_error("Too many DataChannels");
+
+			auto it = mDataChannels.find(stream);
+			if (it == mDataChannels.end() || !it->second.lock())
+				break;
 
 			stream += 2;
 		}
@@ -658,6 +666,11 @@ shared_ptr<DataChannel> PeerConnection::findDataChannel(uint16_t stream) {
 			return channel;
 
 	return nullptr;
+}
+
+uint16_t PeerConnection::maxDataChannelStream() const {
+	auto sctpTransport = boost::atomic_load(&mSctpTransport);
+	return sctpTransport ? sctpTransport->maxStream() : (MAX_SCTP_STREAMS_COUNT - 1);
 }
 
 void PeerConnection::shiftDataChannels() {
@@ -712,7 +725,14 @@ void PeerConnection::cleanupDataChannels() {
 
 void PeerConnection::openDataChannels() {
 	if (auto transport = boost::atomic_load(&mSctpTransport))
-		iterateDataChannels([&](shared_ptr<DataChannel> channel) { channel->open(transport); });
+		iterateDataChannels([&](shared_ptr<DataChannel> channel) {
+			// Check again as the maximum might have been negotiated lower
+			if (channel->stream() <= transport->maxStream()) {
+				channel->open(transport);
+				channel->triggerError("DataChannel stream id is too high");
+				channel->remoteClose();
+			}
+		});
 }
 
 void PeerConnection::closeDataChannels() {
@@ -724,6 +744,12 @@ void PeerConnection::remoteCloseDataChannels() {
 }
 
 shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
+#if !RTC_ENABLE_MEDIA
+	// No media support, mark as removed
+	PLOG_WARNING << "Tracks are disabled (not compiled with media support)";
+	description.markRemoved();
+#endif
+
 	shared_ptr<Track> track;
 	auto it = mTracks.find(description.mid());
 	if (it != mTracks.end())
@@ -737,35 +763,51 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 		mTrackLines.emplace_back(track);
 	}
 
+	if (description.isRemoved())
+		track->close();
+
 	return track;
 }
 
 void PeerConnection::incomingTrack(Description::Media description) {
 	std::unique_lock<boost::shared_mutex> lock(mTracksMutex); // we are going to emplace
-#if !RTC_ENABLE_MEDIA
-	if (mTracks.empty()) {
-		PLOG_WARNING << "Tracks will be inative (not compiled with media support)";
-	}
-#endif
-	if (mTracks.find(description.mid()) == mTracks.end()) {
-		auto track = boost::make_shared<Track>(weak_from_this(), std::move(description));
+	shared_ptr<Track> track;
+
+	auto it = mTracks.find(description.mid());
+	if (it != mTracks.end()) {
+		track = it->second.lock();
+		if (track)
+			track->setDescription(std::move(description));
+	} else {
+		track = boost::make_shared<Track>(weak_from_this(), std::move(description));
 		mTracks.emplace(std::make_pair(track->mid(), track));
 		mTrackLines.emplace_back(track);
 		triggerTrack(track);
 	}
+
+	if (track && description.isRemoved())
+		track->close();
 }
 
 void PeerConnection::openTracks() {
 #if RTC_ENABLE_MEDIA
-	if (auto transport = boost::atomic_load(&mDtlsTransport)) {
+	auto transport = boost::atomic_load(&mDtlsTransport);
+	if (transport) {
 		auto srtpTransport = boost::dynamic_pointer_cast<DtlsSrtpTransport>(transport);
 		boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
-		for (auto it = mTracks.begin(); it != mTracks.end(); ++it)
-			if (auto track = it->second.lock())
+		for (auto it = mTrackLines.begin(); it != mTrackLines.end(); ++it)
+			if (auto track = it->lock())
 				if (!track->isOpen())
 					track->open(srtpTransport);
 	}
 #endif
+}
+
+void PeerConnection::closeTracks() {
+	boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
+	for (auto it = mTrackLines.begin(); it != mTrackLines.end(); ++it)
+		if (auto track = it->lock())
+			track->close();
 }
 
 void PeerConnection::validateRemoteDescription(const Description &description) {
@@ -786,8 +828,15 @@ void PeerConnection::validateRemoteDescription(const Description &description) {
 	for (unsigned int i = 0; i < description.mediaCount(); ++i)
 		boost::apply_visitor(
 			rtc::make_visitor(
-				[&](const Description::Application *) { ++activeMediaCount; },
-				[&](const Description::Media *media) { if (media->direction() != Description::Direction::Inactive) ++activeMediaCount; }
+		        [&](const Description::Application *application) {
+                    if (!application->isRemoved())
+                        ++activeMediaCount;
+                },
+				[&](const Description::Media *media) {
+                    if (!media->isRemoved() ||
+                        media->direction() != Description::Direction::Inactive)
+                        ++activeMediaCount;
+                }
 			),
 		    description.media(i)
 		);
@@ -848,22 +897,20 @@ void PeerConnection::processLocalDescription(Description description) {
 					        // Prefer local description
 					        if (auto track = it->second.lock()) {
 						        auto media = track->description();
-#if !RTC_ENABLE_MEDIA
-						        // No media support, mark as inactive
-						        media.setDirection(Description::Direction::Inactive);
-#endif
-						        PLOG_DEBUG
-						            << "Adding media to local description, mid=\"" << media.mid()
-						            << "\", active=" << std::boolalpha
-						            << (media.direction() != Description::Direction::Inactive);
+
+						        PLOG_DEBUG << "Adding media to local description, mid=\""
+						                   << media.mid() << "\", removed=" << std::boolalpha
+						                   << media.isRemoved();
 
 						        description.addMedia(std::move(media));
+
 					        } else {
 						        auto reciprocated = remoteMedia->reciprocate();
-						        reciprocated.setDirection(Description::Direction::Inactive);
+						        reciprocated.markRemoved();
 
-						        PLOG_DEBUG << "Adding inactive media to local description, mid=\""
-						                   << reciprocated.mid() << "\"";
+						        PLOG_DEBUG << "Adding media to local description, mid=\""
+						                   << reciprocated.mid()
+						                   << "\", removed=true (track is destroyed)";
 
 						        description.addMedia(std::move(reciprocated));
 					        }
@@ -873,15 +920,17 @@ void PeerConnection::processLocalDescription(Description description) {
 
 				        auto reciprocated = remoteMedia->reciprocate();
 #if !RTC_ENABLE_MEDIA
-				        // No media support, mark as inactive
-				        reciprocated.setDirection(Description::Direction::Inactive);
+				        if (!reciprocated.isRemoved()) {
+					        // No media support, mark as removed
+					        PLOG_WARNING << "Rejecting track (not compiled with media support)";
+					        reciprocated.markRemoved();
+				        }
 #endif
 				        incomingTrack(reciprocated);
 
-				        PLOG_DEBUG
-				            << "Reciprocating media in local description, mid=\""
-				            << reciprocated.mid() << "\", active=" << std::boolalpha
-				            << (reciprocated.direction() != Description::Direction::Inactive);
+				        PLOG_DEBUG << "Reciprocating media in local description, mid=\""
+				                   << reciprocated.mid() << "\", removed=" << std::boolalpha
+				                   << reciprocated.isRemoved();
 
 				        description.addMedia(std::move(reciprocated));
 			        }
@@ -900,13 +949,9 @@ void PeerConnection::processLocalDescription(Description description) {
 					continue;
 
 				auto media = track->description();
-#if !RTC_ENABLE_MEDIA
-				// No media support, mark as inactive
-				media.setDirection(Description::Direction::Inactive);
-#endif
+
 				PLOG_DEBUG << "Adding media to local description, mid=\"" << media.mid()
-				           << "\", active=" << std::boolalpha
-				           << (media.direction() != Description::Direction::Inactive);
+				           << "\", removed=" << std::boolalpha << media.isRemoved();
 
 				description.addMedia(std::move(media));
 			}
@@ -959,12 +1004,13 @@ void PeerConnection::processLocalDescription(Description description) {
 		mLocalDescription->addCandidates(std::move(existingCandidates));
 	}
 
-	mProcessor->enqueue(localDescriptionCallback.wrap(), std::move(description));
+	mProcessor.enqueue(&PeerConnection::trigger<Description>, shared_from_this(),
+	                   localDescriptionCallback, std::move(description));
 
 	// Reciprocated tracks might need to be open
 	auto dtlsTransport = boost::atomic_load(&mDtlsTransport);
 	if (dtlsTransport && dtlsTransport->state() == Transport::State::Connected)
-		mProcessor->enqueue(&PeerConnection::openTracks, this);
+		mProcessor.enqueue(&PeerConnection::openTracks, shared_from_this());
 }
 
 void PeerConnection::processLocalCandidate(Candidate candidate) {
@@ -983,7 +1029,8 @@ void PeerConnection::processLocalCandidate(Candidate candidate) {
 	candidate.resolve(Candidate::ResolveMode::Simple);
 	mLocalDescription->addCandidate(candidate);
 
-	mProcessor->enqueue(localCandidateCallback.wrap(), std::move(candidate));
+	mProcessor.enqueue(&PeerConnection::trigger<Candidate>, shared_from_this(),
+	                   localCandidateCallback, std::move(candidate));
 }
 
 void PeerConnection::processRemoteDescription(Description description) {
@@ -1015,6 +1062,8 @@ void PeerConnection::processRemoteDescription(Description description) {
 		if (!sctpTransport && dtlsTransport &&
 		    dtlsTransport->state() == Transport::State::Connected)
 			initSctpTransport();
+	} else {
+		mProcessor.enqueue(&PeerConnection::remoteCloseDataChannels, shared_from_this());
 	}
 }
 
@@ -1098,16 +1147,16 @@ void PeerConnection::triggerPendingTracks() {
 
 		auto impl = std::move(*next);
 		trackCallback(boost::make_shared<rtc::Track>(impl));
-		impl->triggerOpen();
+		// Do not trigger open immediately for tracks as it'll be done later
 	}
 }
 
 void PeerConnection::flushPendingDataChannels() {
-	mProcessor->enqueue(&PeerConnection::triggerPendingDataChannels, this);
+	mProcessor.enqueue(&PeerConnection::triggerPendingDataChannels, shared_from_this());
 }
 
 void PeerConnection::flushPendingTracks() {
-	mProcessor->enqueue(&PeerConnection::triggerPendingTracks, this);
+	mProcessor.enqueue(&PeerConnection::triggerPendingTracks, shared_from_this());
 }
 
 bool PeerConnection::changeState(State newState) {
@@ -1125,12 +1174,13 @@ bool PeerConnection::changeState(State newState) {
 	s << newState;
 	PLOG_INFO << "Changed state to " << s.str();
 
-	if (newState == State::Closed)
-		// This is the last state change, so we may steal the callback
-		mProcessor->enqueue([cb = std::move(stateChangeCallback)]() { cb(State::Closed); });
-	else
-		mProcessor->enqueue(stateChangeCallback.wrap(), newState);
-
+	if (newState == State::Closed) {
+		auto callback = std::move(stateChangeCallback); // steal the callback
+		callback(State::Closed);                        // call it synchronously
+	} else {
+		mProcessor.enqueue(&PeerConnection::trigger<State>, shared_from_this(), stateChangeCallback,
+		                   newState);
+	}
 	return true;
 }
 
@@ -1141,7 +1191,9 @@ bool PeerConnection::changeGatheringState(GatheringState newState) {
 	std::ostringstream s;
 	s << newState;
 	PLOG_INFO << "Changed gathering state to " << s.str();
-	mProcessor->enqueue(gatheringStateChangeCallback.wrap(), newState);
+	mProcessor.enqueue(&PeerConnection::trigger<GatheringState>, shared_from_this(),
+	                   gatheringStateChangeCallback, newState);
+
 	return true;
 }
 
@@ -1152,7 +1204,9 @@ bool PeerConnection::changeSignalingState(SignalingState newState) {
 	std::ostringstream s;
 	s << newState;
 	PLOG_INFO << "Changed signaling state to " << s.str();
-	mProcessor->enqueue(signalingStateChangeCallback.wrap(), newState);
+	mProcessor.enqueue(&PeerConnection::trigger<SignalingState>, shared_from_this(),
+	                   signalingStateChangeCallback, newState);
+
 	return true;
 }
 

@@ -43,9 +43,9 @@ using std::chrono::system_clock;
 namespace rtc{
 namespace impl {
 
-#if !USE_NICE
+#if !USE_NICE // libjuice
 
-#define MAX_TURN_SERVERS_COUNT 2
+const int MAX_TURN_SERVERS_COUNT = 2;
 
 IceTransport::IceTransport(const Configuration &config, candidate_callback candidateCallback,
                            state_callback stateChangeCallback,
@@ -57,9 +57,6 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
       mAgent(nullptr, nullptr) {
 
 	PLOG_DEBUG << "Initializing ICE transport (libjuice)";
-	if (config.enableIceTcp) {
-		PLOG_WARNING << "ICE-TCP is not supported with libjuice";
-	}
 
 	juice_log_level_t level;
 	auto logger = plog::get();
@@ -93,6 +90,17 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	jconfig.cb_gathering_done = IceTransport::GatheringDoneCallback;
 	jconfig.cb_recv = IceTransport::RecvCallback;
 	jconfig.user_ptr = this;
+
+	if (config.enableIceTcp) {
+		PLOG_WARNING << "ICE-TCP is not supported with libjuice";
+	}
+
+	if (config.enableIceUdpMux) {
+		PLOG_DEBUG << "Enabling ICE UDP mux";
+		jconfig.concurrency_mode = JUICE_CONCURRENCY_MODE_MUX;
+	} else {
+		jconfig.concurrency_mode = JUICE_CONCURRENCY_MODE_POLL;
+	}
 
 	// Randomize servers order
 	std::vector<IceServer> servers = config.iceServers;
@@ -166,9 +174,11 @@ Description IceTransport::getLocalDescription(Description::Type type) const {
 
 	// RFC 5763: The endpoint that is the offerer MUST use the setup attribute value of
 	// setup:actpass.
-	// See https://tools.ietf.org/html/rfc5763#section-5
-	return Description(string(sdp), type,
-	                   type == Description::Type::Offer ? Description::Role::ActPass : mRole);
+	// See https://www.rfc-editor.org/rfc/rfc5763.html#section-5
+	Description desc(string(sdp), type,
+	                 type == Description::Type::Offer ? Description::Role::ActPass : mRole);
+	desc.addIceOption("trickle");
+	return desc;
 }
 
 void IceTransport::setRemoteDescription(const Description &description) {
@@ -368,9 +378,18 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	if (!mMainLoop)
 		std::runtime_error("Failed to create the main loop");
 
-	// RFC 5245 was obsoleted by RFC 8445 but this should be OK.
+	// RFC 8445: The nomination process that was referred to as "aggressive nomination" in RFC 5245
+	// has been deprecated in this specification.
+	// libnice defaults to aggressive nomation therefore we change to regular nomination.
+	// See https://gitlab.freedesktop.org/libnice/libnice/-/merge_requests/125
+	NiceAgentOption flags = NICE_AGENT_OPTION_REGULAR_NOMINATION;
+
+	// Create agent
 	mNiceAgent = decltype(mNiceAgent)(
-	    nice_agent_new(g_main_loop_get_context(mMainLoop.get()), NICE_COMPATIBILITY_RFC5245),
+	    nice_agent_new_full(
+	        g_main_loop_get_context(mMainLoop.get()),
+	        NICE_COMPATIBILITY_RFC5245, // RFC 5245 was obsoleted by RFC 8445 but this should be OK
+	        flags),
 	    g_object_unref);
 
 	if (!mNiceAgent)
@@ -399,15 +418,38 @@ IceTransport::IceTransport(const Configuration &config, candidate_callback candi
 	g_object_set(G_OBJECT(mNiceAgent.get()), "upnp-timeout", 200, nullptr);
 
 	// Proxy
-	if (config.proxyServer.has_value()) {
-		ProxyServer proxyServer = config.proxyServer.value();
-		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-type", proxyServer.type, nullptr);
+	if (config.proxyServer) {
+		const auto &proxyServer = *config.proxyServer;
+
+		NiceProxyType type;
+		switch (proxyServer.type) {
+		case ProxyServer::Type::Http:
+			type = NICE_PROXY_TYPE_HTTP;
+			break;
+		case ProxyServer::Type::Socks5:
+			type = NICE_PROXY_TYPE_SOCKS5;
+			break;
+		default:
+			PLOG_WARNING << "Proxy server type is not supported";
+			type = NICE_PROXY_TYPE_NONE;
+			break;
+		}
+
+		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-type", type, nullptr);
 		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-ip", proxyServer.hostname.c_str(), nullptr);
-		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-port", proxyServer.port, nullptr);
-		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-username", proxyServer.username.c_str(),
-		             nullptr);
-		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-password", proxyServer.password.c_str(),
-		             nullptr);
+		g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-port", guint(proxyServer.port), nullptr);
+
+		if (proxyServer.username)
+			g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-username",
+			             proxyServer.username->c_str(), nullptr);
+
+		if (proxyServer.password)
+			g_object_set(G_OBJECT(mNiceAgent.get()), "proxy-password",
+			             proxyServer.password->c_str(), nullptr);
+	}
+
+	if (config.enableIceUdpMux) {
+		PLOG_WARNING << "ICE UDP mux is not available with libnice";
 	}
 
 	// Randomize order
@@ -564,9 +606,11 @@ Description IceTransport::getLocalDescription(Description::Type type) const {
 
 	// RFC 5763: The endpoint that is the offerer MUST use the setup attribute value of
 	// setup:actpass.
-	// See https://tools.ietf.org/html/rfc5763#section-5
-	return Description(string(sdp.get()), type,
-	                   type == Description::Type::Offer ? Description::Role::ActPass : mRole);
+	// See https://www.rfc-editor.org/rfc/rfc5763.html#section-5
+	Description desc(string(sdp.get()), type,
+	                 type == Description::Type::Offer ? Description::Role::ActPass : mRole);
+	desc.addIceOption("trickle");
+	return desc;
 }
 
 void IceTransport::setRemoteDescription(const Description &description) {

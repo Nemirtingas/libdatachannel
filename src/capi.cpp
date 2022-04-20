@@ -374,6 +374,9 @@ int rtcCreatePeerConnection(const rtcConfiguration *config) {
 		for (int i = 0; i < config->iceServersCount; ++i)
 			c.iceServers.emplace_back(string(config->iceServers[i]));
 
+		if (config->proxyServer)
+			c.proxyServer.emplace(config->proxyServer);
+
 		if (config->bindAddress)
 			c.bindAddress = string(config->bindAddress);
 
@@ -385,6 +388,7 @@ int rtcCreatePeerConnection(const rtcConfiguration *config) {
 		c.certificateType = static_cast<CertificateType>(config->certificateType);
 		c.iceTransportPolicy = static_cast<TransportPolicy>(config->iceTransportPolicy);
 		c.enableIceTcp = config->enableIceTcp;
+		c.enableIceUdpMux = config->enableIceUdpMux;
 		c.disableAutoNegotiation = config->disableAutoNegotiation;
 
 		if (config->mtu > 0)
@@ -400,13 +404,7 @@ int rtcCreatePeerConnection(const rtcConfiguration *config) {
 int rtcDeletePeerConnection(int pc) {
 	return wrap([pc] {
 		auto peerConnection = getPeerConnection(pc);
-		peerConnection->onDataChannel(nullptr);
-		peerConnection->onTrack(nullptr);
-		peerConnection->onLocalDescription(nullptr);
-		peerConnection->onLocalCandidate(nullptr);
-		peerConnection->onStateChange(nullptr);
-		peerConnection->onGatheringStateChange(nullptr);
-
+		peerConnection->close();
 		erasePeerConnection(pc);
 		return RTC_ERR_SUCCESS;
 	});
@@ -717,6 +715,14 @@ int rtcSendMessage(int id, const char *data, int size) {
 	});
 }
 
+int rtcClose(int id) {
+	return wrap([&] {
+		auto channel = getChannel(id);
+		channel->close();
+		return RTC_ERR_SUCCESS;
+	});
+}
+
 bool rtcIsOpen(int id) {
 	return wrap([id] { return getChannel(id)->isOpen() ? 0 : 1; }) == 0 ? true : false;
 }
@@ -861,13 +867,7 @@ int rtcCreateDataChannelEx(int pc, const char *label, const rtcDataChannelInit *
 int rtcDeleteDataChannel(int dc) {
 	return wrap([dc] {
 		auto dataChannel = getDataChannel(dc);
-		dataChannel->onOpen(nullptr);
-		dataChannel->onClosed(nullptr);
-		dataChannel->onError(nullptr);
-		dataChannel->onMessage(nullptr);
-		dataChannel->onBufferedAmountLow(nullptr);
-		dataChannel->onAvailable(nullptr);
-
+		dataChannel->close();
 		eraseDataChannel(dc);
 		return RTC_ERR_SUCCESS;
 	});
@@ -1019,13 +1019,7 @@ int rtcAddTrackEx(int pc, const rtcTrackInit *init) {
 int rtcDeleteTrack(int tr) {
 	return wrap([&] {
 		auto track = getTrack(tr);
-		track->onOpen(nullptr);
-		track->onClosed(nullptr);
-		track->onError(nullptr);
-		track->onMessage(nullptr);
-		track->onBufferedAmountLow(nullptr);
-		track->onAvailable(nullptr);
-
+		track->close();
 		eraseTrack(tr);
 		return RTC_ERR_SUCCESS;
 	});
@@ -1217,14 +1211,11 @@ int rtcGetTrackPayloadTypesForCodec(int tr, const char *ccodec, int *buffer, int
 		auto track = getTrack(tr);
 		auto codec = lowercased(string(ccodec));
 		auto description = track->description();
-		std::vector<int> payloadTypes{};
-		payloadTypes.reserve(std::max(size, 0));
-		for (auto it = description.beginMaps(); it != description.endMaps(); it++) {
-			auto element = *it;
-			if (lowercased(element.second.format) == codec) {
-				payloadTypes.push_back(element.first);
-			}
-		}
+		std::vector<int> payloadTypes;
+		for (int pt : description.payloadTypes())
+			if (lowercased(description.rtpMap(pt)->format) == codec)
+				payloadTypes.push_back(pt);
+
 		return copyAndReturn(payloadTypes, buffer, size);
 	});
 }
@@ -1315,6 +1306,13 @@ int rtcCreateWebSocketEx(const char *url, const rtcWsConfiguration *config) {
 
 		WebSocket::Configuration c;
 		c.disableTlsVerification = config->disableTlsVerification;
+
+		if (config->proxyServer)
+			c.proxyServer.emplace(config->proxyServer);
+
+		for (int i = 0; i < config->protocolsCount; ++i)
+			c.protocols.emplace_back(string(config->protocols[i]));
+
 		auto webSocket = boost::make_shared<WebSocket>(std::move(c));
 		webSocket->open(url);
 		return emplaceWebSocket(webSocket);
@@ -1324,13 +1322,8 @@ int rtcCreateWebSocketEx(const char *url, const rtcWsConfiguration *config) {
 int rtcDeleteWebSocket(int ws) {
 	return wrap([&] {
 		auto webSocket = getWebSocket(ws);
-		webSocket->onOpen(nullptr);
-		webSocket->onClosed(nullptr);
-		webSocket->onError(nullptr);
-		webSocket->onMessage(nullptr);
-		webSocket->onBufferedAmountLow(nullptr);
-		webSocket->onAvailable(nullptr);
-
+		webSocket->forceClose();
+		webSocket->resetCallbacks(); // not done on close by WebSocket
 		eraseWebSocket(ws);
 		return RTC_ERR_SUCCESS;
 	});
@@ -1393,7 +1386,6 @@ RTC_EXPORT int rtcDeleteWebSocketServer(int wsserver) {
 		auto webSocketServer = getWebSocketServer(wsserver);
 		webSocketServer->onClient(nullptr);
 		webSocketServer->stop();
-
 		eraseWebSocketServer(wsserver);
 		return RTC_ERR_SUCCESS;
 	});

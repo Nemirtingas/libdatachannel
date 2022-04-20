@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2020-2021 Paul-Louis Ageneau
+ * Copyright (c) 2020-2022 Paul-Louis Ageneau
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -16,41 +16,22 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef RTC_IMPL_POLL_INTERRUPTER_H
-#define RTC_IMPL_POLL_INTERRUPTER_H
+#ifndef RTC_IMPL_UTILS_H
+#define RTC_IMPL_UTILS_H
 
 #include "common.hpp"
-#include "socket.hpp"
 
-#if RTC_ENABLE_WEBSOCKET
+#include <vector>
 
 namespace rtc {
 namespace impl {
+namespace utils {
 
-// Utility class to interrupt poll()
-class PollInterrupter final {
-public:
-	PollInterrupter();
-	~PollInterrupter();
+std::vector<string> explode(const string &str, char delim);
+string implode(const std::vector<string> &tokens, char delim);
 
-	PollInterrupter(const PollInterrupter &other) = delete;
-	void operator=(const PollInterrupter &other) = delete;
-
-	void prepare(struct pollfd &pfd);
-	void process(struct pollfd &pfd);
-	void interrupt();
-
-private:
-#ifdef _WIN32
-	socket_t mSock;
-#else // assume POSIX
-	int mPipeIn, mPipeOut;
-#endif
-};
-
+} // namespace utils
 } // namespace impl
 } // namespace rtc
-
-#endif
 
 #endif

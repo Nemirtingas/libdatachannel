@@ -93,6 +93,7 @@ tests: $(NAME).a $(TEST_OBJS)
 clean:
 	-$(RM) include/rtc/*.d *.d
 	-$(RM) src/*.o src/*.d
+	-$(RM) src/impl/*.o src/impl/*.d
 	-$(RM) test/*.o test/*.d
 
 dist-clean: clean
@@ -100,6 +101,7 @@ dist-clean: clean
 	-$(RM) $(NAME).so
 	-$(RM) libusrsctp.a
 	-$(RM) libjuice.a
+	-$(RM) libsrtp2.a
 	-$(RM) tests
 	-$(RM) include/*~
 	-$(RM) src/*~

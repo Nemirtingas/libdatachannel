@@ -111,10 +111,6 @@ public:
 		return callback ? true : false;
 	}
 
-	std::function<void(Args...)> wrap() const {
-		return [this](Args... args) { (*this)(std::move(args)...); };
-	}
-
 protected:
 	virtual void set(std::function<void(Args...)> func) { callback = std::move(func); }
 	virtual bool call(Args... args) const {

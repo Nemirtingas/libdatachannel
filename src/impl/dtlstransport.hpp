@@ -56,6 +56,7 @@ public:
 protected:
 	virtual void incoming(message_ptr message) override;
 	virtual bool outgoing(message_ptr message) override;
+	virtual bool demuxMessage(message_ptr message);
 	virtual void postHandshake();
 	void runRecvLoop();
 

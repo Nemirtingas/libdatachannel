@@ -21,6 +21,7 @@
 
 #include "common.hpp"
 #include "configuration.hpp"
+#include "global.hpp"
 #include "processor.hpp"
 #include "queue.hpp"
 #include "transport.hpp"
@@ -35,7 +36,7 @@
 namespace rtc {
 namespace impl {
 
-class SctpTransport final : public Transport {
+class SctpTransport final : public Transport, public std::enable_shared_from_this<SctpTransport> {
 public:
 	static void Init();
 	static void SetSettings(const SctpSettings &s);
@@ -59,6 +60,8 @@ public:
 	bool flush();
 	void closeStream(unsigned int stream);
 
+	unsigned int maxStream() const;
+
 	void onBufferedAmount(amount_callback callback) {
 		mBufferedAmountCallback = std::move(callback);
 	}
@@ -71,7 +74,7 @@ public:
 
 private:
 	// Order seems wrong but these are the actual values
-	// See https://tools.ietf.org/html/draft-ietf-rtcweb-data-channel-13#section-8
+	// See https://datatracker.ietf.org/doc/html/draft-ietf-rtcweb-data-channel-13#section-8
 	enum PayloadId : uint32_t {
 		PPID_CONTROL = 50,
 		PPID_STRING = 51,
@@ -106,6 +109,7 @@ private:
 
 	const Ports mPorts;
 	struct socket *mSock;
+	boost::optional<uint16_t> mNegotiatedStreamsCount;
 
 	Processor mProcessor;
 	boost::atomic<int> mPendingRecvCount;

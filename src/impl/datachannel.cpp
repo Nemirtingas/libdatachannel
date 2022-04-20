@@ -38,7 +38,7 @@ namespace rtc {
 namespace impl {
 
 // Messages for the DataChannel establishment protocol (RFC 8832)
-// See https://tools.ietf.org/html/rfc8832
+// See https://www.rfc-editor.org/rfc/rfc8832.html
 
 enum MessageType : uint8_t {
 	MESSAGE_OPEN_REQUEST = 0x00,
@@ -109,18 +109,19 @@ void DataChannel::close() {
 		transport = mSctpTransport.lock();
 	}
 
-	mIsClosed = true;
 	if (mIsOpen.exchange(false) && transport)
 		transport->closeStream(mStream);
+
+	if (!mIsClosed.exchange(true))
+		triggerClosed();
 
 	resetCallbacks();
 }
 
 void DataChannel::remoteClose() {
+	mIsOpen = false;
 	if (!mIsClosed.exchange(true))
 		triggerClosed();
-
-	mIsOpen = false;
 }
 
 optional<message_variant> DataChannel::receive() {
@@ -196,7 +197,7 @@ void DataChannel::open(shared_ptr<SctpTransport> transport) {
 		mSctpTransport = transport;
 	}
 
-	if (!mIsOpen.exchange(true))
+	if (!mIsClosed && !mIsOpen.exchange(true))
 		triggerOpen();
 }
 

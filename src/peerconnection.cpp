@@ -26,7 +26,6 @@
 #include "impl/icetransport.hpp"
 #include "impl/internals.hpp"
 #include "impl/peerconnection.hpp"
-#include "impl/processor.hpp"
 #include "impl/sctptransport.hpp"
 #include "impl/threadpool.hpp"
 #include "impl/track.hpp"
@@ -260,6 +259,8 @@ optional<string> PeerConnection::remoteAddress() const {
 	return iceTransport ? iceTransport->getRemoteAddress() : none;
 }
 
+uint16_t PeerConnection::maxDataChannelId() const { return impl()->maxDataChannelStream(); }
+
 shared_ptr<DataChannel> PeerConnection::createDataChannel(string label, DataChannelInit init) {
 	auto channelImpl = impl()->emplaceDataChannel(std::move(label), std::move(init));
 	auto channel = boost::make_shared<DataChannel>(channelImpl);
@@ -319,6 +320,8 @@ void PeerConnection::onGatheringStateChange(std::function<void(GatheringState st
 void PeerConnection::onSignalingStateChange(std::function<void(SignalingState state)> callback) {
 	impl()->signalingStateChangeCallback = callback;
 }
+
+void PeerConnection::resetCallbacks() { impl()->resetCallbacks(); }
 
 bool PeerConnection::getSelectedCandidatePair(Candidate *local, Candidate *remote) {
 	auto iceTransport = impl()->getIceTransport();

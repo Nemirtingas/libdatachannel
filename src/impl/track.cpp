@@ -66,7 +66,8 @@ void Track::setDescription(Description::Media description) {
 void Track::close() {
 	PLOG_VERBOSE << "Closing Track";
 
-	mIsClosed = true;
+	if (!mIsClosed.exchange(true))
+		triggerClosed();
 
 	setMediaHandler(nullptr);
 	resetCallbacks();
@@ -93,7 +94,7 @@ bool Track::isOpen(void) const {
 	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return !mIsClosed && mDtlsSrtpTransport.lock();
 #else
-	return !mIsClosed;
+	return false;
 #endif
 }
 
@@ -114,7 +115,8 @@ void Track::open(shared_ptr<DtlsSrtpTransport> transport) {
 		mDtlsSrtpTransport = transport;
 	}
 
-	triggerOpen();
+	if (!mIsClosed)
+		triggerOpen();
 }
 #endif
 
@@ -175,7 +177,7 @@ bool Track::transportSend(message_ptr message) {
 			throw std::runtime_error("Track is closed");
 
 		// Set recommended medium-priority DSCP value
-		// See https://datatracker.ietf.org/doc/html/rfc8837#section-5
+		// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
 		if (mMediaDescription.type() == "audio")
 			message->dscp = 46; // EF: Expedited Forwarding
 		else
@@ -184,8 +186,7 @@ bool Track::transportSend(message_ptr message) {
 
 	return transport->sendMedia(message);
 #else
-	PLOG_WARNING << "Ignoring track send (not compiled with media support)";
-	return false;
+	throw std::runtime_error("Track is disabled (not compiled with media support)");
 #endif
 }
 

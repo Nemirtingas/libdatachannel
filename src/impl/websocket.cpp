@@ -51,7 +51,6 @@ WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certific
 
 WebSocket::~WebSocket() {
 	PLOG_VERBOSE << "Destroying WebSocket";
-	remoteClose();
 }
 
 void WebSocket::open(const string &url) {
@@ -60,7 +59,11 @@ void WebSocket::open(const string &url) {
 	if (state != State::Closed)
 		throw std::logic_error("WebSocket must be closed before opening");
 
-	// Modified regex from RFC 3986, see https://tools.ietf.org/html/rfc3986#appendix-B
+	if (config.proxyServer) {
+		PLOG_WARNING << "Proxy server support for WebSocket is not implemented";
+	}
+
+	// Modified regex from RFC 3986, see https://www.rfc-editor.org/rfc/rfc3986.html#appendix-B
 	static const char *rs =
 	    R"(^(([^:.@/?#]+):)?(/{0,2}((([^:@]*)(:([^@]*))?)@)?(([^:/?#]*)(:([^/?#]*))?))?([^?#]*)(\?([^#]*))?(#(.*))?)";
 
@@ -78,6 +81,12 @@ void WebSocket::open(const string &url) {
 		throw std::invalid_argument("Invalid WebSocket scheme: " + scheme);
 
 	mIsSecure = (scheme != "ws");
+
+	string username = m[6];
+	string password = m[8];
+	if (!username.empty() || !password.empty()) {
+		PLOG_WARNING << "HTTP authentication support for WebSocket is not implemented";
+	}
 
 	string host;
 	string hostname = m[10];

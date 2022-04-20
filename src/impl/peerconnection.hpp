@@ -23,6 +23,7 @@
 #include "datachannel.hpp"
 #include "dtlstransport.hpp"
 #include "icetransport.hpp"
+#include "processor.hpp"
 #include "sctptransport.hpp"
 #include "track.hpp"
 
@@ -68,6 +69,7 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 
 	shared_ptr<DataChannel> emplaceDataChannel(string label, DataChannelInit init);
 	shared_ptr<DataChannel> findDataChannel(uint16_t stream);
+	uint16_t maxDataChannelStream() const;
 	void shiftDataChannels();
 	void iterateDataChannels(std::function<void(shared_ptr<DataChannel> channel)> func);
 	void cleanupDataChannels();
@@ -78,6 +80,7 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 	shared_ptr<Track> emplaceTrack(Description::Media description);
 	void incomingTrack(Description::Media description);
 	void openTracks();
+	void closeTracks();
 
 	void validateRemoteDescription(const Description &description);
 	void processLocalDescription(Description description);
@@ -101,7 +104,10 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 
 	void resetCallbacks();
 
-	void outgoingMedia(message_ptr message);
+	// Helper method for asynchronous callback invocation
+	template <typename... Args> void trigger(synchronized_callback<Args...> &cb, Args... args) {
+		cb(std::move(args...));
+	}
 
 	const Configuration config;
 	boost::atomic<State> state;
@@ -121,8 +127,8 @@ struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
 private:
 	const init_token mInitToken = Init::Instance().token();
 	const future_certificate_ptr mCertificate;
-	const unique_ptr<Processor> mProcessor;
 
+	Processor mProcessor;
 	optional<Description> mLocalDescription, mRemoteDescription;
 	optional<Description> mCurrentLocalDescription;
 	mutable std::mutex mLocalDescriptionMutex, mRemoteDescriptionMutex;

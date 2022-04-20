@@ -32,7 +32,7 @@ namespace rtc {
 const string DEFAULT_OPUS_AUDIO_PROFILE =
     "minptime=10;maxaveragebitrate=96000;stereo=1;sprop-stereo=1;useinbandfec=1";
 
-// Use Constrained Baseline profile Level 4.2 (necessary for Firefox)
+// Use Constrained Baseline profile Level 3.1 (necessary for Firefox)
 // https://developer.mozilla.org/en-US/docs/Web/Media/Formats/WebRTC_codecs#Supported_video_codecs
 // TODO: Should be 42E0 but 42C0 appears to be more compatible. Investigate this.
 const string DEFAULT_H264_VIDEO_PROFILE =
@@ -58,6 +58,7 @@ public:
 	string typeString() const;
 	Role role() const;
 	string bundleMid() const;
+	std::vector<string> iceOptions() const;
 	optional<string> iceUfrag() const;
 	optional<string> icePwd() const;
 	optional<string> fingerprint() const;
@@ -65,12 +66,19 @@ public:
 
 	void hintType(Type type);
 	void setFingerprint(string fingerprint);
+	void addIceOption(string option);
+	void removeIceOption(const string &option);
 
+	std::vector<string> attributes() const;
+	void addAttribute(string attr);
+	void removeAttribute(const string &attr);
+
+	std::vector<Candidate> candidates() const;
+	std::vector<Candidate> extractCandidates();
 	bool hasCandidate(const Candidate &candidate) const;
 	void addCandidate(Candidate candidate);
 	void addCandidates(std::vector<Candidate> candidates);
 	void endCandidates();
-	std::vector<Candidate> extractCandidates();
 
 	operator string() const;
 	string generateSdp(string_view eol) const;
@@ -83,54 +91,69 @@ public:
 		virtual string type() const { return mType; }
 		virtual string description() const { return mDescription; }
 		virtual string mid() const { return mMid; }
+
 		Direction direction() const { return mDirection; }
 		void setDirection(Direction dir);
 
-		operator string() const;
-		string generateSdp(string_view eol, string_view addr, string_view port) const;
+		bool isRemoved() const { return mIsRemoved; }
+		void markRemoved();
 
-		virtual void parseSdpLine(string_view line);
-
-		std::vector<string>::iterator beginAttributes();
-		std::vector<string>::iterator endAttributes();
-		std::vector<string>::iterator removeAttribute(std::vector<string>::iterator iterator);
+		std::vector<string> attributes() const;
+		void addAttribute(string attr);
+		void removeAttribute(const string &attr);
 
 		struct RTC_CPP_EXPORT ExtMap {
+			static int parseId(string_view description);
+
 			ExtMap(string_view description);
-			ExtMap() {}
+
+			void setDescription(string_view description);
 
 			int id;
 			string uri;
 			string attributes;
 			Direction direction = Direction::Unknown;
-
-			static int parseId(string_view view);
-			void setDescription(string_view view);
 		};
 
-		void addExtMap(const ExtMap &map);
+		std::vector<int> extIds();
+		ExtMap *extMap(int id);
+		void addExtMap(ExtMap map);
+		void removeExtMap(int id);
 
-		std::map<int, ExtMap>::iterator beginExtMaps();
-		std::map<int, ExtMap>::iterator endExtMaps();
-		std::map<int, ExtMap>::iterator removeExtMap(std::map<int, ExtMap>::iterator iterator);
+		operator string() const;
+		string generateSdp(string_view eol, string_view addr, uint16_t port) const;
+
+		virtual void parseSdpLine(string_view line);
+
+		// For backward compatibility, do not use
+		[[deprecated]] std::vector<string>::iterator beginAttributes();
+		[[deprecated]] std::vector<string>::iterator endAttributes();
+		[[deprecated]] std::vector<string>::iterator
+		removeAttribute(std::vector<string>::iterator iterator);
+		[[deprecated]] std::map<int, ExtMap>::iterator beginExtMaps();
+		[[deprecated]] std::map<int, ExtMap>::iterator endExtMaps();
+		[[deprecated]] std::map<int, ExtMap>::iterator
+		removeExtMap(std::map<int, ExtMap>::iterator iterator);
 
 	protected:
 		Entry(const string &mline, string mid, Direction dir = Direction::Unknown);
 		virtual string generateSdpLines(string_view eol) const;
 
 		std::vector<string> mAttributes;
-		std::map<int, ExtMap> mExtMap;
+		std::map<int, ExtMap> mExtMaps;
 
 	private:
 		string mType;
 		string mDescription;
 		string mMid;
 		Direction mDirection;
+		bool mIsRemoved;
 	};
 
 	struct RTC_CPP_EXPORT Application : public Entry {
 	public:
 		Application(string mid = "data");
+		Application(const string &mline, string mid);
 		virtual ~Application() = default;
 
 		string description() const override;
@@ -162,36 +185,32 @@ public:
 		string description() const override;
 		Media reciprocate() const;
 
-		void removeFormat(const string &fmt);
-
 		void addSSRC(uint32_t ssrc, optional<string> name, optional<string> msid = none,
-		             optional<string> trackID = none);
-		void removeSSRC(uint32_t oldSSRC);
-		void replaceSSRC(uint32_t oldSSRC, uint32_t ssrc, optional<string> name,
+		             optional<string> trackId = none);
+		void removeSSRC(uint32_t ssrc);
+		void replaceSSRC(uint32_t old, uint32_t ssrc, optional<string> name,
 		                 optional<string> msid = none, optional<string> trackID = none);
 		bool hasSSRC(uint32_t ssrc);
 		std::vector<uint32_t> getSSRCs();
 		boost::optional<std::string> getCNameForSsrc(uint32_t ssrc);
 
+		int bitrate() const;
 		void setBitrate(int bitrate);
-		int getBitrate() const;
 
-		bool hasPayloadType(int payloadType) const;
+		struct RTC_CPP_EXPORT RtpMap {
+			static int parsePayloadType(string_view description);
 
-		void addRTXCodec(unsigned int payloadType, unsigned int originalPayloadType,
-		                 unsigned int clockRate);
+			explicit RtpMap(int payloadType);
+			RtpMap(string_view description);
 
-		virtual void parseSdpLine(string_view line) override;
+			void setDescription(string_view description);
 
-		struct RTC_CPP_EXPORT RTPMap {
-			RTPMap(string_view mline);
-			RTPMap() {}
+			void addFeedback(string fb);
+			void removeFeedback(const string &str);
+			void addParameter(string p);
+			void removeParameter(const string &str);
 
-			void removeFB(const string &string);
-			void addFB(const string &string);
-			void addAttribute(string attr) { fmtps.emplace_back(std::move(attr)); }
-
-			int pt;
+			int payloadType;
 			string format;
 			int clockRate;
 			string encParams;
@@ -199,25 +218,41 @@ public:
 			std::vector<string> rtcpFbs;
 			std::vector<string> fmtps;
 
-			static int parsePT(string_view view);
-			void setMLine(string_view view);
+			// For backward compatibility, do not use
+			[[deprecated]] void addFB(string fb) { addFeedback(std::move(fb)); }
+			[[deprecated]] void removeFB(const string &str) { removeFeedback(str); }
+			[[deprecated]] void addAttribute(string attr) { addParameter(std::move(attr)); }
 		};
 
-		void addRTPMap(const RTPMap &map);
+		bool hasPayloadType(int payloadType) const;
+		std::vector<int> payloadTypes() const;
+		RtpMap *rtpMap(int payloadType);
+		void addRtpMap(RtpMap map);
+		void removeRtpMap(int payloadType);
+		void removeFormat(const string &format);
 
-		std::map<int, RTPMap>::iterator beginMaps();
-		std::map<int, RTPMap>::iterator endMaps();
-		std::map<int, RTPMap>::iterator removeMap(std::map<int, RTPMap>::iterator iterator);
+		void addRtxCodec(int payloadType, int origPayloadType, unsigned int clockRate);
+
+		virtual void parseSdpLine(string_view line) override;
+
+		// For backward compatibility, do not use
+		using RTPMap = RtpMap;
+		[[deprecated]] int getBitrate() const { return bitrate(); }
+		[[deprecated]] inline void addRTPMap(RtpMap map) { addRtpMap(std::move(map)); }
+		[[deprecated]] inline void addRTXCodec(int pt, int origpt, unsigned int clk) {
+			addRtxCodec(pt, origpt, clk);
+		}
+		[[deprecated]] std::map<int, RtpMap>::iterator beginMaps();
+		[[deprecated]] std::map<int, RtpMap>::iterator endMaps();
+		[[deprecated]] std::map<int, RtpMap>::iterator
+		removeMap(std::map<int, RtpMap>::iterator iterator);
 
 	private:
 		virtual string generateSdpLines(string_view eol) const override;
 
 		int mBas = -1;
 
-		Media::RTPMap &getFormat(int fmt);
-		Media::RTPMap &getFormat(const string &fmt);
-
-		std::map<int, RTPMap> mRtpMap;
+		std::map<int, RtpMap> mRtpMaps;
 		std::vector<uint32_t> mSsrcs;
 		std::map<uint32_t, string> mCNameMap;
 	};
@@ -274,8 +309,10 @@ private:
 	Role mRole;
 	string mUsername;
 	string mSessionId;
+	std::vector<string> mIceOptions;
 	optional<string> mIceUfrag, mIcePwd;
 	optional<string> mFingerprint;
+	std::vector<string> mAttributes; // other attributes
 
 	// Entries
 	std::vector<shared_ptr<Entry>> mEntries;

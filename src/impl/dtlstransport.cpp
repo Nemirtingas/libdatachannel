@@ -67,14 +67,14 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 	try {
 		// RFC 8261: SCTP performs segmentation and reassembly based on the path MTU.
 		// Therefore, the DTLS layer MUST NOT use any compression algorithm.
-		// See https://tools.ietf.org/html/rfc8261#section-5
+		// See https://www.rfc-editor.org/rfc/rfc8261.html#section-5
 		const char *priorities = "SECURE128:-VERS-SSL3.0:-ARCFOUR-128:-COMP-ALL:+COMP-NULL";
 		const char *err_pos = NULL;
 		gnutls::check(gnutls_priority_set_direct(mSession, priorities, &err_pos),
 		              "Failed to set TLS priorities");
 
 		// RFC 8827: The DTLS-SRTP protection profile SRTP_AES128_CM_HMAC_SHA1_80 MUST be supported
-		// See https://tools.ietf.org/html/rfc8827#section-6.5
+		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5
 		gnutls::check(gnutls_srtp_set_profile(mSession, GNUTLS_SRTP_AES128_CM_HMAC_SHA1_80),
 		              "Failed to set SRTP profile");
 
@@ -158,6 +158,11 @@ bool DtlsTransport::outgoing(message_ptr message) {
 	return Transport::outgoing(std::move(message));
 }
 
+bool DtlsTransport::demuxMessage(message_ptr) {
+	// Dummy
+	return false;
+}
+
 void DtlsTransport::postHandshake() {
 	// Dummy
 }
@@ -184,7 +189,7 @@ void DtlsTransport::runRecvLoop() {
 		         !gnutls::check(ret, "DTLS handshake failed"));
 
 		// RFC 8261: DTLS MUST support sending messages larger than the current path MTU
-		// See https://tools.ietf.org/html/rfc8261#section-5
+		// See https://www.rfc-editor.org/rfc/rfc8261.html#section-5
 		gnutls_dtls_set_mtu(mSession, bufferSize + 1);
 
 	} catch (const std::exception &e) {
@@ -209,7 +214,7 @@ void DtlsTransport::runRecvLoop() {
 
 			// RFC 8827: Implementations MUST NOT implement DTLS renegotiation and MUST reject it
 			// with a "no_renegotiation" alert if offered.
-			// See https://tools.ietf.org/html/rfc8827#section-6.5
+			// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5
 			if (ret == GNUTLS_E_REHANDSHAKE) {
 				do {
 					std::lock_guard<std::mutex> lock(mSendMutex);
@@ -299,8 +304,11 @@ ssize_t DtlsTransport::WriteCallback(gnutls_transport_ptr_t ptr, const void *dat
 ssize_t DtlsTransport::ReadCallback(gnutls_transport_ptr_t ptr, void *data, size_t maxlen) {
 	DtlsTransport *t = static_cast<DtlsTransport *>(ptr);
 	try {
-		if (auto next = t->mIncomingQueue.pop()) {
+		while (auto next = t->mIncomingQueue.pop()) {
 			message_ptr message = std::move(*next);
+			if (t->demuxMessage(message))
+				continue;
+
 			ssize_t len = std::min(maxlen, message->size());
 			std::memcpy(data, message->data(), len);
 			gnutls_transport_set_errno(t->mSession, 0);
@@ -378,9 +386,9 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 
 		// RFC 8261: SCTP performs segmentation and reassembly based on the path MTU.
 		// Therefore, the DTLS layer MUST NOT use any compression algorithm.
-		// See https://tools.ietf.org/html/rfc8261#section-5
+		// See https://www.rfc-editor.org/rfc/rfc8261.html#section-5
 		// RFC 8827: Implementations MUST NOT implement DTLS renegotiation
-		// See https://tools.ietf.org/html/rfc8827#section-6.5
+		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5
 		SSL_CTX_set_options(mCtx, SSL_OP_NO_SSLv3 | SSL_OP_NO_COMPRESSION | SSL_OP_NO_QUERY_MTU |
 		                              SSL_OP_NO_RENEGOTIATION);
 
@@ -430,7 +438,7 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 		SSL_set_tmp_ecdh(mSsl, ecdh.get());
 
 		// RFC 8827: The DTLS-SRTP protection profile SRTP_AES128_CM_HMAC_SHA1_80 MUST be supported
-		// See https://tools.ietf.org/html/rfc8827#section-6.5 Warning:
+		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5 Warning:
 		// SSL_set_tlsext_use_srtp() returns 0 on success and 1 on error
 		if (SSL_set_tlsext_use_srtp(mSsl, "SRTP_AES128_CM_SHA1_80"))
 			throw std::runtime_error("Failed to set SRTP profile: " +
@@ -498,13 +506,18 @@ bool DtlsTransport::outgoing(message_ptr message) {
 		// DTLS handshake packet
 		if (state() != DtlsTransport::State::Connected) {
 			// Set recommended high-priority DSCP value
-			// See https://datatracker.ietf.org/doc/html/rfc8837#section-5
+			// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
 			message->dscp = 18; // AF21(18), Assured Forwarding class 2, low drop probability
 		} else {
 			message->dscp = mCurrentDscp;
 		}
 	}
 	return Transport::outgoing(std::move(message));
+}
+
+bool DtlsTransport::demuxMessage(message_ptr) {
+	// Dummy
+	return false;
 }
 
 void DtlsTransport::postHandshake() {
@@ -529,6 +542,9 @@ void DtlsTransport::runRecvLoop() {
 			// Process pending messages
 			while (auto next = mIncomingQueue.tryPop()) {
 				message_ptr message = std::move(*next);
+				if (demuxMessage(message))
+					continue;
+
 				BIO_write(mInBio, message->data(), int(message->size()));
 
 				if (state() == State::Connecting) {
@@ -539,7 +555,7 @@ void DtlsTransport::runRecvLoop() {
 
 					if (SSL_is_init_finished(mSsl)) {
 						// RFC 8261: DTLS MUST support sending messages larger than the current path
-						// MTU See https://tools.ietf.org/html/rfc8261#section-5
+						// MTU See https://www.rfc-editor.org/rfc/rfc8261.html#section-5
 						SSL_set_mtu(mSsl, bufferSize + 1);
 
 						PLOG_INFO << "DTLS handshake finished";

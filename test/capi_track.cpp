@@ -79,6 +79,7 @@ static void RTC_API openCallback(int id, void *ptr) {
 static void RTC_API closedCallback(int id, void *ptr) {
 	Peer *peer = (Peer *)ptr;
 	peer->connected = false;
+	printf("Track %d: Closed\n", peer == peer1 ? 1 : 2);
 }
 
 static void RTC_API trackCallback(int pc, int tr, void *ptr) {
@@ -114,10 +115,17 @@ static Peer *createPeer(const rtcConfiguration *config) {
 	Peer *peer = (Peer *)malloc(sizeof(Peer));
 	if (!peer)
 		return nullptr;
+
 	memset(peer, 0, sizeof(Peer));
 
 	// Create peer connection
 	peer->pc = rtcCreatePeerConnection(config);
+	if (peer->pc < 0) {
+		fprintf(stderr, "PeerConnection creation failed\n");
+		free(peer);
+		return nullptr;
+	}
+
 	rtcSetUserPointer(peer->pc, peer);
 	rtcSetTrackCallback(peer->pc, trackCallback);
 	rtcSetLocalDescriptionCallback(peer->pc, descriptionCallback);
@@ -125,15 +133,18 @@ static Peer *createPeer(const rtcConfiguration *config) {
 	rtcSetStateChangeCallback(peer->pc, stateChangeCallback);
 	rtcSetGatheringStateChangeCallback(peer->pc, gatheringStateCallback);
 
+	peer->tr = -1;
 	return peer;
 }
 
 static void deletePeer(Peer *peer) {
 	if (peer) {
-		if (peer->tr)
+		if (peer->tr >= 0)
 			rtcDeleteTrack(peer->tr);
-		if (peer->pc)
+
+		if (peer->pc >= 0)
 			rtcDeletePeerConnection(peer->pc);
+
 		free(peer);
 	}
 }
