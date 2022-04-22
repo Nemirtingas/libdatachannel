@@ -731,6 +731,7 @@ void PeerConnection::openDataChannels() {
 			// Check again as the maximum might have been negotiated lower
 			if (channel->stream() <= transport->maxStream()) {
 				channel->open(transport);
+			} else {
 				channel->triggerError("DataChannel stream id is too high");
 				channel->remoteClose();
 			}
