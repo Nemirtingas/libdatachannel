@@ -30,11 +30,11 @@ WebSocket::WebSocket() : WebSocket(Configuration()) {}
 
 WebSocket::WebSocket(Configuration config)
     : CheshireCat<impl::WebSocket>(std::move(config)),
-      Channel(boost::dynamic_pointer_cast<impl::Channel>(CheshireCat<impl::WebSocket>::impl())) {}
+      Channel(std::dynamic_pointer_cast<impl::Channel>(CheshireCat<impl::WebSocket>::impl())) {}
 
 WebSocket::WebSocket(impl_ptr<impl::WebSocket> impl)
     : CheshireCat<impl::WebSocket>(std::move(impl)),
-      Channel(boost::dynamic_pointer_cast<impl::Channel>(CheshireCat<impl::WebSocket>::impl())) {}
+      Channel(std::dynamic_pointer_cast<impl::Channel>(CheshireCat<impl::WebSocket>::impl())) {}
 
 WebSocket::~WebSocket() {
 	try {

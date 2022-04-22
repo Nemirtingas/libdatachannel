@@ -56,7 +56,7 @@ struct RTC_CPP_EXPORT ChainedIncomingControlProduct {
 };
 
 /// Chainable handler
-class RTC_CPP_EXPORT MediaHandlerElement: public boost::enable_shared_from_this<MediaHandlerElement> {
+class RTC_CPP_EXPORT MediaHandlerElement: public std::enable_shared_from_this<MediaHandlerElement> {
 	shared_ptr<MediaHandlerElement> upstream = nullptr;
 	shared_ptr<MediaHandlerElement> downstream = nullptr;
 

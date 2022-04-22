@@ -34,7 +34,7 @@ namespace rtc {
 
 DataChannel::DataChannel(impl_ptr<impl::DataChannel> impl)
     : CheshireCat<impl::DataChannel>(impl),
-      Channel(boost::dynamic_pointer_cast<impl::Channel>(impl)) {}
+      Channel(std::dynamic_pointer_cast<impl::Channel>(impl)) {}
 
 DataChannel::~DataChannel() {
 	try {
@@ -67,7 +67,7 @@ bool DataChannel::send(message_variant data) {
 }
 
 bool DataChannel::send(const byte *data, size_t size) {
-	return impl()->outgoing(boost::make_shared<Message>(data, data + size, Message::Binary));
+	return impl()->outgoing(std::make_shared<Message>(data, data + size, Message::Binary));
 }
 
 } // namespace rtc

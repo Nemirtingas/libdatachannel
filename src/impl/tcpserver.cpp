@@ -77,7 +77,7 @@ shared_ptr<TcpTransport> TcpServer::accept() {
 			socket_t incomingSock = ::accept(mSock, (struct sockaddr *)&addr, &addrlen);
 
 			if (incomingSock != INVALID_SOCKET) {
-				return boost::make_shared<TcpTransport>(incomingSock, nullptr); // no state callback
+				return std::make_shared<TcpTransport>(incomingSock, nullptr); // no state callback
 
 			} else if (sockerrno != SEAGAIN && sockerrno != SEWOULDBLOCK) {
 				PLOG_ERROR << "TCP server failed, errno=" << sockerrno;

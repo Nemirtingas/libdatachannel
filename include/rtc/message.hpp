@@ -55,7 +55,7 @@ template <typename Iterator>
 message_ptr make_message(Iterator begin, Iterator end, Message::Type type = Message::Binary,
                          unsigned int stream = 0,
                          shared_ptr<Reliability> reliability = nullptr) {
-	auto message = boost::make_shared<Message>(begin, end, type);
+	auto message = std::make_shared<Message>(begin, end, type);
 	message->stream = stream;
 	message->reliability = reliability;
 	return message;

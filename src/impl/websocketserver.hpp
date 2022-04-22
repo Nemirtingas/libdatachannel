@@ -37,7 +37,7 @@
 namespace rtc{
 namespace impl {
 
-struct WebSocketServer final : public boost::enable_shared_from_this<WebSocketServer> {
+struct WebSocketServer final : public std::enable_shared_from_this<WebSocketServer> {
 	using Configuration = rtc::WebSocketServer::Configuration;
 
 	WebSocketServer(Configuration config_);

@@ -35,7 +35,7 @@ namespace impl {
 
 struct PeerConnection;
 
-struct DataChannel : Channel, boost::enable_shared_from_this<DataChannel> {
+struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
 	static bool IsOpenMessage(message_ptr message);
 
 	DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label, string protocol,

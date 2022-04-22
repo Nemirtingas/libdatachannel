@@ -126,17 +126,17 @@ size_t PeerConnection::remoteMaxMessageSize() const {
 // Helper for PeerConnection::initXTransport methods: start and emplace the transport
 template <typename T>
 shared_ptr<T> emplaceTransport(PeerConnection *pc, shared_ptr<T> *member, shared_ptr<T> transport) {
-	boost::atomic_store(member, transport);
+	std::atomic_store(member, transport);
 	try {
 		transport->start();
 	} catch (...) {
-		boost::atomic_store(member, decltype(transport)(nullptr));
+		std::atomic_store(member, decltype(transport)(nullptr));
 		transport->stop();
 		throw;
 	}
 
 	if (pc->state.load() == PeerConnection::State::Closed) {
-		boost::atomic_store(member, decltype(transport)(nullptr));
+		std::atomic_store(member, decltype(transport)(nullptr));
 		transport->stop();
 		return nullptr;
 	}
@@ -147,12 +147,12 @@ shared_ptr<T> emplaceTransport(PeerConnection *pc, shared_ptr<T> *member, shared
 shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 	try {
 		
-		if (auto transport = boost::atomic_load(&mIceTransport))
+		if (auto transport = std::atomic_load(&mIceTransport))
 			return transport;
 
 		PLOG_VERBOSE << "Starting ICE transport";
 
-		auto transport = boost::make_shared<IceTransport>(
+		auto transport = std::make_shared<IceTransport>(
 		    config, weak_bind(&PeerConnection::processLocalCandidate, this, _1),
 		    [this, weak_this = weak_from_this()](IceTransport::State transportState) {
 			    auto shared_this = weak_this.lock();
@@ -205,12 +205,12 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 
 shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 	try {
-		if (auto transport = boost::atomic_load(&mDtlsTransport))
+		if (auto transport = std::atomic_load(&mDtlsTransport))
 			return transport;
 
 		PLOG_VERBOSE << "Starting DTLS transport";
 
-		auto lower = boost::atomic_load(&mIceTransport);
+		auto lower = std::atomic_load(&mIceTransport);
 		if (!lower)
 			throw std::logic_error("No underlying ICE transport for DTLS transport");
 
@@ -255,7 +255,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 			PLOG_INFO << "This connection requires media support";
 
 			// DTLS-SRTP
-			transport = boost::make_shared<DtlsSrtpTransport>(
+			transport = std::make_shared<DtlsSrtpTransport>(
 				lower, certificate, config.mtu, verifierCallback,
 				weak_bind(&PeerConnection::forwardMedia, this, _1), dtlsStateChangeCallback);
 #else
@@ -266,7 +266,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 		if (!transport) {
 			// DTLS only
-			transport = boost::make_shared<DtlsTransport>(lower, certificate, config.mtu,
+			transport = std::make_shared<DtlsTransport>(lower, certificate, config.mtu,
 			                                            verifierCallback, dtlsStateChangeCallback);
 		}
 
@@ -281,12 +281,12 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 	try {
-		if (auto transport = boost::atomic_load(&mSctpTransport))
+		if (auto transport = std::atomic_load(&mSctpTransport))
 			return transport;
 
 		PLOG_VERBOSE << "Starting SCTP transport";
 
-		auto lower = boost::atomic_load(&mDtlsTransport);
+		auto lower = std::atomic_load(&mDtlsTransport);
 		if(!lower)
 			throw std::logic_error("No underlying DTLS transport for SCTP transport");
 
@@ -306,7 +306,7 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 		// This is the last occasion to ensure the stream numbers are coherent with the role
 		shiftDataChannels();
 
-		auto transport = boost::make_shared<SctpTransport>(
+		auto transport = std::make_shared<SctpTransport>(
 		    lower, config, std::move(ports), weak_bind(&PeerConnection::forwardMessage, this, _1),
 		    weak_bind(&PeerConnection::forwardBufferedAmount, this, _1, _2),
 		    [this, weak_this = weak_from_this()](SctpTransport::State transportState) {
@@ -345,15 +345,15 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 }
 
 shared_ptr<IceTransport> PeerConnection::getIceTransport() const {
-	return boost::atomic_load(&mIceTransport);
+	return std::atomic_load(&mIceTransport);
 }
 
 shared_ptr<DtlsTransport> PeerConnection::getDtlsTransport() const {
-	return boost::atomic_load(&mDtlsTransport);
+	return std::atomic_load(&mDtlsTransport);
 }
 
 shared_ptr<SctpTransport> PeerConnection::getSctpTransport() const {
-	return boost::atomic_load(&mSctpTransport);
+	return std::atomic_load(&mSctpTransport);
 }
 
 void PeerConnection::closeTransports() {
@@ -367,9 +367,9 @@ void PeerConnection::closeTransports() {
 	resetCallbacks();
 
 	// Pass the pointers to a thread, allowing to terminate a transport from its own thread
-	auto sctp = boost::atomic_exchange(&mSctpTransport, decltype(mSctpTransport)(nullptr));
-	auto dtls = boost::atomic_exchange(&mDtlsTransport, decltype(mDtlsTransport)(nullptr));
-	auto ice = boost::atomic_exchange(&mIceTransport, decltype(mIceTransport)(nullptr));
+	auto sctp = std::atomic_exchange(&mSctpTransport, decltype(mSctpTransport)(nullptr));
+	auto dtls = std::atomic_exchange(&mDtlsTransport, decltype(mDtlsTransport)(nullptr));
+	auto ice = std::atomic_exchange(&mIceTransport, decltype(mIceTransport)(nullptr));
 
 	if (sctp) {
 		sctp->onRecv(nullptr);
@@ -459,7 +459,7 @@ void PeerConnection::forwardMessage(message_ptr message) {
 			channel->close();
 		}
 
-		channel = boost::make_shared<IncomingDataChannel>(weak_from_this(), sctpTransport, stream);
+		channel = std::make_shared<IncomingDataChannel>(weak_from_this(), sctpTransport, stream);
 		channel->openCallback =
 		    weak_bind(&PeerConnection::triggerDataChannel, this, weak_ptr<DataChannel>{channel});
 
@@ -651,9 +651,9 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 	// If the DataChannel is user-negotiated, do not negotiate it here
 	auto channel =
 	    init.negotiated
-	        ? boost::make_shared<DataChannel>(weak_from_this(), stream, std::move(label),
+	        ? std::make_shared<DataChannel>(weak_from_this(), stream, std::move(label),
 	                                        std::move(init.protocol), std::move(init.reliability))
-	        : boost::make_shared<NegotiatedDataChannel>(weak_from_this(), stream, std::move(label),
+	        : std::make_shared<NegotiatedDataChannel>(weak_from_this(), stream, std::move(label),
 	                                                  std::move(init.protocol),
 	                                                  std::move(init.reliability));
 	mDataChannels.emplace(std::make_pair(stream, channel));
@@ -671,13 +671,13 @@ shared_ptr<DataChannel> PeerConnection::findDataChannel(uint16_t stream) {
 }
 
 uint16_t PeerConnection::maxDataChannelStream() const {
-	auto sctpTransport = boost::atomic_load(&mSctpTransport);
+	auto sctpTransport = std::atomic_load(&mSctpTransport);
 	return sctpTransport ? sctpTransport->maxStream() : (MAX_SCTP_STREAMS_COUNT - 1);
 }
 
 void PeerConnection::shiftDataChannels() {
-	auto iceTransport = boost::atomic_load(&mIceTransport);
-	auto sctpTransport = boost::atomic_load(&mSctpTransport);
+	auto iceTransport = std::atomic_load(&mIceTransport);
+	auto sctpTransport = std::atomic_load(&mSctpTransport);
 	if (!sctpTransport && iceTransport && iceTransport->role() == Description::Role::Active) {
 		std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to swap the container
 		decltype(mDataChannels) newDataChannels;
@@ -726,7 +726,7 @@ void PeerConnection::cleanupDataChannels() {
 }
 
 void PeerConnection::openDataChannels() {
-	if (auto transport = boost::atomic_load(&mSctpTransport))
+	if (auto transport = std::atomic_load(&mSctpTransport))
 		iterateDataChannels([&](shared_ptr<DataChannel> channel) {
 			// Check again as the maximum might have been negotiated lower
 			if (channel->stream() <= transport->maxStream()) {
@@ -762,7 +762,7 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 	}
 
 	if (!track) {
-		track = boost::make_shared<Track>(weak_from_this(), std::move(description));
+		track = std::make_shared<Track>(weak_from_this(), std::move(description));
 		mTracks.emplace(std::make_pair(track->mid(), track));
 		mTrackLines.emplace_back(track);
 	}
@@ -783,7 +783,7 @@ void PeerConnection::incomingTrack(Description::Media description) {
 		if (track)
 			track->setDescription(std::move(description));
 	} else {
-		track = boost::make_shared<Track>(weak_from_this(), std::move(description));
+		track = std::make_shared<Track>(weak_from_this(), std::move(description));
 		mTracks.emplace(std::make_pair(track->mid(), track));
 		mTrackLines.emplace_back(track);
 		triggerTrack(track);
@@ -795,9 +795,9 @@ void PeerConnection::incomingTrack(Description::Media description) {
 
 void PeerConnection::openTracks() {
 #if RTC_ENABLE_MEDIA
-	auto transport = boost::atomic_load(&mDtlsTransport);
+	auto transport = std::atomic_load(&mDtlsTransport);
 	if (transport) {
-		auto srtpTransport = boost::dynamic_pointer_cast<DtlsSrtpTransport>(transport);
+		auto srtpTransport = std::dynamic_pointer_cast<DtlsSrtpTransport>(transport);
 		boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 		for (auto it = mTrackLines.begin(); it != mTrackLines.end(); ++it)
 			if (auto track = it->lock())
@@ -1012,7 +1012,7 @@ void PeerConnection::processLocalDescription(Description description) {
 	                   localDescriptionCallback, std::move(description));
 
 	// Reciprocated tracks might need to be open
-	auto dtlsTransport = boost::atomic_load(&mDtlsTransport);
+	auto dtlsTransport = std::atomic_load(&mDtlsTransport);
 	if (dtlsTransport && dtlsTransport->state() == Transport::State::Connected)
 		mProcessor.enqueue(&PeerConnection::openTracks, shared_from_this());
 }
@@ -1061,8 +1061,8 @@ void PeerConnection::processRemoteDescription(Description description) {
 	shiftDataChannels();
 
 	if (description.hasApplication()) {
-		auto dtlsTransport = boost::atomic_load(&mDtlsTransport);
-		auto sctpTransport = boost::atomic_load(&mSctpTransport);
+		auto dtlsTransport = std::atomic_load(&mDtlsTransport);
+		auto sctpTransport = std::atomic_load(&mSctpTransport);
 		if (!sctpTransport && dtlsTransport &&
 		    dtlsTransport->state() == Transport::State::Connected)
 			initSctpTransport();
@@ -1072,7 +1072,7 @@ void PeerConnection::processRemoteDescription(Description description) {
 }
 
 void PeerConnection::processRemoteCandidate(Candidate candidate) {
-	auto iceTransport = boost::atomic_load(&mIceTransport);
+	auto iceTransport = std::atomic_load(&mIceTransport);
 	{
 		// Set as remote candidate
 		std::lock_guard<std::mutex> lock(mRemoteDescriptionMutex);
@@ -1096,7 +1096,7 @@ void PeerConnection::processRemoteCandidate(Candidate candidate) {
 	} else {
 		// We might need a lookup, do it asynchronously
 		// We don't use the thread pool because we have no control on the timeout
-		if ((iceTransport = boost::atomic_load(&mIceTransport))) {
+		if ((iceTransport = std::atomic_load(&mIceTransport))) {
 			weak_ptr<IceTransport> weakIceTransport{iceTransport};
 			std::thread t([weakIceTransport, candidate = std::move(candidate)]() mutable {
 				if (candidate.resolve(Candidate::ResolveMode::Lookup))
@@ -1138,7 +1138,7 @@ void PeerConnection::triggerPendingDataChannels() {
 			break;
 
 		auto impl = std::move(*next);
-		dataChannelCallback(boost::make_shared<rtc::DataChannel>(impl));
+		dataChannelCallback(std::make_shared<rtc::DataChannel>(impl));
 		impl->triggerOpen();
 	}
 }
@@ -1150,7 +1150,7 @@ void PeerConnection::triggerPendingTracks() {
 			break;
 
 		auto impl = std::move(*next);
-		trackCallback(boost::make_shared<rtc::Track>(impl));
+		trackCallback(std::make_shared<rtc::Track>(impl));
 		// Do not trigger open immediately for tracks as it'll be done later
 	}
 }

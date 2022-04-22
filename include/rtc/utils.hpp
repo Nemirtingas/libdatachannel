@@ -154,12 +154,12 @@ private:
 };
 
 // pimpl base class
-template <typename T> using impl_ptr = boost::shared_ptr<T>;
+template <typename T> using impl_ptr = std::shared_ptr<T>;
 template <typename T> class CheshireCat {
 public:
 	CheshireCat(impl_ptr<T> impl) : mImpl(std::move(impl)) {}
 	template <typename... Args>
-	CheshireCat(Args... args) : mImpl(boost::make_shared<T>(std::move(args)...)) {}
+	CheshireCat(Args... args) : mImpl(std::make_shared<T>(std::move(args)...)) {}
 	CheshireCat(CheshireCat<T> &&cc) { *this = std::move(cc); }
 	CheshireCat(const CheshireCat<T> &) = delete;
 

@@ -85,7 +85,7 @@ init_token Init::token() {
 	if (auto locked = mWeak.lock())
 		return locked;
 
-	mGlobal = boost::make_shared<TokenPayload>(&mCleanupFuture);
+	mGlobal = std::make_shared<TokenPayload>(&mCleanupFuture);
 	mWeak = *mGlobal;
 	return *mGlobal;
 }
@@ -93,7 +93,7 @@ init_token Init::token() {
 void Init::preload() {
 	std::lock_guard<std::mutex> lock(mMutex);
 	if (!mGlobal) {
-		mGlobal = boost::make_shared<TokenPayload>(&mCleanupFuture);
+		mGlobal = std::make_shared<TokenPayload>(&mCleanupFuture);
 		mWeak = *mGlobal;
 	}
 }

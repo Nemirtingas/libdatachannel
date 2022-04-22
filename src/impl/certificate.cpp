@@ -331,7 +331,7 @@ string make_fingerprint(X509 *x509) {
 
 future_certificate_ptr make_certificate(CertificateType type) {
 	return ThreadPool::Instance().enqueue([type]() {
-		return boost::make_shared<Certificate>(Certificate::Generate(type, "libdatachannel"));
+		return std::make_shared<Certificate>(Certificate::Generate(type, "libdatachannel"));
 	});
 }
 

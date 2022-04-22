@@ -37,7 +37,7 @@
 namespace rtc {
 namespace impl {
 
-struct PeerConnection : boost::enable_shared_from_this<PeerConnection> {
+struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	using State = rtc::PeerConnection::State;
 	using GatheringState = rtc::PeerConnection::GatheringState;
 	using SignalingState = rtc::PeerConnection::SignalingState;

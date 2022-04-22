@@ -293,7 +293,7 @@ createRtpPacketizationConfig(const rtcPacketizationHandlerInit *init) {
 	if (!init->cname)
 		throw std::invalid_argument("Unexpected null pointer for cname");
 
-	return boost::make_shared<RtpPacketizationConfig>(init->ssrc, init->cname, init->payloadType,
+	return std::make_shared<RtpPacketizationConfig>(init->ssrc, init->cname, init->payloadType,
 	                                                init->clockRate, init->sequenceNumber,
 	                                                init->timestamp);
 }
@@ -397,7 +397,7 @@ int rtcCreatePeerConnection(const rtcConfiguration *config) {
 		if (config->maxMessageSize)
 			c.maxMessageSize = size_t(config->maxMessageSize);
 
-		return emplacePeerConnection(boost::make_shared<PeerConnection>(std::move(c)));
+		return emplacePeerConnection(std::make_shared<PeerConnection>(std::move(c)));
 	});
 }
 
@@ -1082,11 +1082,11 @@ int rtcSetH264PacketizationHandler(int tr, const rtcPacketizationHandlerInit *in
 		auto nalSeparator = init ? init->nalSeparator : RTC_NAL_SEPARATOR_LENGTH;
 		auto maxFragmentSize = init && init->maxFragmentSize ? init->maxFragmentSize
 		                                                     : RTC_DEFAULT_MAXIMUM_FRAGMENT_SIZE;
-		auto packetizer = boost::make_shared<H264RtpPacketizer>(
+		auto packetizer = std::make_shared<H264RtpPacketizer>(
 		    static_cast<rtc::H264RtpPacketizer::Separator>(nalSeparator), rtpConfig,
 		    maxFragmentSize);
 		// create H264 handler
-		auto h264Handler = boost::make_shared<H264PacketizationHandler>(packetizer);
+		auto h264Handler = std::make_shared<H264PacketizationHandler>(packetizer);
 		emplaceMediaChainableHandler(h264Handler, tr);
 		emplaceRtpConfig(rtpConfig, tr);
 		// set handler
@@ -1101,9 +1101,9 @@ int rtcSetOpusPacketizationHandler(int tr, const rtcPacketizationHandlerInit *in
 		// create RTP configuration
 		auto rtpConfig = createRtpPacketizationConfig(init);
 		// create packetizer
-		auto packetizer = boost::make_shared<OpusRtpPacketizer>(rtpConfig);
+		auto packetizer = std::make_shared<OpusRtpPacketizer>(rtpConfig);
 		// create Opus handler
-		auto opusHandler = boost::make_shared<OpusPacketizationHandler>(packetizer);
+		auto opusHandler = std::make_shared<OpusPacketizationHandler>(packetizer);
 		emplaceMediaChainableHandler(opusHandler, tr);
 		emplaceRtpConfig(rtpConfig, tr);
 		// set handler
@@ -1115,7 +1115,7 @@ int rtcSetOpusPacketizationHandler(int tr, const rtcPacketizationHandlerInit *in
 int rtcChainRtcpSrReporter(int tr) {
 	return wrap([tr] {
 		auto config = getRtpConfig(tr);
-		auto reporter = boost::make_shared<RtcpSrReporter>(config);
+		auto reporter = std::make_shared<RtcpSrReporter>(config);
 		emplaceRtcpSrReporter(reporter, tr);
 		auto chainableHandler = getMediaChainableHandler(tr);
 		chainableHandler->addToChain(reporter);
@@ -1125,7 +1125,7 @@ int rtcChainRtcpSrReporter(int tr) {
 
 int rtcChainRtcpNackResponder(int tr, unsigned int maxStoredPacketsCount) {
 	return wrap([tr, maxStoredPacketsCount] {
-		auto responder = boost::make_shared<RtcpNackResponder>(maxStoredPacketsCount);
+		auto responder = std::make_shared<RtcpNackResponder>(maxStoredPacketsCount);
 		auto chainableHandler = getMediaChainableHandler(tr);
 		chainableHandler->addToChain(responder);
 		return RTC_ERR_SUCCESS;
@@ -1290,7 +1290,7 @@ int rtcSetSsrcForType(const char *mediaType, const char *sdp, char *buffer, cons
 
 int rtcCreateWebSocket(const char *url) {
 	return wrap([&] {
-		auto webSocket = boost::make_shared<WebSocket>();
+		auto webSocket = std::make_shared<WebSocket>();
 		webSocket->open(url);
 		return emplaceWebSocket(webSocket);
 	});
@@ -1313,7 +1313,7 @@ int rtcCreateWebSocketEx(const char *url, const rtcWsConfiguration *config) {
 		for (int i = 0; i < config->protocolsCount; ++i)
 			c.protocols.emplace_back(string(config->protocols[i]));
 
-		auto webSocket = boost::make_shared<WebSocket>(std::move(c));
+		auto webSocket = std::make_shared<WebSocket>(std::move(c));
 		webSocket->open(url);
 		return emplaceWebSocket(webSocket);
 	});
@@ -1366,7 +1366,7 @@ RTC_EXPORT int rtcCreateWebSocketServer(const rtcWsServerConfiguration *config,
 		                           : none;
 		c.keyPemFile = config->keyPemFile ? boost::make_optional(string(config->keyPemFile)) : none;
 		c.keyPemPass = config->keyPemPass ? boost::make_optional(string(config->keyPemPass)) : none;
-		auto webSocketServer = boost::make_shared<WebSocketServer>(std::move(c));
+		auto webSocketServer = std::make_shared<WebSocketServer>(std::move(c));
 		int wsserver = emplaceWebSocketServer(webSocketServer);
 
 		webSocketServer->onClient([wsserver, cb](shared_ptr<WebSocket> webSocket) {

@@ -37,14 +37,14 @@ WebSocketServer::WebSocketServer(Configuration config_)
 
 	if (config.enableTls) {
 		if (config.certificatePemFile && config.keyPemFile) {
-			mCertificate = boost::make_shared<Certificate>(
+			mCertificate = std::make_shared<Certificate>(
 			    config.certificatePemFile->find(PemBeginCertificateTag) != string::npos
 			        ? Certificate::FromString(*config.certificatePemFile, *config.keyPemFile)
 			        : Certificate::FromFile(*config.certificatePemFile, *config.keyPemFile,
 			                                config.keyPemPass.value_or("")));
 
 		} else if (!config.certificatePemFile && !config.keyPemFile) {
-			mCertificate = boost::make_shared<Certificate>(
+			mCertificate = std::make_shared<Certificate>(
 			    Certificate::Generate(CertificateType::Default, "localhost"));
 		} else {
 			throw std::invalid_argument(
@@ -78,10 +78,10 @@ void WebSocketServer::runLoop() {
 				if (!clientCallback)
 					continue;
 
-				auto impl = boost::make_shared<WebSocket>(none, mCertificate);
+				auto impl = std::make_shared<WebSocket>(none, mCertificate);
 				impl->changeState(WebSocket::State::Connecting);
 				impl->setTcpTransport(incoming);
-				clientCallback(boost::make_shared<rtc::WebSocket>(impl));
+				clientCallback(std::make_shared<rtc::WebSocket>(impl));
 
 			} catch (const std::exception &e) {
 				PLOG_ERROR << "WebSocketServer: " << e.what();

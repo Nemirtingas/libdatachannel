@@ -352,7 +352,7 @@ string Description::generateApplicationSdp(string_view eol) const {
 	    cand && cand->isResolved() ? *cand->port() : 9; // Port 9 is the discard protocol
 
 	// Application
-	auto app = mApplication ? mApplication : boost::make_shared<Application>();
+	auto app = mApplication ? mApplication : std::make_shared<Application>();
 	sdp << app->generateSdp(eol, addr, port);
 
 	// Session-level attributes
@@ -400,11 +400,11 @@ shared_ptr<Description::Entry> Description::createEntry(string mline, string mid
 	string type = mline.substr(0, mline.find(' '));
 	if (type == "application") {
 		removeApplication();
-		mApplication = boost::make_shared<Application>(mline, std::move(mid));
+		mApplication = std::make_shared<Application>(mline, std::move(mid));
 		mEntries.emplace_back(mApplication);
 		return mApplication;
 	} else {
-		auto media = boost::make_shared<Media>(std::move(mline), std::move(mid), dir);
+		auto media = std::make_shared<Media>(std::move(mline), std::move(mid), dir);
 		mEntries.emplace_back(media);
 		return media;
 	}
@@ -440,13 +440,13 @@ bool Description::hasMid(string_view mid) const {
 }
 
 int Description::addMedia(Media media) {
-	mEntries.emplace_back(boost::make_shared<Media>(std::move(media)));
+	mEntries.emplace_back(std::make_shared<Media>(std::move(media)));
 	return int(mEntries.size()) - 1;
 }
 
 int Description::addMedia(Application application) {
 	removeApplication();
-	mApplication = boost::make_shared<Application>(std::move(application));
+	mApplication = std::make_shared<Application>(std::move(application));
 	mEntries.emplace_back(mApplication);
 	return int(mEntries.size()) - 1;
 }

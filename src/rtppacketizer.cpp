@@ -36,7 +36,7 @@ binary_ptr RtpPacketizer::packetize(shared_ptr<binary> payload, bool setMark) {
 	if (setVideoRotation) {
 		rtpExtHeaderSize = rtpExtHeaderCvoSize;
 	}
-	auto msg = boost::make_shared<binary>(rtpHeaderSize + rtpExtHeaderSize + payload->size());
+	auto msg = std::make_shared<binary>(rtpHeaderSize + rtpExtHeaderSize + payload->size());
 	auto *rtp = (RTP *)msg->data();
 	rtp->setPayloadType(rtpConfig->payloadType);
 	// increase sequence number
