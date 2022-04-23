@@ -150,6 +150,14 @@ public:
 	scoped_lock &operator=(const scoped_lock &) = delete;
 };
 
-
+template <typename T> std::weak_ptr<T> weak_from_this(std::enable_shared_from_this<T>& p) {
+	try {
+		// If we can make a shared_ptr out of the object, we can make a weak_ptr.
+		return std::weak_ptr<T>(p.shared_from_this());
+	} catch(std::bad_weak_ptr &) {
+		// If we got a bad_weak_ptr, return an invalid weak_ptr so we can't lock it.
+		return std::weak_ptr<T>();
+	}
+}
 
 } // namespace workarounds

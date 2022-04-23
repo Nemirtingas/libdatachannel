@@ -223,7 +223,7 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 		if (std::atomic_load(&mTcpTransport))
 			throw std::logic_error("TCP transport is already set");
 
-		transport->onStateChange([this, weak_this = weak_from_this()](State transportState) {
+		transport->onStateChange([this, weak_this = workarounds::weak_from_this(*this)](State transportState) {
 			auto shared_this = weak_this.lock();
 			if (!shared_this)
 				return;
@@ -267,7 +267,7 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 		if (!lower)
 			throw std::logic_error("No underlying TCP transport for TLS transport");
 
-		auto stateChangeCallback = [this, weak_this = weak_from_this()](State transportState) {
+		auto stateChangeCallback = [this, weak_this = workarounds::weak_from_this(*this)](State transportState) {
 			auto shared_this = weak_this.lock();
 			if (!shared_this)
 				return;
@@ -338,7 +338,7 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 		if (!atomic_load(&mWsHandshake))
 			atomic_store(&mWsHandshake, std::make_shared<WsHandshake>());
 
-		auto stateChangeCallback = [this, weak_this = weak_from_this()](State transportState) {
+		auto stateChangeCallback = [this, weak_this = workarounds::weak_from_this(*this)](State transportState) {
 			auto shared_this = weak_this.lock();
 			if (!shared_this)
 				return;

@@ -154,7 +154,7 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 
 		auto transport = std::make_shared<IceTransport>(
 		    config, weak_bind(&PeerConnection::processLocalCandidate, this, _1),
-		    [this, weak_this = weak_from_this()](IceTransport::State transportState) {
+		    [this, weak_this = workarounds::weak_from_this(*this)](IceTransport::State transportState) {
 			    auto shared_this = weak_this.lock();
 			    if (!shared_this)
 				    return;
@@ -176,7 +176,8 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 				    break;
 			    }
 		    },
-		    [this, weak_this = weak_from_this()](IceTransport::GatheringState gatheringState) {
+		    [this, weak_this = workarounds::weak_from_this(*this)](
+		        IceTransport::GatheringState gatheringState) {
 			    auto shared_this = weak_this.lock();
 			    if (!shared_this)
 				    return;
@@ -217,7 +218,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 		auto certificate = mCertificate.get();
 		auto verifierCallback = weak_bind(&PeerConnection::checkFingerprint, this, _1);
 		auto dtlsStateChangeCallback =
-		    [this, weak_this = weak_from_this()](DtlsTransport::State transportState) {
+		    [this, weak_this = workarounds::weak_from_this(*this)](DtlsTransport::State transportState) {
 			    auto shared_this = weak_this.lock();
 			    if (!shared_this)
 				    return;
@@ -309,7 +310,7 @@ shared_ptr<SctpTransport> PeerConnection::initSctpTransport() {
 		auto transport = std::make_shared<SctpTransport>(
 		    lower, config, std::move(ports), weak_bind(&PeerConnection::forwardMessage, this, _1),
 		    weak_bind(&PeerConnection::forwardBufferedAmount, this, _1, _2),
-		    [this, weak_this = weak_from_this()](SctpTransport::State transportState) {
+		    [this, weak_this = workarounds::weak_from_this(*this)](SctpTransport::State transportState) {
 			    auto shared_this = weak_this.lock();
 			    if (!shared_this)
 				    return;
@@ -459,7 +460,7 @@ void PeerConnection::forwardMessage(message_ptr message) {
 			channel->close();
 		}
 
-		channel = std::make_shared<IncomingDataChannel>(weak_from_this(), sctpTransport, stream);
+		channel = std::make_shared<IncomingDataChannel>(workarounds::weak_from_this(*this), sctpTransport, stream);
 		channel->openCallback =
 		    weak_bind(&PeerConnection::triggerDataChannel, this, weak_ptr<DataChannel>{channel});
 
@@ -651,9 +652,9 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 	// If the DataChannel is user-negotiated, do not negotiate it here
 	auto channel =
 	    init.negotiated
-	        ? std::make_shared<DataChannel>(weak_from_this(), stream, std::move(label),
+	        ? std::make_shared<DataChannel>(workarounds::weak_from_this(*this), stream, std::move(label),
 	                                        std::move(init.protocol), std::move(init.reliability))
-	        : std::make_shared<NegotiatedDataChannel>(weak_from_this(), stream, std::move(label),
+	        : std::make_shared<NegotiatedDataChannel>(workarounds::weak_from_this(*this), stream, std::move(label),
 	                                                  std::move(init.protocol),
 	                                                  std::move(init.reliability));
 	mDataChannels.emplace(std::make_pair(stream, channel));
@@ -762,7 +763,7 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 	}
 
 	if (!track) {
-		track = std::make_shared<Track>(weak_from_this(), std::move(description));
+		track = std::make_shared<Track>(workarounds::weak_from_this(*this), std::move(description));
 		mTracks.emplace(std::make_pair(track->mid(), track));
 		mTrackLines.emplace_back(track);
 	}
@@ -783,7 +784,7 @@ void PeerConnection::incomingTrack(Description::Media description) {
 		if (track)
 			track->setDescription(std::move(description));
 	} else {
-		track = std::make_shared<Track>(weak_from_this(), std::move(description));
+		track = std::make_shared<Track>(workarounds::weak_from_this(*this), std::move(description));
 		mTracks.emplace(std::make_pair(track->mid(), track));
 		mTrackLines.emplace_back(track);
 		triggerTrack(track);
