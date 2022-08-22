@@ -252,7 +252,9 @@ void TcpTransport::attempt() {
 	};
 
 	const auto timeout = 10s;
-	PollService::Instance().add(mSock, {PollService::Direction::Out, timeout, std::move(callback)});
+	PollService::Instance().add(
+	    mSock,
+	    PollService::Params{PollService::Direction::Out, PollService::clock::duration(timeout), std::move(callback)});
 }
 
 void TcpTransport::createSocket(const struct sockaddr *addr, socklen_t addrlen) {
