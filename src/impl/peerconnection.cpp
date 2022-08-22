@@ -25,17 +25,19 @@
 #include "internals.hpp"
 #include "logcounter.hpp"
 #include "peerconnection.hpp"
+#include "processor.hpp"
 #include "rtp.hpp"
 #include "sctptransport.hpp"
-#include "threadpool.hpp"
 
 #if RTC_ENABLE_MEDIA
 #include "dtlssrtptransport.hpp"
 #endif
 
+#include <algorithm>
 #include <array>
 #include <iomanip>
 #include <set>
+#include <sstream>
 #include <thread>
 
 using namespace std::placeholders;
@@ -386,14 +388,15 @@ void PeerConnection::closeTransports() {
 
 	// Initiate transport stop on the processor after closing the data channels
 	mProcessor.enqueue([self = shared_from_this(), transports = std::move(transports)]() {
-		ThreadPool::Instance().enqueue([transports = std::move(transports)]() mutable {
-			for (const auto &t : transports)
-				if (t)
-					t->stop();
+		TearDownProcessor::Instance().enqueue(
+		    [transports = std::move(transports), token = Init::Instance().token()]() mutable {
+			    for (const auto &t : transports)
+				    if (t)
+					    t->stop();
 
-			for (auto &t : transports)
-				t.reset();
-		});
+			    for (auto &t : transports)
+				    t.reset();
+		    });
 	});
 }
 
@@ -469,6 +472,9 @@ void PeerConnection::forwardMessage(message_ptr message) {
 	}
 
 	if (!channel) {
+		if (message->type == Message::Control) // ignore control messages like Close
+			return;
+
 		// Invalid, close the DataChannel
 		PLOG_WARNING << "Got unexpected message on stream " << stream;
 		if (auto sctpTransport = getSctpTransport())
@@ -649,12 +655,12 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 			stream += 2;
 		}
 	}
-	// If the DataChannel is user-negotiated, do not negotiate it here
+	// If the DataChannel is user-negotiated, do not negotiate it in-band
 	auto channel =
 	    init.negotiated
 	        ? std::make_shared<DataChannel>(workarounds::weak_from_this(*this), stream, std::move(label),
 	                                        std::move(init.protocol), std::move(init.reliability))
-	        : std::make_shared<NegotiatedDataChannel>(workarounds::weak_from_this(*this), stream, std::move(label),
+	        : std::make_shared<OutgoingDataChannel>(workarounds::weak_from_this(*this), stream, std::move(label),
 	                                                  std::move(init.protocol),
 	                                                  std::move(init.reliability));
 	mDataChannels.emplace(std::make_pair(stream, channel));

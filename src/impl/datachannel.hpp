@@ -60,8 +60,7 @@ struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
 	bool isClosed(void) const;
 	size_t maxMessageSize() const;
 
-	void shiftStream();
-
+	virtual void shiftStream();
 	virtual void open(shared_ptr<SctpTransport> transport);
 	virtual void processOpenMessage(message_ptr);
 
@@ -82,11 +81,12 @@ protected:
 	boost::atomic<bool> mIsClosed;
 };
 
-struct NegotiatedDataChannel final : public DataChannel {
-	NegotiatedDataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label,
+struct OutgoingDataChannel final : public DataChannel {
+	OutgoingDataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label,
 	                      string protocol, Reliability reliability);
-	~NegotiatedDataChannel();
+	~OutgoingDataChannel();
 
+	void shiftStream() override;
 	void open(shared_ptr<SctpTransport> transport) override;
 	void processOpenMessage(message_ptr message) override;
 };

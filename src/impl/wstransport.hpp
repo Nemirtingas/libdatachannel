@@ -78,6 +78,8 @@ private:
 	binary mBuffer;
 	binary mPartial;
 	Opcode mPartialOpcode;
+
+	std::mutex mSendMutex;
 };
 
 } // namespace impl

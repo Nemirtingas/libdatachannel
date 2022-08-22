@@ -29,6 +29,8 @@ namespace rtc {
 
 typedef uint32_t SSRC;
 
+RTC_CPP_EXPORT bool IsRtcp(const binary &data);
+
 #pragma pack(push, 1)
 
 struct RTC_CPP_EXPORT RtpExtensionHeader {
@@ -55,7 +57,7 @@ struct RTC_CPP_EXPORT RtpHeader {
 	uint16_t _seqNumber;
 	uint32_t _timestamp;
 	SSRC _ssrc;
-	SSRC _csrc[16];
+	// The following field is SSRC _csrc[]
 
 	[[nodiscard]] uint8_t version() const;
 	[[nodiscard]] bool padding() const;

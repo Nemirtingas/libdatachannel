@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 project(libdatachannel
-	VERSION 0.17.1
+	VERSION 0.17.9
 	LANGUAGES CXX)
 set(PROJECT_DESCRIPTION "C/C++ WebRTC network library featuring Data Channels, Media Transport, and WebSockets")
 
@@ -121,7 +121,6 @@ set(LIBDATACHANNEL_IMPL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/track.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/utils.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/processor.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/base64.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/sha.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollinterrupter.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollservice.cpp
@@ -153,7 +152,6 @@ set(LIBDATACHANNEL_IMPL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/track.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/utils.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/processor.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/base64.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/sha.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollinterrupter.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollservice.hpp
@@ -170,6 +168,7 @@ set(LIBDATACHANNEL_IMPL_HEADERS
 set(TESTS_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/connectivity.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/negotiated.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/turn_connectivity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/track.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/capi_connectivity.cpp
@@ -210,8 +209,10 @@ add_subdirectory(deps/plog EXCLUDE_FROM_ALL)
 if(SCTP_DEBUG)
 	add_definitions(-DSCTP_DEBUG)
 endif()
-option(sctp_build_programs 0)
-option(sctp_build_shared_lib 0)
+option(sctp_build_shared_lib OFF)
+option(sctp_build_programs OFF)
+option(sctp_inet OFF)
+option(sctp_inet6 OFF)
 set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 add_subdirectory(deps/usrsctp EXCLUDE_FROM_ALL)
 if (MSYS OR MINGW)
@@ -481,8 +482,9 @@ if(NOT NO_EXAMPLES)
 		add_subdirectory(examples/client-benchmark)
 	endif()
 	if(NOT NO_MEDIA)
-		add_subdirectory(examples/media)
-		add_subdirectory(examples/sfu-media)
+		add_subdirectory(examples/media-receiver)
+		add_subdirectory(examples/media-sender)
+		add_subdirectory(examples/media-sfu)
 	endif()
 	if(NOT NO_MEDIA AND NOT NO_WEBSOCKET)
     	add_subdirectory(examples/streamer)

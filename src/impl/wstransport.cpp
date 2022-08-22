@@ -175,8 +175,13 @@ void WsTransport::incoming(message_ptr message) {
 
 void WsTransport::close() {
 	if (state() == State::Connected) {
-		sendFrame({CLOSE, NULL, 0, true, mIsClient});
 		PLOG_INFO << "WebSocket closing";
+		try {
+			sendFrame({CLOSE, NULL, 0, true, mIsClient});
+		} catch (const std::exception &e) {
+			// Ignore error as the connection might not be open anymore
+			PLOG_DEBUG << "Unable to send WebSocket close frame: " << e.what();
+		}
 		changeState(State::Disconnected);
 	}
 }
@@ -335,6 +340,8 @@ void WsTransport::recvFrame(const Frame &frame) {
 }
 
 bool WsTransport::sendFrame(const Frame &frame) {
+	std::lock_guard<std::mutex> lock(mSendMutex);
+
 	PLOG_DEBUG << "WebSocket sending frame: opcode=" << int(frame.opcode)
 	           << ", length=" << frame.length;
 
@@ -369,8 +376,13 @@ bool WsTransport::sendFrame(const Frame &frame) {
 			frame.payload[i] ^= maskingKey[i % 4];
 	}
 
-	outgoing(make_message(buffer, cur));                                        // header
-	return outgoing(make_message(frame.payload, frame.payload + frame.length)); // payload
+	const size_t length = cur - buffer; // header length
+	auto message = make_message(length + frame.length);
+	std::copy(buffer, buffer + length, message->begin()); // header
+	std::copy(frame.payload, frame.payload + frame.length,
+	          message->begin() + length); // payload
+
+	return outgoing(std::move(message));
 }
 
 } // namespace impl

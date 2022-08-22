@@ -21,6 +21,7 @@
 
 #if RTC_ENABLE_WEBSOCKET
 
+#include <algorithm>
 #include <cassert>
 
 namespace rtc {
@@ -180,15 +181,15 @@ void PollService::runLoop() {
 				int timeout;
 				if (next) {
 					auto msecs = duration_cast<milliseconds>(
-					    std::max(clock::duration::zero(), *next - clock::now()));
+					    std::max(clock::duration::zero(), *next - clock::now() + 1ms));
 					PLOG_VERBOSE << "Entering poll, timeout=" << msecs.count() << "ms";
-					timeout = int(msecs.count());
+					timeout = static_cast<int>(msecs.count());
 				} else {
 					PLOG_VERBOSE << "Entering poll";
 					timeout = -1;
 				}
 
-				ret = ::poll(pfds.data(), pfds.size(), timeout);
+				ret = ::poll(pfds.data(), static_cast<nfds_t>(pfds.size()), timeout);
 
 				PLOG_VERBOSE << "Exiting poll";
 

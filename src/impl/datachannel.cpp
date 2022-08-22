@@ -26,6 +26,8 @@
 #include "rtc/datachannel.hpp"
 #include "rtc/track.hpp"
 
+#include <algorithm>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #else
@@ -186,9 +188,7 @@ size_t DataChannel::maxMessageSize() const {
 }
 
 void DataChannel::shiftStream() {
-	boost::shared_lock<boost::shared_mutex> lock(mMutex);
-	if (mStream % 2 == 1)
-		mStream -= 1;
+	// Ignore
 }
 
 void DataChannel::open(shared_ptr<SctpTransport> transport) {
@@ -265,13 +265,19 @@ void DataChannel::incoming(message_ptr message) {
 	}
 }
 
-NegotiatedDataChannel::NegotiatedDataChannel(weak_ptr<PeerConnection> pc, uint16_t stream,
-                                             string label, string protocol, Reliability reliability)
+OutgoingDataChannel::OutgoingDataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label,
+                                         string protocol, Reliability reliability)
     : DataChannel(pc, stream, std::move(label), std::move(protocol), std::move(reliability)) {}
 
-NegotiatedDataChannel::~NegotiatedDataChannel() {}
+OutgoingDataChannel::~OutgoingDataChannel() {}
 
-void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
+void OutgoingDataChannel::shiftStream() {
+	boost::shared_lock<boost::shared_mutex> lock(mMutex);
+	if (mStream % 2 == 1)
+		mStream -= 1;
+}
+
+void OutgoingDataChannel::open(shared_ptr<SctpTransport> transport) {
 	std::unique_lock<boost::shared_mutex> lock(mMutex);
 	mSctpTransport = transport;
 
@@ -316,7 +322,7 @@ void NegotiatedDataChannel::open(shared_ptr<SctpTransport> transport) {
 	transport->send(make_message(buffer.begin(), buffer.end(), Message::Control, mStream));
 }
 
-void NegotiatedDataChannel::processOpenMessage(message_ptr) {
+void OutgoingDataChannel::processOpenMessage(message_ptr) {
 	PLOG_WARNING << "Received an open message for a locally-created DataChannel, ignoring";
 }
 

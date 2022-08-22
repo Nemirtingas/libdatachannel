@@ -21,6 +21,7 @@
 
 #include "impl/internals.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <mutex>
@@ -631,6 +632,13 @@ int rtcGetSelectedCandidatePair(int pc, char *local, int localSize, char *remote
 			return remoteRet;
 
 		return std::max(localRet, remoteRet);
+	});
+}
+
+int rtcGetMaxDataChannelStream(int pc) {
+	return wrap([&] {
+		auto peerConnection = getPeerConnection(pc);
+		return int(peerConnection->maxDataChannelId());
 	});
 }
 

@@ -41,6 +41,23 @@
 
 namespace rtc {
 
+bool IsRtcp(const binary &data) {
+	if (data.size() < 8)
+		return false;
+
+	uint8_t payloadType = nonstd::to_integer<uint8_t>(data[1]) & 0x7F;
+	PLOG_VERBOSE << "Demultiplexing RTCP and RTP with payload type, value=" << int(payloadType);
+
+	// RFC 5761 Multiplexing RTP and RTCP 4. Distinguishable RTP and RTCP Packets
+	// https://www.rfc-editor.org/rfc/rfc5761.html#section-4
+	// It is RECOMMENDED to follow the guidelines in the RTP/AVP profile for the choice of RTP
+	// payload type values, with the additional restriction that payload type values in the
+	// range 64-95 MUST NOT be used. Specifically, dynamic RTP payload types SHOULD be chosen in
+	// the range 96-127 where possible. Values below 64 MAY be used if that is insufficient
+	// [...]
+	return (payloadType >= 64 && payloadType <= 95); // Range 64-95 (inclusive) MUST be RTCP
+}
+
 uint8_t RtpHeader::version() const { return _first >> 6; }
 bool RtpHeader::padding() const { return (_first >> 5) & 0x01; }
 bool RtpHeader::extension() const { return (_first >> 4) & 0x01; }
@@ -52,41 +69,30 @@ uint32_t RtpHeader::timestamp() const { return ntohl(_timestamp); }
 uint32_t RtpHeader::ssrc() const { return ntohl(_ssrc); }
 
 size_t RtpHeader::getSize() const {
-	return reinterpret_cast<const char *>(&_csrc) - reinterpret_cast<const char *>(this) +
-	       sizeof(SSRC) * csrcCount();
+	return reinterpret_cast<const char *>(&_ssrc + 1 + csrcCount()) -
+	       reinterpret_cast<const char *>(this);
 }
 
 size_t RtpHeader::getExtensionHeaderSize() const {
-	auto header = reinterpret_cast<const RtpExtensionHeader *>(getExtensionHeader());
-	if (header) {
-		return header->getSize() + sizeof(RtpExtensionHeader);
-	}
-	return 0;
+	auto header = getExtensionHeader();
+	return header ? header->getSize() + sizeof(RtpExtensionHeader) : 0;
 }
 
 const RtpExtensionHeader *RtpHeader::getExtensionHeader() const {
-	if (extension()) {
-		auto header = reinterpret_cast<const char *>(&_csrc) + sizeof(SSRC) * csrcCount();
-		return reinterpret_cast<const RtpExtensionHeader *>(header);
-	}
-	return nullptr;
+	return extension() ? reinterpret_cast<const RtpExtensionHeader *>(&_ssrc + 1 + csrcCount())
+	                   : nullptr;
 }
 
 RtpExtensionHeader *RtpHeader::getExtensionHeader() {
-	if (extension()) {
-		auto header = reinterpret_cast<char *>(&_csrc) + sizeof(SSRC) * csrcCount();
-		return reinterpret_cast<RtpExtensionHeader *>(header);
-	}
-	return nullptr;
+	return extension() ? reinterpret_cast<RtpExtensionHeader *>(&_ssrc + 1 + csrcCount()) : nullptr;
 }
 
 const char *RtpHeader::getBody() const {
-	return reinterpret_cast<const char *>(&_csrc) + sizeof(SSRC) * csrcCount() +
-	       getExtensionHeaderSize();
+	return reinterpret_cast<const char *>(&_ssrc + 1 + csrcCount()) + getExtensionHeaderSize();
 }
 
 char *RtpHeader::getBody() {
-	return reinterpret_cast<char *>(&_csrc) + sizeof(SSRC) * csrcCount() + getExtensionHeaderSize();
+	return reinterpret_cast<char *>(&_ssrc + 1 + csrcCount()) + getExtensionHeaderSize();
 }
 
 void RtpHeader::preparePacket() { _first |= (1 << 7); }

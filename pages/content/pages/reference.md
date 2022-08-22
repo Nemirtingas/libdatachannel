@@ -117,10 +117,11 @@ Return value: the identifier of the new Peer Connection or a negative error code
 
 The Peer Connection must be deleted with `rtcDeletePeerConnection`.
 
-Each entry in `iceServers` must match the format `[("stun"|"turn"|"turns") (":"|"://")][username ":" password "@"]hostname[":" port]["?transport=" ("udp"|"tcp"|"tls")]`. The default scheme is STUN, the default port is 3478 (5349 over TLS), and the default transport is UDP.  For instance, a STUN server URI could be `mystunserver.org`, and a TURN server URI could be `turn:myuser:12345678@turnserver.org`. Note transports TCP and TLS are only available for a TURN server with libnice as ICE backend and govern only the TURN control connection, meaning relaying is always performed over UDP.
+Each entry in `iceServers` must match the format `[("stun"|"turn"|"turns") (":"|"://")][username ":" password "@"]hostname[":" port]["?transport=" ("udp"|"tcp"|"tls")]`. The default scheme is STUN, the default port is 3478 (5349 over TLS), and the default transport is UDP. For instance, a STUN server URI could be `mystunserver.org`, and a TURN server URI could be `turn:myuser:12345678@turnserver.org`. Note transports TCP and TLS are only available for a TURN server with libnice as ICE backend and govern only the TURN control connection, meaning relaying is always performed over UDP.
 
 The `proxyServer` URI, if present, must match the format `[("http"|"socks5") (":"|"://")][username ":" password "@"]hostname["    :" port]`. The default scheme is HTTP, and the default port is 3128 for HTTP or 1080 for SOCKS5.
 
+If the username or password of an URI contains reserved special characters, they must be percent-encoded. In particular, ":" must be encoded as "%3A" and "@" must by encoded as "%40".
 
 #### rtcDeletePeerConnection
 
@@ -307,7 +308,7 @@ If `buffer` is `NULL`, the description is not copied but the size is still retur
 int rtcGetLocalAddress(int pc, char *buffer, int size)
 ```
 
-Retrieves the current local address, i.e. the network address of the currently selected local candidate. The address will have the format `"IP_ADDRESS:PORT"`, where `IP_ADDRESS` may be either IPv4 or IPv6. The call might fail if the PeerConnection is not in state `RTC_CONNECTED`, and the address might change if the state is not `RTC_COMPLETED`.
+Retrieves the current local address, i.e. the network address of the currently selected local candidate. The address will have the format `"IP_ADDRESS:PORT"`, where `IP_ADDRESS` may be either IPv4 or IPv6. The call might fail if the PeerConnection is not in state `RTC_CONNECTED`, and the address might change after connection.
 
 Arguments:
 
@@ -325,7 +326,7 @@ If `buffer` is `NULL`, the address is not copied but the size is still returned.
 int rtcGetRemoteAddress(int pc, char *buffer, int size)
 ```
 
-Retrieves the current remote address, i.e. the network address of the currently selected remote candidate. The address will have the format `"IP_ADDRESS:PORT"`, where `IP_ADDRESS` may be either IPv4 or IPv6. The call may fail if the state is not `RTC_CONNECTED`, and the address might change if the state is not `RTC_COMPLETED`.
+Retrieves the current remote address, i.e. the network address of the currently selected remote candidate. The address will have the format `"IP_ADDRESS:PORT"`, where `IP_ADDRESS` may be either IPv4 or IPv6. The call may fail if the state is not `RTC_CONNECTED`, and the address might change after connection.
 
 Arguments:
 
@@ -343,7 +344,7 @@ If `buffer` is `NULL`, the address is not copied but the size is still returned.
 int rtcGetSelectedCandidatePair(int pc, char *local, int localSize, char *remote, int remoteSize)
 ```
 
-Retrieve the currently selected candidate pair. The call may fail if the state is not `RTC_CONNECTED`, and the selected candidate pair might change if the state is not `RTC_COMPLETED`.
+Retrieves the currently selected candidate pair. The call may fail if the state is not `RTC_CONNECTED`, and the selected candidate pair might change after connection.
 
 Arguments:
 
@@ -356,6 +357,18 @@ Arguments:
 Return value: the maximun length of strings copied in buffers (including the terminating null character) or a negative error code
 
 If `local`, `remote`, or both, are `NULL`, the corresponding candidate is not copied, but the maximum length is still returned.
+
+#### rtcGetMaxDataChannelStream
+```
+int rtcGetMaxDataChannelStream(int pc);
+```
+
+Retrieves the maximum stream ID a Data Channel may use. It is useful to create user-negotiated Data Channels with `negotiated=true` and `manualStream=true`. The maximum is negotiated during connection, therefore the final value after connection might be lower than before connection if the remote maximum is lower.
+
+Arguments:
+- `pc`: the Peer Connection identifier
+
+Return value: the maximum stream ID (`stream` for a Data Channel may be set from 0 to this value included) or a negative error code
 
 ### Channel (Common API for Data Channel, Track, and WebSocket)
 
@@ -572,14 +585,14 @@ Arguments:
 - `label`: a user-defined UTF-8 string representing the Data Channel name
 - `init`: a structure of initialization settings containing:
   - `reliability`: a structure of reliability settings containing:
-    - `bool unordered`: if `true`, the Data Channel will not enforce message ordering, else it will be ordered
-    - `bool unreliable`: if `true`, the Data Channel will not enforce strict reliability, else it will be reliable
-    - `unsigned int maxPacketLifeTime`: if unreliable, maximum packet life time in milliseconds
-    - `unsigned int maxRetransmits`: if unreliable and maxPacketLifeTime is 0, maximum number of retransmissions (0 means no retransmission)
+    - `unordered`: if `true`, the Data Channel will not enforce message ordering, else it will be ordered
+    - `unreliable`: if `true`, the Data Channel will not enforce strict reliability, else it will be reliable
+    - `maxPacketLifeTime`: if unreliable, maximum packet life time in milliseconds
+    - `maxRetransmits`: if unreliable and maxPacketLifeTime is 0, maximum number of retransmissions (0 means no retransmission)
   - `protocol` (optional): a user-defined UTF-8 string representing the Data Channel protocol, empty if NULL
   - `negotiated`: if `true`, the Data Channel is assumed to be negotiated by the user and won't be negotiated by the WebRTC layer
   - `manualStream`: if `true`, the Data Channel will use `stream` as stream ID, else an available id is automatically selected
-  - `stream` (0-65534): if `manualStream` is `true`, the Data Channel will use it as stream ID, else it is ignored
+  - `stream`: if `manualStream` is `true`, the Data Channel will use it as stream ID, else it is ignored
 
 `rtcDataChannel()` is equivalent to `rtcDataChannelEx()` with settings set to ordered, reliable, non-negotiated, with automatic stream ID selection (all flags set to `false`), and `protocol` set to an empty string.
 
@@ -615,7 +628,7 @@ Arguments:
 
 - `dc`: the Data Channel identifier
 
-Return value: the stream ID (0-65534) or a negative error code
+Return value: the stream ID or a negative error code
 
 #### rtcGetDataChannelLabel
 
@@ -767,7 +780,7 @@ int rtcCreateWebSocket(const char *url)
 int rtcCreateWebSocketEx(const char *url, const rtcWsConfiguration *config)
 
 typedef struct {
-	bool disableTlsVerification;    // if true, disable TLS certificate verification
+	bool disableTlsVerification;
 	const char **protocols;
 	int protocolsCount;
 } rtcWsConfiguration;
@@ -779,7 +792,7 @@ Arguments:
 
 - `url`: a null-terminated string representing the fully-qualified URL to open.
 - `config`: a structure with the following parameters:
-  - `bool disableTlsVerification`: if true, don't verify the TLS certificate, else try to verify it if possible
+  - `disableTlsVerification`: if true, don't verify the TLS certificate, else try to verify it if possible
   - `protocols` (optional): an array of pointers on null-terminated protocol names (NULL if unused)
   - `protocolsCount` (optional): number of URLs in the array pointed by `protocols` (0 if unused)
 
@@ -846,11 +859,10 @@ int rtcCreateWebSocketServer(const rtcWsServerConfiguration *config, rtcWebSocke
 typedef struct {
 	uint16_t port;
 	bool enableTls;
-	const char *certificatePemFile; // NULL for autogenerated certificate
-	const char *keyPemFile;         // NULL for autogenerated certificate
-	const char *keyPemPass;         // NULL if no pass
+	const char *certificatePemFile;
+	const char *keyPemFile;
+	const char *keyPemPass;
 } rtcWsServerConfiguration;
-
 ```
 
 Creates a new WebSocket server.
@@ -858,11 +870,11 @@ Creates a new WebSocket server.
 Arguments:
 
 - `config`: a structure with the following parameters:
-  - `uint16_t port`: the port to listen on (if 0, automatically select an available port)
-  - `bool enableTls`: if true, enable the TLS layer (WSS)
-  - `const char *certificatePemFile`: PEM certificate or path of the file containing the PEM certificate (`NULL` for an autogenerated certificate)
-  - `const char *keyPemFile`: PEM key or path of the file containing the PEM key (`NULL` for an autogenerated certificate)
-  - `const char *keyPemPass`: PEM key file passphrase (NULL if no passphrase)
+  - `port`: the port to listen on (if 0, automatically select an available port)
+  - `enableTls`: if true, enable the TLS layer (WSS)
+  - `certificatePemFile` (optional): PEM certificate or path of the file containing the PEM certificate (`NULL` for an autogenerated certificate)
+  - `keyPemFile` (optional): PEM key or path of the file containing the PEM key (`NULL` for an autogenerated certificate)
+  - `keyPemPass` (optional): PEM key file passphrase (NULL if no passphrase)
 - `cb`: the callback for incoming client WebSocket connections (must not be `NULL`)
 
 `cb` must have the following signature: `void rtcWebSocketClientCallbackFunc(int wsserver, int ws, void *user_ptr)`

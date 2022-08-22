@@ -1,5 +1,5 @@
 /*
- * libdatachannel media example
+ * libdatachannel media sender example
  * Copyright (c) 2020 Staz Modrzynski
  * Copyright (c) 2020 Paul-Louis Ageneau
  *
@@ -19,8 +19,10 @@
 
 #include "rtc/rtc.hpp"
 
+#include <cstddef>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 
 #include <nlohmann/json.hpp>
@@ -36,6 +38,8 @@ typedef int SOCKET;
 #endif
 
 using nlohmann::json;
+
+const int BUFFER_SIZE = 2048;
 
 int main() {
 	try {
@@ -56,41 +60,47 @@ int main() {
 		});
 
 		SOCKET sock = socket(AF_INET, SOCK_DGRAM, 0);
-		sockaddr_in addr = {};
+		struct sockaddr_in addr = {};
 		addr.sin_family = AF_INET;
 		addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-		addr.sin_port = htons(5000);
+		addr.sin_port = htons(6000);
 
-		rtc::Description::Video media("video", rtc::Description::Direction::RecvOnly);
-		media.addH264Codec(96);
-		media.setBitrate(
-		    3000); // Request 3Mbps (Browsers do not encode more than 2.5MBps from a webcam)
+		if (bind(sock, reinterpret_cast<const sockaddr *>(&addr), sizeof(addr)) < 0)
+			throw std::runtime_error("Failed to bind UDP socket on 127.0.0.1:6000");
 
+		int rcvBufSize = 212992;
+		setsockopt(sock, SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char *>(&rcvBufSize),
+		           sizeof(rcvBufSize));
+
+		const rtc::SSRC ssrc = 42;
+		rtc::Description::Video media("video", rtc::Description::Direction::SendOnly);
+		media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
+		media.addSSRC(ssrc, "video-send");
 		auto track = pc->addTrack(media);
-
-		auto session = boost::make_shared<rtc::RtcpReceivingSession>();
-		track->setMediaHandler(session);
-
-		track->onMessage(
-		    [session, sock, addr](rtc::binary message) {
-			    // This is an RTP packet
-			    sendto(sock, reinterpret_cast<const char *>(message.data()), int(message.size()), 0,
-			           reinterpret_cast<const struct sockaddr *>(&addr), sizeof(addr));
-		    },
-		    nullptr);
 
 		pc->setLocalDescription();
 
-		std::cout << "Expect RTP video traffic on localhost:5000" << std::endl;
+		std::cout << "RTP video stream expected on localhost:6000" << std::endl;
 		std::cout << "Please copy/paste the answer provided by the browser: " << std::endl;
 		std::string sdp;
 		std::getline(std::cin, sdp);
-		std::cout << "Got answer" << sdp << std::endl;
+
 		json j = json::parse(sdp);
 		rtc::Description answer(j["sdp"].get<std::string>(), j["type"].get<std::string>());
 		pc->setRemoteDescription(answer);
-		std::cout << "Press any key to exit." << std::endl;
-		std::cin >> sdp;
+
+		// Receive from UDP
+		char buffer[BUFFER_SIZE];
+		int len;
+		while ((len = recv(sock, buffer, BUFFER_SIZE, 0)) >= 0) {
+			if (len < sizeof(rtc::RtpHeader) || !track->isOpen())
+				continue;
+
+			auto rtp = reinterpret_cast<rtc::RtpHeader *>(buffer);
+			rtp->setSsrc(ssrc);
+
+			track->send(reinterpret_cast<const std::byte *>(buffer), len);
+		}
 
 	} catch (const std::exception &e) {
 		std::cerr << "Error: " << e.what() << std::endl;

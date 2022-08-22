@@ -18,10 +18,10 @@
 
 #include "configuration.hpp"
 
+#include "impl/utils.hpp"
+
 #include <cassert>
 #include <regex>
-
-#include <iostream>
 
 namespace {
 
@@ -47,6 +47,8 @@ bool parse_url(const std::string &url, std::vector<boost::optional<std::string>>
 } // namespace
 
 namespace rtc {
+
+namespace utils = impl::utils;
 
 IceServer::IceServer(const string &url) {
 	std::vector<optional<string>> opt;
@@ -74,14 +76,17 @@ IceServer::IceServer(const string &url) {
 			relayType = RelayType::TurnTls;
 	}
 
-	username = opt[6].value_or("");
-	password = opt[8].value_or("");
+	username = utils::url_decode(opt[6].value_or(""));
+	password = utils::url_decode(opt[8].value_or(""));
 
 	hostname = opt[10].value();
-	while (!hostname.empty() && hostname.front() == '[')
+	if(hostname.front() == '[' && hostname.back() == ']') {
+		// IPv6 literal
 		hostname.erase(hostname.begin());
-	while (!hostname.empty() && hostname.back() == ']')
 		hostname.pop_back();
+	} else {
+		hostname = utils::url_decode(hostname);
+	}
 
 	string service = opt[12].value_or(relayType == RelayType::TurnTls ? "5349" : "3478");
 	try {
