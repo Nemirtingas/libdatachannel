@@ -80,9 +80,9 @@ void test_track() {
 		cout << "Gathering state 2: " << state << endl;
 	});
 
-	boost::shared_ptr<Track> t2;
+	std::shared_ptr<Track> t2;
 	string newTrackMid;
-	pc2.onTrack([&t2, &newTrackMid](boost::shared_ptr<Track> t) {
+	pc2.onTrack([&t2, &newTrackMid](std::shared_ptr<Track> t) {
 		string mid = t->mid();
 		cout << "Track 2: Received track with mid \"" << mid << "\"" << endl;
 		if (mid != newTrackMid) {
@@ -95,7 +95,7 @@ void test_track() {
 		t->onClosed(
 		    [mid]() { cout << "Track 2: Track with mid \"" << mid << "\" is closed" << endl; });
 
-		boost::atomic_store(&t2, t);
+		std::atomic_store(&t2, t);
 	});
 
 	// Test opening a track
@@ -105,8 +105,8 @@ void test_track() {
 	pc1.setLocalDescription();
 
 	int attempts = 10;
-	boost::shared_ptr<Track> at2;
-	while ((!(at2 = boost::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
+	std::shared_ptr<Track> at2;
+	while ((!(at2 = std::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
 		this_thread::sleep_for(1s);
 
 	if (pc1.state() != PeerConnection::State::Connected &&
@@ -124,7 +124,7 @@ void test_track() {
 
 	attempts = 10;
 	t2.reset();
-	while ((!(at2 = boost::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
+	while ((!(at2 = std::atomic_load(&t2)) || !at2->isOpen() || !t1->isOpen()) && attempts--)
 		this_thread::sleep_for(1s);
 
 	if (!at2 || !at2->isOpen() || !t1->isOpen())

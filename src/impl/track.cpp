@@ -85,7 +85,7 @@ optional<message_variant> Track::receive() {
 		else
 			return to_variant(std::move(*message));
 	}
-	return nullopt;
+	return none;
 }
 
 optional<message_variant> Track::peek() {
@@ -96,7 +96,7 @@ optional<message_variant> Track::peek() {
 		else
 			return to_variant(std::move(*message));
 	}
-	return nullopt;
+	return none;
 }
 
 size_t Track::availableAmount() const { return mRecvQueue.amount(); }

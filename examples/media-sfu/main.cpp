@@ -29,7 +29,7 @@ using nlohmann::json;
 
 struct Receiver {
 	std::shared_ptr<rtc::PeerConnection> conn;
-	boost::shared_ptr<rtc::Track> track;
+	std::shared_ptr<rtc::Track> track;
 };
 
 int main() {
@@ -59,7 +59,7 @@ int main() {
 		auto track = pc->addTrack(media);
 		pc->setLocalDescription();
 
-		auto session = boost::make_shared<rtc::RtcpReceivingSession>();
+		auto session = std::make_shared<rtc::RtcpReceivingSession>();
 		track->setMediaHandler(session);
 
 		const rtc::SSRC targetSSRC = 4;

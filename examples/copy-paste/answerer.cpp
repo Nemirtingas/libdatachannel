@@ -54,8 +54,8 @@ int main(int argc, char **argv) {
 		std::cout << "[Gathering State: " << state << "]" << std::endl;
 	});
 
-	boost::shared_ptr<rtc::DataChannel> dc;
-	pc->onDataChannel([&](boost::shared_ptr<rtc::DataChannel> _dc) {
+	std::shared_ptr<rtc::DataChannel> dc;
+	pc->onDataChannel([&](std::shared_ptr<rtc::DataChannel> _dc) {
 		std::cout << "[Got a DataChannel with label: " << _dc->label() << "]" << std::endl;
 		dc = _dc;
 

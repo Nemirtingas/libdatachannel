@@ -30,7 +30,6 @@ using namespace rtc;
 using namespace std;
 
 template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
-template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 void test_websocketserver() {
 	InitLogger(LogLevel::Debug);
@@ -44,8 +43,8 @@ void test_websocketserver() {
 	// serverConfig.keyPemFile = ...
 	WebSocketServer server(std::move(serverConfig));
 
-	boost::shared_ptr<WebSocket> client;
-	server.onClient([&client](boost::shared_ptr<WebSocket> incoming) {
+	std::shared_ptr<WebSocket> client;
+	server.onClient([&client](std::shared_ptr<WebSocket> incoming) {
 		cout << "WebSocketServer: Client connection received" << endl;
 		client = incoming;
 

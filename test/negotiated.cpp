@@ -83,7 +83,7 @@ void test_negotiated() {
 
 	std::atomic<bool> received = false;
 	negotiated2->onMessage([&received](const variant<binary, string> &message) {
-		if (holds_alternative<string>(message)) {
+		if (workarounds::holds_alternative<string>(message)) {
 			cout << "Message 2: " << get<string>(message) << endl;
 			received = true;
 		}

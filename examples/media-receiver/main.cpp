@@ -68,7 +68,7 @@ int main() {
 
 		auto track = pc->addTrack(media);
 
-		auto session = boost::make_shared<rtc::RtcpReceivingSession>();
+		auto session = std::make_shared<rtc::RtcpReceivingSession>();
 		track->setMediaHandler(session);
 
 		track->onMessage(

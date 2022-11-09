@@ -28,7 +28,6 @@ using namespace rtc;
 using namespace std;
 
 template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
-template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 void test_turn_connectivity() {
 	InitLogger(LogLevel::Debug);
@@ -93,8 +92,8 @@ void test_turn_connectivity() {
 		cout << "Signaling state 2: " << state << endl;
 	});
 
-	boost::shared_ptr<DataChannel> dc2;
-	pc2.onDataChannel([&dc2](boost::shared_ptr<DataChannel> dc) {
+	std::shared_ptr<DataChannel> dc2;
+	pc2.onDataChannel([&dc2](std::shared_ptr<DataChannel> dc) {
 		cout << "DataChannel 2: Received with label \"" << dc->label() << "\"" << endl;
 		if (dc->label() != "test") {
 			cerr << "Wrong DataChannel label" << endl;
@@ -114,7 +113,7 @@ void test_turn_connectivity() {
 			}
 		});
 
-		boost::atomic_store(&dc2, dc);
+		std::atomic_store(&dc2, dc);
 	});
 
 	auto dc1 = pc1.createDataChannel("test");
@@ -137,8 +136,8 @@ void test_turn_connectivity() {
 
 	// Wait a bit
 	int attempts = 10;
-	boost::shared_ptr<DataChannel> adc2;
-	while ((!(adc2 = boost::atomic_load(&dc2)) || !adc2->isOpen() || !dc1->isOpen()) && attempts--)
+	std::shared_ptr<DataChannel> adc2;
+	while ((!(adc2 = std::atomic_load(&dc2)) || !adc2->isOpen() || !dc1->isOpen()) && attempts--)
 		this_thread::sleep_for(1s);
 
 	if (pc1.state() != PeerConnection::State::Connected &&
@@ -168,8 +167,8 @@ void test_turn_connectivity() {
 		throw runtime_error("Connection is not relayed as expected");
 
 	// Try to open a second data channel with another label
-	boost::shared_ptr<DataChannel> second2;
-	pc2.onDataChannel([&second2](boost::shared_ptr<DataChannel> dc) {
+	std::shared_ptr<DataChannel> second2;
+	pc2.onDataChannel([&second2](std::shared_ptr<DataChannel> dc) {
 		cout << "Second DataChannel 2: Received with label \"" << dc->label() << "\"" << endl;
 		if (dc->label() != "second") {
 			cerr << "Wrong second DataChannel label" << endl;
@@ -187,7 +186,7 @@ void test_turn_connectivity() {
 			}
 		});
 
-		boost::atomic_store(&second2, dc);
+		std::atomic_store(&second2, dc);
 	});
 
 	auto second1 = pc1.createDataChannel("second");
@@ -211,9 +210,9 @@ void test_turn_connectivity() {
 
 	// Wait a bit
 	attempts = 10;
-	boost::shared_ptr<DataChannel> asecond2;
+	std::shared_ptr<DataChannel> asecond2;
 	while (
-	    (!(asecond2 = boost::atomic_load(&second2)) || !asecond2->isOpen() || !second1->isOpen()) &&
+	    (!(asecond2 = std::atomic_load(&second2)) || !asecond2->isOpen() || !second1->isOpen()) &&
 	    attempts--)
 		this_thread::sleep_for(1s);
 

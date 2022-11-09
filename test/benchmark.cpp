@@ -89,8 +89,8 @@ size_t benchmark(milliseconds duration) {
 
 	steady_clock::time_point startTime, openTime, receivedTime, endTime;
 
-	boost::shared_ptr<DataChannel> dc2;
-	pc2.onDataChannel([&dc2, &receivedSize, &receivedTime](boost::shared_ptr<DataChannel> dc) {
+	std::shared_ptr<DataChannel> dc2;
+	pc2.onDataChannel([&dc2, &receivedSize, &receivedTime](std::shared_ptr<DataChannel> dc) {
 		dc->onMessage([&receivedTime, &receivedSize](variant<binary, string> message) {
 			if (workarounds::holds_alternative<binary>(message)) {
 				const auto &bin = get<binary>(message);
@@ -102,7 +102,7 @@ size_t benchmark(milliseconds duration) {
 
 		dc->onClosed([]() { cout << "DataChannel closed." << endl; });
 
-		boost::atomic_store(&dc2, dc);
+		std::atomic_store(&dc2, dc);
 	});
 
 	startTime = steady_clock::now();

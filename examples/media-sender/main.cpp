@@ -75,7 +75,7 @@ int main() {
 		const rtc::SSRC ssrc = 42;
 		rtc::Description::Video media("video", rtc::Description::Direction::SendOnly);
 		media.addH264Codec(96); // Must match the payload type of the external h264 RTP stream
-		media.addSSRC(ssrc, "video-send");
+		media.addSSRC(ssrc, std::string("video-send"));
 		auto track = pc->addTrack(media);
 
 		pc->setLocalDescription();
@@ -99,7 +99,7 @@ int main() {
 			auto rtp = reinterpret_cast<rtc::RtpHeader *>(buffer);
 			rtp->setSsrc(ssrc);
 
-			track->send(reinterpret_cast<const std::byte *>(buffer), len);
+			track->send(reinterpret_cast<const nonstd::byte *>(buffer), len);
 		}
 
 	} catch (const std::exception &e) {

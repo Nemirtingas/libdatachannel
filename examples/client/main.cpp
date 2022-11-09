@@ -40,13 +40,12 @@ using namespace std::chrono_literals;
 using std::shared_ptr;
 using std::weak_ptr;
 template <class T> std::weak_ptr<T> make_weak_ptr(std::shared_ptr<T> ptr) { return ptr; }
-template <class T> boost::weak_ptr<T> make_weak_ptr(boost::shared_ptr<T> ptr) { return ptr; }
 
 using nlohmann::json;
 
 std::string localId;
 std::unordered_map<std::string, shared_ptr<rtc::PeerConnection>> peerConnectionMap;
-std::unordered_map<std::string, boost::shared_ptr<rtc::DataChannel>> dataChannelMap;
+std::unordered_map<std::string, std::shared_ptr<rtc::DataChannel>> dataChannelMap;
 
 shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &config,
                                                      weak_ptr<rtc::WebSocket> wws, std::string id);
@@ -236,7 +235,7 @@ shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &c
 			ws->send(message.dump());
 	});
 
-	pc->onDataChannel([id](boost::shared_ptr<rtc::DataChannel> dc) {
+	pc->onDataChannel([id](std::shared_ptr<rtc::DataChannel> dc) {
 		std::cout << "DataChannel from " << id << " received with label \"" << dc->label() << "\""
 		          << std::endl;
 
