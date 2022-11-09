@@ -1016,7 +1016,7 @@ void PeerConnection::processLocalDescription(Description description) {
 	}
 
 	mProcessor.enqueue(&PeerConnection::trigger<Description>, shared_from_this(),
-	                   localDescriptionCallback, std::move(description));
+	                   &localDescriptionCallback, std::move(description));
 
 	// Reciprocated tracks might need to be open
 	auto dtlsTransport = std::atomic_load(&mDtlsTransport);
@@ -1041,7 +1041,7 @@ void PeerConnection::processLocalCandidate(Candidate candidate) {
 	mLocalDescription->addCandidate(candidate);
 
 	mProcessor.enqueue(&PeerConnection::trigger<Candidate>, shared_from_this(),
-	                   localCandidateCallback, std::move(candidate));
+	                   &localCandidateCallback, std::move(candidate));
 }
 
 void PeerConnection::processRemoteDescription(Description description) {
@@ -1189,8 +1189,8 @@ bool PeerConnection::changeState(State newState) {
 		auto callback = std::move(stateChangeCallback); // steal the callback
 		callback(State::Closed);                        // call it synchronously
 	} else {
-		mProcessor.enqueue(&PeerConnection::trigger<State>, shared_from_this(), stateChangeCallback,
-		                   newState);
+		mProcessor.enqueue(&PeerConnection::trigger<State>, shared_from_this(),
+		                   &stateChangeCallback, newState);
 	}
 	return true;
 }
@@ -1203,7 +1203,7 @@ bool PeerConnection::changeGatheringState(GatheringState newState) {
 	s << newState;
 	PLOG_INFO << "Changed gathering state to " << s.str();
 	mProcessor.enqueue(&PeerConnection::trigger<GatheringState>, shared_from_this(),
-	                   gatheringStateChangeCallback, newState);
+	                   &gatheringStateChangeCallback, newState);
 
 	return true;
 }
@@ -1216,7 +1216,7 @@ bool PeerConnection::changeSignalingState(SignalingState newState) {
 	s << newState;
 	PLOG_INFO << "Changed signaling state to " << s.str();
 	mProcessor.enqueue(&PeerConnection::trigger<SignalingState>, shared_from_this(),
-	                   signalingStateChangeCallback, newState);
+	                   &signalingStateChangeCallback, newState);
 
 	return true;
 }
@@ -1228,6 +1228,8 @@ void PeerConnection::resetCallbacks() {
 	localCandidateCallback = nullptr;
 	stateChangeCallback = nullptr;
 	gatheringStateChangeCallback = nullptr;
+	signalingStateChangeCallback = nullptr;
+	trackCallback = nullptr;
 }
 
 }

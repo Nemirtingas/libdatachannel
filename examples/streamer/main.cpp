@@ -163,7 +163,7 @@ int main(int argc, char **argv) try {
 
     Configuration config;
     string stunServer = "stun:stun.l.google.com:19302";
-    cout << "Stun server is " << stunServer << endl;
+    cout << "STUN server is " << stunServer << endl;
     config.iceServers.emplace_back(stunServer);
     config.disableAutoNegotiation = true;
 
@@ -189,7 +189,7 @@ int main(int argc, char **argv) try {
     });
 
     const string url = "ws://" + ip_address + ":" + to_string(port) + "/" + localId;
-    cout << "Url is " << url << endl;
+    cout << "URL is " << url << endl;
     ws->open(url);
 
     cout << "Waiting for signaling to be connected..." << endl;
