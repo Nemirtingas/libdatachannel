@@ -1344,8 +1344,8 @@ int rtcGetSsrcsForType(const char *mediaType, const char *sdp, uint32_t *buffer,
 		auto mediaCount = description.mediaCount();
 		for (unsigned int i = 0; i < mediaCount; i++) {
 			auto var_media = description.media(i);
-			if (workarounds::holds_alternative<workarounds::pointer<Description::Media>>(var_media)) {
-				auto media = boost::get<workarounds::pointer<Description::Media>>(var_media);
+			if (workarounds::holds_alternative<Description::Media*>(var_media)) {
+				auto media = boost::get<Description::Media*>(var_media);
 				auto currentMediaType = lowercased(media->type());
 				if (currentMediaType == type) {
 					auto ssrcs = media->getSSRCs();
@@ -1366,11 +1366,11 @@ int rtcSetSsrcForType(const char *mediaType, const char *sdp, char *buffer, cons
 		auto mediaCount = description.mediaCount();
 		for (unsigned int i = 0; i < mediaCount; i++) {
 			auto var_media = description.media(i);
-			if (workarounds::holds_alternative<workarounds::pointer<Description::Media>>(var_media)) {
-				auto media = boost::get<workarounds::pointer<Description::Media>>(var_media);
+			if (workarounds::holds_alternative<Description::Media*>(var_media)) {
+				auto media = boost::get<Description::Media*>(var_media);
 				auto currentMediaType = lowercased(media->type());
 				if (currentMediaType == type) {
-					setSSRC(media.ptr, init->ssrc, init->name, init->msid, init->trackId);
+					setSSRC(media, init->ssrc, init->name, init->msid, init->trackId);
 					break;
 				}
 			}
