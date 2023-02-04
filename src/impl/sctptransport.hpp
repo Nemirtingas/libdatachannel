@@ -107,7 +107,7 @@ private:
 	std::mutex mRecvMutex;
 	std::recursive_mutex mSendMutex; // buffered amount callback is synchronous
 	Queue<message_ptr> mSendQueue;
-	bool mSendShutdown = false;
+	bool mSendShutdown;
 	std::map<uint16_t, size_t> mBufferedAmount;
 	amount_callback mBufferedAmountCallback;
 

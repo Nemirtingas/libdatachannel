@@ -58,8 +58,7 @@ WsTransport::WsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<TlsTranspo
 			),
             lower)
 		),
-		mMaxOutstandingPings(maxOutstandingPings)
-{
+      mMaxOutstandingPings(maxOutstandingPings), mOutstandingPings(0), mCloseSent(false) {
 	onRecv(std::move(recvCallback));
 
 	PLOG_DEBUG << "Initializing WebSocket transport";

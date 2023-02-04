@@ -27,7 +27,7 @@ using std::chrono::milliseconds;
 
 TcpTransport::TcpTransport(string hostname, string service, state_callback callback)
     : Transport(nullptr, std::move(callback)), mIsActive(true), mHostname(std::move(hostname)),
-      mService(std::move(service)), mSock(INVALID_SOCKET) {
+      mService(std::move(service)), mSock(INVALID_SOCKET), mBufferedAmount(0) {
 
 	PLOG_DEBUG << "Initializing TCP transport";
 }

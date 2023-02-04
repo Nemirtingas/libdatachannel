@@ -51,7 +51,7 @@ public:
 	///   1 - 90 degrees
 	///   2 - 180 degrees
 	///   3 - 270 degrees
-	uint8_t videoOrientation = 0;
+	uint8_t videoOrientation;
 
 	/// Construct RTP configuration used in packetization process
 	/// @param ssrc SSRC of source
@@ -84,7 +84,7 @@ public:
 	uint32_t secondsToTimestamp(double seconds);
 
 	// deprecated, do not use
-	double startTime = 0.;
+	double startTime;
 	enum class EpochStart : uint64_t {
 		T1970 = 2208988800, // number of seconds between 1970 and 1900
 		T1900 = 0

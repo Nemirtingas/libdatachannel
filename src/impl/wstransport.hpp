@@ -74,8 +74,8 @@ private:
 	binary mPartial;
 	Opcode mPartialOpcode;
 	std::mutex mSendMutex;
-	int mOutstandingPings = 0;
-	std::atomic<bool> mCloseSent = false;
+	int mOutstandingPings;
+	std::atomic<bool> mCloseSent;
 };
 
 } // namespace impl

@@ -51,7 +51,8 @@ void TlsTransport::Cleanup() {
 TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host,
                            certificate_ptr certificate, state_callback callback)
     : Transport(lower, std::move(callback)), mHost(std::move(host)), mIsClient(lower->isActive()),
-      mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
+      mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func), mIncomingMessagePosition(0),
+      mOutgoingResult(true) {
 
 	PLOG_DEBUG << "Initializing TLS transport (GnuTLS)";
 
@@ -296,7 +297,7 @@ void TlsTransport::Cleanup() {
 TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host,
                            certificate_ptr certificate, state_callback callback)
     : Transport(lower, std::move(callback)), mHost(std::move(host)), mIsClient(lower->isActive()),
-      mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
+      mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func), mStarted(false) {
 
 	PLOG_DEBUG << "Initializing TLS transport (OpenSSL)";
 

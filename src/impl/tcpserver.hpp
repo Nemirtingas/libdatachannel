@@ -37,7 +37,7 @@ private:
 	void listen(uint16_t port, const char* bindAddress);
 
 	uint16_t mPort;
-	socket_t mSock = INVALID_SOCKET;
+	socket_t mSock;
 	std::mutex mSockMutex;
 	PollInterrupter mInterrupter;
 };

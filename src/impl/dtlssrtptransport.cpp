@@ -53,7 +53,8 @@ DtlsSrtpTransport::DtlsSrtpTransport(shared_ptr<IceTransport> lower,
                                      state_callback stateChangeCallback)
     : DtlsTransport(lower, certificate, mtu, std::move(verifierCallback),
                     std::move(stateChangeCallback)),
-      mSrtpRecvCallback(std::move(srtpRecvCallback)) { // distinct from Transport recv callback
+      mSrtpRecvCallback(std::move(srtpRecvCallback)),
+      mInitDone(false) { // distinct from Transport recv callback
 
 	PLOG_DEBUG << "Initializing DTLS-SRTP transport";
 

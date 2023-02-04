@@ -70,7 +70,7 @@ private:
 
 	socket_t mSock;
 	Queue<message_ptr> mSendQueue;
-	size_t mBufferedAmount = 0;
+	size_t mBufferedAmount;
 	std::mutex mSendMutex;
 };
 

@@ -52,7 +52,7 @@ private:
 
 	srtp_t mSrtpIn, mSrtpOut;
 
-	std::atomic<bool> mInitDone = false;
+	std::atomic<bool> mInitDone;
 	std::vector<unsigned char> mClientSessionKey;
 	std::vector<unsigned char> mServerSessionKey;
 	std::mutex sendMutex;

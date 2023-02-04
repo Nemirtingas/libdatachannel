@@ -50,7 +50,8 @@ PeerConnection::PeerConnection(Configuration config_)
       state(State::New),
       gatheringState(GatheringState::New),
       signalingState(SignalingState::Stable),
-      negotiationNeeded(false),
+	  negotiationNeeded(false),
+      closing(false),
       mInitToken(Init::Instance().token()),
       mCertificate(make_certificate(config.certificateType))
 {
@@ -1272,7 +1273,7 @@ void PeerConnection::updateTrackSsrcCache(const Description &description) {
 			        }
 
 			        for (auto ssrc : ssrcs) {
-				        mTracksBySsrc.insert_or_assign(ssrc, track);
+				        mTracksBySsrc[ssrc] = track;
 			        }
 		        }
 			),

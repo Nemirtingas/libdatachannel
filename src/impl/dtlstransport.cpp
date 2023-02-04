@@ -41,7 +41,8 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
       mVerifierCallback(std::move(verifierCallback)),
-      mIsClient(lower->role() == Description::Role::Active) {
+      mIsClient(lower->role() == Description::Role::Active), mStarted(false), mCurrentDscp(0),
+      mOutgoingResult(true) {
 
 	PLOG_DEBUG << "Initializing DTLS transport (GnuTLS)";
 
@@ -373,7 +374,8 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
       mVerifierCallback(std::move(verifierCallback)),
-      mIsClient(lower->role() == Description::Role::Active) {
+      mIsClient(lower->role() == Description::Role::Active), mStarted(false), mCurrentDscp(0),
+      mOutgoingResult(true) {
 	PLOG_DEBUG << "Initializing DTLS transport (OpenSSL)";
 
 	if (!mCertificate)

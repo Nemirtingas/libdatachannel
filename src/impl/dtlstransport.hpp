@@ -58,9 +58,9 @@ protected:
 
 	Queue<message_ptr> mIncomingQueue;
 	std::thread mRecvThread;
-	std::atomic<bool> mStarted = false;
-	std::atomic<unsigned int> mCurrentDscp = 0;
-	std::atomic<bool> mOutgoingResult = true;
+	std::atomic<bool> mStarted;
+	std::atomic<unsigned int> mCurrentDscp;
+	std::atomic<bool> mOutgoingResult;
 
 #if USE_GNUTLS
 	gnutls_session_t mSession;

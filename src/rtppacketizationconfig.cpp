@@ -23,7 +23,7 @@ namespace utils = impl::utils;
 RtpPacketizationConfig::RtpPacketizationConfig(SSRC ssrc, string cname, uint8_t payloadType,
                                                uint32_t clockRate, uint8_t videoOrientationId)
     : ssrc(ssrc), cname(cname), payloadType(payloadType), clockRate(clockRate),
-      videoOrientationId(videoOrientationId) {
+      videoOrientationId(videoOrientationId), videoOrientation(0), startTime(0.) {
 	assert(clockRate > 0);
 
 	// RFC 3550: The initial value of the sequence number SHOULD be random (unpredictable) to make

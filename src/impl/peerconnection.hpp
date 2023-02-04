@@ -111,8 +111,8 @@ struct PeerConnection : std::enable_shared_from_this<PeerConnection> {
 	std::atomic<State> state;
 	std::atomic<GatheringState> gatheringState;
 	std::atomic<SignalingState> signalingState;
-	std::atomic<bool> negotiationNeeded = false;
-	std::atomic<bool> closing = false;
+	std::atomic<bool> negotiationNeeded;
+	std::atomic<bool> closing;
 	std::mutex signalingMutex;
 
 	synchronized_callback<shared_ptr<rtc::DataChannel>> dataChannelCallback;

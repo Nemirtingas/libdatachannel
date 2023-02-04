@@ -75,10 +75,9 @@ bool DataChannel::IsOpenMessage(message_ptr message) {
 DataChannel::DataChannel(weak_ptr<PeerConnection> pc, string label, string protocol,
                          Reliability reliability)
     : mPeerConnection(pc), mLabel(std::move(label)), mProtocol(std::move(protocol)),
-      mReliability(std::make_shared<Reliability>(std::move(reliability))),
-      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func),
-      mIsOpen(false),
-      mIsClosed(false)
+      mReliability(std::make_shared<Reliability>(std::move(reliability))), mIsOpen(false),
+      mIsClosed(false),
+      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func)
 {}
 
 DataChannel::~DataChannel() {

@@ -22,7 +22,7 @@
 namespace rtc{
 namespace impl {
 
-TcpServer::TcpServer(uint16_t port, const char* bindAddress) {
+TcpServer::TcpServer(uint16_t port, const char *bindAddress) : mSock(INVALID_SOCKET) {
 	PLOG_DEBUG << "Initializing TCP server";
 	listen(port, bindAddress);
 }

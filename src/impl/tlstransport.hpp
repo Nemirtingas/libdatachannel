@@ -52,14 +52,14 @@ protected:
 
 	Queue<message_ptr> mIncomingQueue;
 	std::thread mRecvThread;
-	std::atomic<bool> mStarted = false;
+	std::atomic<bool> mStarted;
 
 #if USE_GNUTLS
 	gnutls_session_t mSession;
 
 	message_ptr mIncomingMessage;
-	size_t mIncomingMessagePosition = 0;
-	std::atomic<bool> mOutgoingResult = true;
+	size_t mIncomingMessagePosition;
+	std::atomic<bool> mOutgoingResult;
 
 	static ssize_t WriteCallback(gnutls_transport_ptr_t ptr, const void *data, size_t len);
 	static ssize_t ReadCallback(gnutls_transport_ptr_t ptr, void *data, size_t maxlen);

@@ -172,6 +172,7 @@ SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &c
 	mPendingRecvCount(0),
 	mPendingFlushCount(0),
 	mSendQueue(0, message_size_func), 
+	mSendShutdown(false),
 	mBufferedAmountCallback(std::move(bufferedAmountCallback)),
 	mWritten(false),
 	mWrittenOnce(false),
