@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #ifndef RTC_IMPL_TCP_TRANSPORT_H
@@ -27,6 +17,7 @@
 
 #if RTC_ENABLE_WEBSOCKET
 
+#include <chrono>
 #include <list>
 #include <mutex>
 #include <tuple>
@@ -36,12 +27,16 @@ namespace impl {
 
 class TcpTransport final : public Transport, public std::enable_shared_from_this<TcpTransport> {
 public:
+	using amount_callback = std::function<void(size_t amount)>;
+
 	TcpTransport(string hostname, string service, state_callback callback); // active
 	TcpTransport(socket_t sock, state_callback callback);                   // passive
 	~TcpTransport();
 
+	void onBufferedAmount(amount_callback callback);
+	void setReadTimeout(std::chrono::milliseconds readTimeout);
+
 	void start() override;
-	bool stop() override;
 	bool send(message_ptr message) override;
 
 	void incoming(message_ptr message) override;
@@ -61,16 +56,21 @@ private:
 
 	bool trySendQueue();
 	bool trySendMessage(message_ptr &message);
+	void updateBufferedAmount(ptrdiff_t delta);
+	void triggerBufferedAmount(size_t amount);
 
 	void process(PollService::Event event);
 
 	const bool mIsActive;
 	string mHostname, mService;
+	amount_callback mBufferedAmountCallback;
+	optional<std::chrono::milliseconds> mReadTimeout;
 
 	std::list<std::tuple<struct sockaddr_storage, socklen_t>> mResolved;
 
 	socket_t mSock;
 	Queue<message_ptr> mSendQueue;
+	size_t mBufferedAmount = 0;
 	std::mutex mSendMutex;
 };
 

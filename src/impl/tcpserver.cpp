@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2021 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "tcpserver.hpp"
@@ -32,9 +22,9 @@
 namespace rtc{
 namespace impl {
 
-TcpServer::TcpServer(uint16_t port) {
+TcpServer::TcpServer(uint16_t port, const char* bindAddress) {
 	PLOG_DEBUG << "Initializing TCP server";
-	listen(port);
+	listen(port, bindAddress);
 }
 
 TcpServer::~TcpServer() { close(); }
@@ -100,7 +90,7 @@ void TcpServer::close() {
 	}
 }
 
-void TcpServer::listen(uint16_t port) {
+void TcpServer::listen(uint16_t port, const char* bindAddress) {
 	PLOG_DEBUG << "Listening on port " << port;
 
 	struct addrinfo hints = {};
@@ -110,7 +100,7 @@ void TcpServer::listen(uint16_t port) {
 	hints.ai_flags = AI_PASSIVE | AI_NUMERICSERV;
 
 	struct addrinfo *result = nullptr;
-	if (getaddrinfo(nullptr, std::to_string(port).c_str(), &hints, &result))
+	if (getaddrinfo(bindAddress, std::to_string(port).c_str(), &hints, &result))
 		throw std::runtime_error("Resolution failed for local address");
 
 	try {

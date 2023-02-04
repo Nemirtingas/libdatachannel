@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "tlstransport.hpp"
@@ -60,7 +50,8 @@ void TlsTransport::Cleanup() {
 
 TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host,
                            certificate_ptr certificate, state_callback callback)
-    : Transport(lower, std::move(callback)), mHost(std::move(host)), mIsClient(lower->isActive()) {
+    : Transport(lower, std::move(callback)), mHost(std::move(host)), mIsClient(lower->isActive()),
+      mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
 
 	PLOG_DEBUG << "Initializing TLS transport (GnuTLS)";
 
@@ -95,44 +86,46 @@ TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host
 
 TlsTransport::~TlsTransport() {
 	stop();
-
 	gnutls_deinit(mSession);
 }
 
 void TlsTransport::start() {
-	Transport::start();
-
-	registerIncoming();
+	if (mStarted.exchange(true))
+		return;
 
 	PLOG_DEBUG << "Starting TLS recv thread";
+	registerIncoming();
 	mRecvThread = std::thread(&TlsTransport::runRecvLoop, this);
 }
 
-bool TlsTransport::stop() {
-	if (!Transport::stop())
-		return false;
+void TlsTransport::stop() {
+	if (!mStarted.exchange(false))
+		return;
 
 	PLOG_DEBUG << "Stopping TLS recv thread";
+	unregisterIncoming();
 	mIncomingQueue.stop();
 	mRecvThread.join();
-	return true;
 }
 
 bool TlsTransport::send(message_ptr message) {
-	if (!message || state() != State::Connected)
-		return false;
+	if (state() != State::Connected)
+		throw std::runtime_error("TLS is not open");
+
+	if (!message || message->size() == 0)
+		return outgoing(message); // pass through
 
 	PLOG_VERBOSE << "Send size=" << message->size();
-
-	if (message->size() == 0)
-		return true;
 
 	ssize_t ret;
 	do {
 		ret = gnutls_record_send(mSession, message->data(), message->size());
 	} while (ret == GNUTLS_E_INTERRUPTED || ret == GNUTLS_E_AGAIN);
 
-	return gnutls::check(ret);
+	if (!gnutls::check(ret))
+		throw std::runtime_error("TLS send failed");
+
+	return mOutgoingResult;
 }
 
 void TlsTransport::incoming(message_ptr message) {
@@ -143,6 +136,12 @@ void TlsTransport::incoming(message_ptr message) {
 
 	PLOG_VERBOSE << "Incoming size=" << message->size();
 	mIncomingQueue.push(message);
+}
+
+bool TlsTransport::outgoing(message_ptr message) {
+	bool result = Transport::outgoing(std::move(message));
+	mOutgoingResult = result;
+	return result;
 }
 
 void TlsTransport::postHandshake() {
@@ -296,7 +295,8 @@ void TlsTransport::Cleanup() {
 
 TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host,
                            certificate_ptr certificate, state_callback callback)
-    : Transport(lower, std::move(callback)), mHost(std::move(host)), mIsClient(lower->isActive()) {
+    : Transport(lower, std::move(callback)), mHost(std::move(host)), mIsClient(lower->isActive()),
+      mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
 
 	PLOG_DEBUG << "Initializing TLS transport (OpenSSL)";
 
@@ -367,50 +367,50 @@ TlsTransport::TlsTransport(shared_ptr<TcpTransport> lower, optional<string> host
 
 TlsTransport::~TlsTransport() {
 	stop();
-
 	SSL_free(mSsl);
 	SSL_CTX_free(mCtx);
 }
 
 void TlsTransport::start() {
-	Transport::start();
-
-	registerIncoming();
+	if (mStarted.exchange(true))
+		return;
 
 	PLOG_DEBUG << "Starting TLS recv thread";
+	registerIncoming();
 	mRecvThread = std::thread(&TlsTransport::runRecvLoop, this);
 }
 
-bool TlsTransport::stop() {
-	if (!Transport::stop())
-		return false;
+void TlsTransport::stop() {
+	if (!mStarted.exchange(false))
+		return;
 
 	PLOG_DEBUG << "Stopping TLS recv thread";
+	unregisterIncoming();
 	mIncomingQueue.stop();
 	mRecvThread.join();
 	SSL_shutdown(mSsl);
-	return true;
 }
 
 bool TlsTransport::send(message_ptr message) {
-	if (!message || state() != State::Connected)
-		return false;
+	if (state() != State::Connected)
+		throw std::runtime_error("TLS is not open");
+
+	if (!message || message->size() == 0)
+		return outgoing(message); // pass through
 
 	PLOG_VERBOSE << "Send size=" << message->size();
 
-	if (message->size() == 0)
-		return true;
-
 	int ret = SSL_write(mSsl, message->data(), int(message->size()));
 	if (!openssl::check(mSsl, ret))
-		return false;
+		throw std::runtime_error("TLS send failed");
 
 	const size_t bufferSize = 4096;
 	byte buffer[bufferSize];
+	bool result = true;
 	while ((ret = BIO_read(mOutBio, buffer, bufferSize)) > 0)
-		outgoing(make_message(buffer, buffer + ret));
+		result = outgoing(make_message(buffer, buffer + ret));
 
-	return true;
+	return result;
 }
 
 void TlsTransport::incoming(message_ptr message) {
@@ -422,6 +422,8 @@ void TlsTransport::incoming(message_ptr message) {
 	PLOG_VERBOSE << "Incoming size=" << message->size();
 	mIncomingQueue.push(message);
 }
+
+bool TlsTransport::outgoing(message_ptr message) { return Transport::outgoing(std::move(message)); }
 
 void TlsTransport::postHandshake() {
 	// Dummy

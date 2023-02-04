@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "sctptransport.hpp"
@@ -85,11 +75,6 @@ namespace impl {
 
 static LogCounter COUNTER_UNKNOWN_PPID(plog::warning,
                                        "Number of SCTP packets received with an unknown PPID");
-static LogCounter
-    COUNTER_BAD_NOTIF_LEN(plog::warning,
-                          "Number of SCTP packets received with an bad notification length");
-static LogCounter COUNTER_BAD_SCTP_STATUS(plog::warning,
-                                          "Number of SCTP packets received with a bad status");
 
 class SctpTransport::InstancesSet {
 public:
@@ -104,7 +89,7 @@ public:
 	}
 
 	using shared_lock = boost::shared_lock<boost::shared_mutex>;
-	optional<shared_lock> lock(SctpTransport *instance) {
+	optional<shared_lock> lock(SctpTransport *instance) noexcept {
 		shared_lock lock(mMutex);
 		return mSet.find(instance) != mSet.end() ? boost::make_optional(std::move(lock)) : none;
 	}
@@ -176,7 +161,7 @@ void SctpTransport::SetSettings(const SctpSettings &s) {
 }
 
 void SctpTransport::Cleanup() {
-	while (usrsctp_finish() != 0)
+	while (usrsctp_finish())
 		std::this_thread::sleep_for(100ms);
 }
 
@@ -336,31 +321,33 @@ SctpTransport::SctpTransport(shared_ptr<Transport> lower, const Configuration &c
 }
 
 SctpTransport::~SctpTransport() {
-	stop();
-	close();
+	PLOG_DEBUG << "Destroying SCTP transport";
+
+	mProcessor.join(); // if we are here, the processor must be empty
+
+	// Before unregistering incoming() from the lower layer, we need to make sure the thread from
+	// lower layers is not blocked in incoming() by the WrittenOnce condition.
+	mWrittenOnce = true;
+	mWrittenCondition.notify_all();
+
+	unregisterIncoming();
+
+	usrsctp_close(mSock);
+
+	usrsctp_deregister_address(this);
+	Instances->erase(this);
+}
+
+void SctpTransport::onBufferedAmount(amount_callback callback) {
+	mBufferedAmountCallback = std::move(callback);
 }
 
 void SctpTransport::start() {
-	Transport::start();
-
 	registerIncoming();
 	connect();
 }
 
-bool SctpTransport::stop() {
-	// Transport::stop() will unregister incoming() from the lower layer, therefore we need to make
-	// sure the thread from lower layers is not blocked in incoming() by the WrittenOnce condition.
-	mWrittenOnce = true;
-	mWrittenCondition.notify_all();
-
-	if (!Transport::stop())
-		return false;
-
-	mSendQueue.stop();
-	flush();
-	shutdown();
-	return true;
-}
+void SctpTransport::stop() { close(); }
 
 struct sockaddr_conn SctpTransport::getSockAddrConn(uint16_t port) {
 	struct sockaddr_conn sconn = {};
@@ -374,9 +361,6 @@ struct sockaddr_conn SctpTransport::getSockAddrConn(uint16_t port) {
 }
 
 void SctpTransport::connect() {
-	if (!mSock)
-		throw std::logic_error("Attempted SCTP connect with closed socket");
-
 	PLOG_DEBUG << "SCTP connecting (local port=" << mPorts.local
 	           << ", remote port=" << mPorts.remote << ")";
 	changeState(State::Connecting);
@@ -392,35 +376,6 @@ void SctpTransport::connect() {
 	int ret = usrsctp_connect(mSock, reinterpret_cast<struct sockaddr *>(&remote), sizeof(remote));
 	if (ret && errno != EINPROGRESS)
 		throw std::runtime_error("Connection attempt failed, errno=" + std::to_string(errno));
-}
-
-void SctpTransport::shutdown() {
-	if (!mSock)
-		return;
-
-	PLOG_DEBUG << "SCTP shutdown";
-
-	if (usrsctp_shutdown(mSock, SHUT_RDWR) != 0 && errno != ENOTCONN) {
-		PLOG_WARNING << "SCTP shutdown failed, errno=" << errno;
-	}
-
-	close();
-
-	PLOG_INFO << "SCTP disconnected";
-	changeState(State::Disconnected);
-	mWrittenCondition.notify_all();
-}
-
-void SctpTransport::close() {
-	if (!mSock)
-		return;
-
-	mProcessor.join();
-	usrsctp_close(mSock);
-	mSock = nullptr;
-
-	usrsctp_deregister_address(this);
-	Instances->erase(this);
 }
 
 bool SctpTransport::send(message_ptr message) {
@@ -461,6 +416,11 @@ void SctpTransport::closeStream(unsigned int stream) {
 	mSendQueue.push(make_message(0, Message::Reset, to_uint16(stream)));
 
 	// This method must not call the buffered callback synchronously
+	mProcessor.enqueue(&SctpTransport::flush, shared_from_this());
+}
+
+void SctpTransport::close() {
+	mSendQueue.stop();
 	mProcessor.enqueue(&SctpTransport::flush, shared_from_this());
 }
 
@@ -516,6 +476,8 @@ void SctpTransport::doRecv() {
 					break;
 				else
 					throw std::runtime_error("SCTP recv failed, errno=" + std::to_string(errno));
+			} else if (len == 0) {
+				break;
 			}
 
 			PLOG_VERBOSE << "SCTP recv, len=" << len;
@@ -561,6 +523,28 @@ void SctpTransport::doFlush() {
 	}
 }
 
+void SctpTransport::enqueueRecv() {
+	if (mPendingRecvCount > 0)
+		return;
+
+	if (auto shared_this = weak_from_this().lock()) {
+		// This is called from the upcall callback, we must not release the shared ptr here
+		++mPendingRecvCount;
+		mProcessor.enqueue(&SctpTransport::doRecv, std::move(shared_this));
+	}
+}
+
+void SctpTransport::enqueueFlush() {
+	if (mPendingFlushCount > 0)
+		return;
+
+	if (auto shared_this = weak_from_this().lock()) {
+		// This is called from the upcall callback, we must not release the shared ptr here
+		++mPendingFlushCount;
+		mProcessor.enqueue(&SctpTransport::doFlush, std::move(shared_this));
+	}
+}
+
 bool SctpTransport::trySendQueue() {
 	// Requires mSendMutex to be locked
 	while (auto next = mSendQueue.peek()) {
@@ -571,6 +555,20 @@ bool SctpTransport::trySendQueue() {
 		mSendQueue.pop();
 		updateBufferedAmount(to_uint16(message->stream), -ptrdiff_t(message_size_func(message)));
 	}
+
+	if (!mSendQueue.running() && !std::exchange(mSendShutdown, true)) {
+		PLOG_DEBUG << "SCTP shutdown";
+		if (usrsctp_shutdown(mSock, SHUT_WR)) {
+			if (errno == ENOTCONN) {
+				PLOG_VERBOSE << "SCTP already shut down";
+			} else {
+				PLOG_WARNING << "SCTP shutdown failed, errno=" << errno;
+				changeState(State::Disconnected);
+				recv(nullptr);
+			}
+		}
+	}
+
 	return true;
 }
 
@@ -711,31 +709,25 @@ void SctpTransport::sendReset(uint16_t streamId) {
 	}
 }
 
-void SctpTransport::handleUpcall() {
+void SctpTransport::handleUpcall() noexcept {
 	try {
-		if (!mSock)
-			return;
-
 		PLOG_VERBOSE << "Handle upcall";
 
 		int events = usrsctp_get_events(mSock);
 
-		if (events & SCTP_EVENT_READ && mPendingRecvCount == 0) {
-			++mPendingRecvCount;
-			mProcessor.enqueue(&SctpTransport::doRecv, shared_from_this());
-		}
+		if (events & SCTP_EVENT_READ)
+			enqueueRecv();
 
-		if (events & SCTP_EVENT_WRITE && mPendingFlushCount == 0) {
-			++mPendingFlushCount;
-			mProcessor.enqueue(&SctpTransport::doFlush, shared_from_this());
-		}
+		if (events & SCTP_EVENT_WRITE)
+			enqueueFlush();
 
 	} catch (const std::exception &e) {
 		PLOG_ERROR << "SCTP upcall: " << e.what();
 	}
 }
 
-int SctpTransport::handleWrite(byte *data, size_t len, uint8_t /*tos*/, uint8_t /*set_df*/) {
+int SctpTransport::handleWrite(byte *data, size_t len, uint8_t /*tos*/,
+                               uint8_t /*set_df*/) noexcept {
 	try {
 		std::unique_lock<std::mutex> lock(mWriteMutex);
 		PLOG_VERBOSE << "Handle write, len=" << len;
@@ -819,7 +811,8 @@ void SctpTransport::processData(binary &&data, uint16_t sid, PayloadId ppid) {
 
 void SctpTransport::processNotification(const union sctp_notification *notify, size_t len) {
 	if (len != size_t(notify->sn_header.sn_length)) {
-		COUNTER_BAD_NOTIF_LEN++;
+		PLOG_WARNING << "Unexpected notification length, expected=" << notify->sn_header.sn_length
+		             << ", actual=" << len;
 		return;
 	}
 
@@ -892,11 +885,9 @@ void SctpTransport::processNotification(const union sctp_notification *notify, s
 		// corresponding outgoing stream.
 		// See https://www.rfc-editor.org/rfc/rfc8831.html#section-6.7
 		if (flags & SCTP_STREAM_RESET_INCOMING_SSN) {
-			const byte dataChannelCloseMessage{0x04};
 			for (int i = 0; i < count; ++i) {
 				uint16_t streamId = reset_event.strreset_stream_list[i];
-				recv(make_message(&dataChannelCloseMessage, &dataChannelCloseMessage + 1,
-				                  Message::Control, streamId));
+				recv(make_message(0, Message::Reset, streamId));
 			}
 		}
 		break;
@@ -924,8 +915,6 @@ optional<milliseconds> SctpTransport::rtt() {
 	struct sctp_status status = {};
 	socklen_t len = sizeof(status);
 	if (usrsctp_getsockopt(mSock, IPPROTO_SCTP, SCTP_STATUS, &status, &len)) {
-		COUNTER_BAD_SCTP_STATUS++;
-
 		return none;
 	}
 	return milliseconds(status.sstat_primary.spinfo_srtt);

@@ -1,19 +1,10 @@
-/*
+/**
  * libdatachannel streamer example
  * Copyright (c) 2020 Filip Klembara (in2core)
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; If not, see <http://www.gnu.org/licenses/>.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "fileparser.hpp"
@@ -21,10 +12,15 @@
 
 using namespace std;
 
-FileParser::FileParser(string directory, string extension, uint32_t samplesPerSecond, bool loop): sampleDuration_us(1000 * 1000 / samplesPerSecond), StreamSource() {
+FileParser::FileParser(string directory, string extension, uint32_t samplesPerSecond, bool loop) {
     this->directory = directory;
     this->extension = extension;
     this->loop = loop;
+    this->sampleDuration_us = 1000 * 1000 / samplesPerSecond;
+}
+
+FileParser::~FileParser() {
+	stop();
 }
 
 void FileParser::start() {
@@ -33,7 +29,8 @@ void FileParser::start() {
 }
 
 void FileParser::stop() {
-    StreamSource::stop();
+    sample = {};
+    sampleTime_us = 0;
     counter = -1;
 }
 
@@ -57,3 +54,16 @@ void FileParser::loadNextSample() {
     sample = *reinterpret_cast<vector<nonstd::byte> *>(&fileContents);
     sampleTime_us += sampleDuration_us;
 }
+
+rtc::binary FileParser::getSample() {
+	return sample;
+}
+
+uint64_t FileParser::getSampleTime_us() {
+	return sampleTime_us;
+}
+
+uint64_t FileParser::getSampleDuration_us() {
+	return sampleDuration_us;
+}
+

@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020-2021 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "wshandshake.hpp"
@@ -37,8 +27,6 @@ namespace impl {
 
 using std::to_string;
 using std::chrono::system_clock;
-using random_bytes_engine =
-    std::independent_bits_engine<std::default_random_engine, CHAR_BIT, unsigned short>;
 
 WsHandshake::WsHandshake() {}
 
@@ -241,11 +229,9 @@ string WsHandshake::generateKey() {
 	// RFC 6455: The request MUST include a header field with the name Sec-WebSocket-Key.  The value
 	// of this header field MUST be a nonce consisting of a randomly selected 16-byte value that has
 	// been base64-encoded. [...] The nonce MUST be selected randomly for each connection.
-	auto seed = static_cast<unsigned int>(system_clock::now().time_since_epoch().count());
-	random_bytes_engine generator(seed);
 	binary key(16);
 	auto k = reinterpret_cast<uint8_t *>(key.data());
-	std::generate(k, k + key.size(), [&]() { return uint8_t(generator()); });
+	std::generate(k, k + key.size(), utils::random_bytes_engine());
 	return utils::base64_encode(key);
 }
 

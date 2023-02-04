@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "rtc/rtc.hpp"
@@ -100,10 +90,6 @@ void test_connectivity() {
 	std::shared_ptr<DataChannel> dc2;
 	pc2.onDataChannel([&dc2](std::shared_ptr<DataChannel> dc) {
 		cout << "DataChannel 2: Received with label \"" << dc->label() << "\"" << endl;
-		if (dc->label() != "test") {
-			cerr << "Wrong DataChannel label" << endl;
-			return;
-		}
 
 		dc->onOpen([wdc = make_weak_ptr(dc)]() {
 			if (auto dc = wdc.lock()) {
@@ -112,9 +98,7 @@ void test_connectivity() {
 			}
 		});
 
-		dc->onClosed([]() {
-			cout << "DataChannel 2: Closed" << endl;
-		});
+		dc->onClosed([]() { cout << "DataChannel 2: Closed" << endl; });
 
 		dc->onMessage([](variant<binary, string> message) {
 			if (workarounds::holds_alternative<string>(message)) {
@@ -127,6 +111,9 @@ void test_connectivity() {
 
 	auto dc1 = pc1.createDataChannel("test");
 
+	if (dc1->id().has_value())
+		throw std::runtime_error("DataChannel stream id assigned before connection");
+
 	dc1->onOpen([wdc1 = make_weak_ptr(dc1)]() {
 		if (auto dc1 = wdc1.lock()) {
 			cout << "DataChannel 1: Open" << endl;
@@ -134,9 +121,7 @@ void test_connectivity() {
 		}
 	});
 
-	dc1->onClosed([]() {
-		cout << "DataChannel 1: Closed" << endl;
-	});
+	dc1->onClosed([]() { cout << "DataChannel 1: Closed" << endl; });
 
 	dc1->onMessage([](const variant<binary, string> &message) {
 		if (workarounds::holds_alternative<string>(message)) {
@@ -157,9 +142,18 @@ void test_connectivity() {
 	if (!adc2 || !adc2->isOpen() || !dc1->isOpen())
 		throw runtime_error("DataChannel is not open");
 
+	if (adc2->label() != "test")
+		throw runtime_error("Wrong DataChannel label");
+
 	if (dc1->maxMessageSize() != CUSTOM_MAX_MESSAGE_SIZE ||
 	    dc2->maxMessageSize() != CUSTOM_MAX_MESSAGE_SIZE)
 		throw runtime_error("DataChannel max message size is incorrect");
+
+	if (!dc1->id().has_value())
+		throw runtime_error("DataChannel stream id is not assigned");
+
+	if (dc1->id().value() != adc2->id().value())
+		throw runtime_error("DataChannel stream ids do not match");
 
 	if (auto addr = pc1.localAddress())
 		cout << "Local address 1:  " << *addr << endl;
@@ -184,10 +178,6 @@ void test_connectivity() {
 	std::shared_ptr<DataChannel> second2;
 	pc2.onDataChannel([&second2](std::shared_ptr<DataChannel> dc) {
 		cout << "Second DataChannel 2: Received with label \"" << dc->label() << "\"" << endl;
-		if (dc->label() != "second") {
-			cerr << "Wrong second DataChannel label" << endl;
-			return;
-		}
 
 		dc->onOpen([wdc = make_weak_ptr(dc)]() {
 			if (auto dc = wdc.lock())
@@ -205,6 +195,9 @@ void test_connectivity() {
 
 	auto second1 = pc1.createDataChannel("second");
 
+	if (!second1->id().has_value())
+		throw std::runtime_error("Second DataChannel stream id is not assigned");
+
 	second1->onOpen([wsecond1 = make_weak_ptr(second1)]() {
 		if (auto second1 = wsecond1.lock()) {
 			cout << "Second DataChannel 1: Open" << endl;
@@ -212,9 +205,7 @@ void test_connectivity() {
 		}
 	});
 
-	second1->onClosed([]() {
-		cout << "Second DataChannel 1: Closed" << endl;
-	});
+	second1->onClosed([]() { cout << "Second DataChannel 1: Closed" << endl; });
 
 	second1->onMessage([](const variant<binary, string> &message) {
 		if (workarounds::holds_alternative<string>(message)) {
@@ -232,6 +223,15 @@ void test_connectivity() {
 
 	if (!asecond2 || !asecond2->isOpen() || !second1->isOpen())
 		throw runtime_error("Second DataChannel is not open");
+
+	if (asecond2->label() != "second")
+		throw runtime_error("Wrong second DataChannel label");
+
+	if (!second2->id().has_value() || !asecond2->id().has_value())
+		throw runtime_error("Second DataChannel stream id is not assigned");
+
+	if (second2->id().value() != asecond2->id().value())
+		throw runtime_error("Second DataChannel stream ids do not match");
 
 	// Delay close of peer 2 to check closing works properly
 	pc1.close();

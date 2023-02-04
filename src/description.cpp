@@ -2,19 +2,9 @@
  * Copyright (c) 2019-2020 Paul-Louis Ageneau
  * Copyright (c) 2020 Staz Modrzynski
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "description.hpp"
@@ -165,10 +155,8 @@ Description::Description(const string &sdp, Type type, Role role)
 		mUsername = "rtc";
 
 	if (mSessionId.empty()) {
-		auto seed = static_cast<unsigned int>(system_clock::now().time_since_epoch().count());
-		std::default_random_engine generator(seed);
-		std::uniform_int_distribution<uint32_t> uniform;
-		mSessionId = std::to_string(uniform(generator));
+		auto uniform = std::bind(std::uniform_int_distribution<uint32_t>(), utils::random_engine());
+		mSessionId = std::to_string(uniform());
 	}
 }
 
@@ -202,11 +190,8 @@ optional<string> Description::fingerprint() const { return mFingerprint; }
 bool Description::ended() const { return mEnded; }
 
 void Description::hintType(Type type) {
-	if (mType == Type::Unspec) {
+	if (mType == Type::Unspec)
 		mType = type;
-		if (mType == Type::Answer && mRole == Role::ActPass)
-			mRole = Role::Passive; // ActPass is illegal for an answer, so default to passive
-	}
 }
 
 void Description::setFingerprint(string fingerprint) {
@@ -488,7 +473,6 @@ variant<Description::Media *, Description::Application *> Description::media(uns
 			throw std::logic_error("Bad type of application in description");
 
 		return result;
-
 	} else {
 		auto result = dynamic_cast<Media *>(entry.get());
 		if (!result)
@@ -510,7 +494,6 @@ Description::media(unsigned int index) const {
 			throw std::logic_error("Bad type of application in description");
 
 		return result;
-
 	} else {
 		auto result = dynamic_cast<Media *>(entry.get());
 		if (!result)
@@ -602,46 +585,18 @@ string Description::Entry::generateSdpLines(string_view eol) const {
 		auto &map = it->second;
 
 		sdp << "a=extmap:" << map.id;
-		switch (map.direction) {
-		case Direction::SendOnly:
-			sdp << "/sendonly";
-			break;
-		case Direction::RecvOnly:
-			sdp << "/recvonly";
-			break;
-		case Direction::SendRecv:
-			sdp << "/sendrecv";
-			break;
-		case Direction::Inactive:
-			sdp << "/inactive";
-			break;
-		default:
-			// Ignore
-			break;
-		}
+		if (map.direction != Direction::Unknown)
+			sdp << '/' << map.direction;
+
 		sdp << ' ' << map.uri;
 		if (!map.attributes.empty())
 			sdp << ' ' << map.attributes;
+
 		sdp << eol;
 	}
 
-	switch (mDirection) {
-	case Direction::SendOnly:
-		sdp << "a=sendonly" << eol;
-		break;
-	case Direction::RecvOnly:
-		sdp << "a=recvonly" << eol;
-		break;
-	case Direction::SendRecv:
-		sdp << "a=sendrecv" << eol;
-		break;
-	case Direction::Inactive:
-		sdp << "a=inactive" << eol;
-		break;
-	default:
-		// Ignore
-		break;
-	}
+	if (mDirection != Direction::Unknown)
+		sdp << "a=" << mDirection << eol;
 
 	for (const auto &attr : mAttributes)
 		sdp << "a=" << attr << eol;
@@ -685,34 +640,18 @@ void Description::Entry::parseSdpLine(string_view line) {
 	}
 }
 
-std::vector<string>::iterator Description::Entry::beginAttributes() { return mAttributes.begin(); }
-
-std::vector<string>::iterator Description::Entry::endAttributes() { return mAttributes.end(); }
-
-std::vector<string>::iterator
-Description::Entry::removeAttribute(std::vector<string>::iterator it) {
-	return mAttributes.erase(it);
-}
-
-std::map<int, Description::Entry::ExtMap>::iterator Description::Entry::beginExtMaps() {
-	return mExtMaps.begin();
-}
-
-std::map<int, Description::Entry::ExtMap>::iterator Description::Entry::endExtMaps() {
-	return mExtMaps.end();
-}
-
-std::map<int, Description::Entry::ExtMap>::iterator
-Description::Entry::removeExtMap(std::map<int, Description::Entry::ExtMap>::iterator iterator) {
-	return mExtMaps.erase(iterator);
-}
-
-Description::Entry::ExtMap::ExtMap(string_view description) { setDescription(description); }
-
 int Description::Entry::ExtMap::parseId(string_view description) {
 	size_t p = description.find(' ');
 	return to_integer<int>(description.substr(0, p));
 }
+
+Description::Entry::ExtMap::ExtMap(int id, string uri, Direction direction) {
+	this->id = id;
+	this->uri = std::move(uri);
+	this->direction = direction;
+}
+
+Description::Entry::ExtMap::ExtMap(string_view description) { setDescription(description); }
 
 void Description::Entry::ExtMap::setDescription(string_view description) {
 	const size_t uriStart = description.find(' ');
@@ -781,8 +720,31 @@ void Description::Media::replaceSSRC(uint32_t old, uint32_t ssrc, optional<strin
 	addSSRC(ssrc, std::move(name), std::move(msid), std::move(trackID));
 }
 
-bool Description::Media::hasSSRC(uint32_t ssrc) {
+bool Description::Media::hasSSRC(uint32_t ssrc) const {
 	return std::find(mSsrcs.begin(), mSsrcs.end(), ssrc) != mSsrcs.end();
+}
+
+void Description::Media::clearSSRCs() {
+	auto it = mAttributes.begin();
+	while (it != mAttributes.end()) {
+		if (match_prefix(*it, "ssrc:"))
+			it = mAttributes.erase(it);
+		else
+			++it;
+	}
+
+	mSsrcs.clear();
+	mCNameMap.clear();
+}
+
+std::vector<uint32_t> Description::Media::getSSRCs() const { return mSsrcs; }
+
+optional<string> Description::Media::getCNameForSsrc(uint32_t ssrc) const {
+	auto it = mCNameMap.find(ssrc);
+	if (it != mCNameMap.end()) {
+		return it->second;
+	}
+	return none;
 }
 
 Description::Application::Application(string mid)
@@ -880,7 +842,8 @@ Description::Media Description::Media::reciprocate() const {
 	}
 
 	// Invert directions of extmap
-	for (auto it = reciprocated.mExtMaps.begin(); it != reciprocated.mExtMaps.end(); ++it) {
+	auto &extMaps = reciprocated.mExtMaps;
+	for (auto it = extMaps.begin(); it != extMaps.end(); ++it) {
 		auto &map = it->second;
 		switch (map.direction) {
 		case Direction::RecvOnly:
@@ -895,31 +858,13 @@ Description::Media Description::Media::reciprocate() const {
 		}
 	}
 
-	// Clear all ssrc attributes as they are individual
-	auto it = reciprocated.mAttributes.begin();
-	while (it != reciprocated.mAttributes.end()) {
-		if (match_prefix(*it, "ssrc:"))
-			it = reciprocated.mAttributes.erase(it);
-		else
-			++it;
-	}
-	reciprocated.mSsrcs.clear();
-	reciprocated.mCNameMap.clear();
+	// Clear sent SSRCs
+	reciprocated.clearSSRCs();
 
 	// Remove rtcp-rsize attribute as Reduced-Size RTCP is not supported (see RFC 5506)
 	reciprocated.removeAttribute("rtcp-rsize");
 
 	return reciprocated;
-}
-
-std::vector<uint32_t> Description::Media::getSSRCs() { return mSsrcs; }
-
-optional<string> Description::Media::getCNameForSsrc(uint32_t ssrc) {
-	auto it = mCNameMap.find(ssrc);
-	if (it != mCNameMap.end()) {
-		return it->second;
-	}
-	return none;
 }
 
 int Description::Media::bitrate() const { return mBas; }
@@ -1003,8 +948,7 @@ string Description::Media::generateSdpLines(string_view eol) const {
 		sdp << eol;
 
 		for (const auto &val : map.rtcpFbs)
-			if (val != "transport-cc")
-				sdp << "a=rtcp-fb:" << map.payloadType << ' ' << val << eol;
+			sdp << "a=rtcp-fb:" << map.payloadType << ' ' << val << eol;
 
 		for (const auto &val : map.fmtps)
 			sdp << "a=fmtp:" << map.payloadType << ' ' << val << eol;
@@ -1072,19 +1016,6 @@ void Description::Media::parseSdpLine(string_view line) {
 	}
 }
 
-std::map<int, Description::Media::RtpMap>::iterator Description::Media::beginMaps() {
-	return mRtpMaps.begin();
-}
-
-std::map<int, Description::Media::RtpMap>::iterator Description::Media::endMaps() {
-	return mRtpMaps.end();
-}
-
-std::map<int, Description::Media::RtpMap>::iterator
-Description::Media::removeMap(std::map<int, Description::Media::RtpMap>::iterator iterator) {
-	return mRtpMaps.erase(iterator);
-}
-
 Description::Media::RtpMap::RtpMap(int payloadType) {
 	this->payloadType = payloadType;
 	this->clockRate = 0;
@@ -1132,7 +1063,7 @@ void Description::Media::RtpMap::setDescription(string_view description) {
 
 void Description::Media::RtpMap::addFeedback(string fb) {
 	if (std::find(rtcpFbs.begin(), rtcpFbs.end(), fb) == rtcpFbs.end())
-		fmtps.emplace_back(std::move(fb));
+		rtcpFbs.emplace_back(std::move(fb));
 }
 
 void Description::Media::RtpMap::removeFeedback(const string &str) {
@@ -1160,8 +1091,12 @@ Description::Audio::Audio(string mid, Direction dir)
     : Media("audio 9 UDP/TLS/RTP/SAVPF", std::move(mid), dir) {}
 
 void Description::Audio::addAudioCodec(int payloadType, string codec, optional<string> profile) {
-	if (codec.find('/') == string::npos)
-		codec += "/48000/2";
+	if (codec.find('/') == string::npos) {
+		if (codec == "PCMA" || codec == "PCMU")
+			codec += "/8000/1";
+		else
+			codec += "/48000/2";
+	}
 
 	RtpMap map(std::to_string(payloadType) + ' ' + codec);
 
@@ -1173,6 +1108,14 @@ void Description::Audio::addAudioCodec(int payloadType, string codec, optional<s
 
 void Description::Audio::addOpusCodec(int payloadType, optional<string> profile) {
 	addAudioCodec(payloadType, "OPUS", profile);
+}
+
+void Description::Audio::addPCMACodec(int payloadType, optional<string> profile) {
+	addAudioCodec(payloadType, "PCMA", profile);
+}
+
+void Description::Audio::addPCMUCodec(int payloadType, optional<string> profile) {
+	addAudioCodec(payloadType, "PCMU", profile);
 }
 
 Description::Video::Video(string mid, Direction dir)
@@ -1270,6 +1213,29 @@ std::ostream &operator<<(std::ostream &out, rtc::Description::Role role) {
 		break;
 	default:
 		out << "actpass";
+		break;
+	}
+	return out;
+}
+
+std::ostream &operator<<(std::ostream &out, const rtc::Description::Direction &direction) {
+	// Used for SDP generation, do not change
+	switch (direction) {
+	case rtc::Description::Direction::RecvOnly:
+		out << "recvonly";
+		break;
+	case rtc::Description::Direction::SendOnly:
+		out << "sendonly";
+		break;
+	case rtc::Description::Direction::SendRecv:
+		out << "sendrecv";
+		break;
+	case rtc::Description::Direction::Inactive:
+		out << "inactive";
+		break;
+	case rtc::Description::Direction::Unknown:
+	default:
+		out << "unknown";
 		break;
 	}
 	return out;

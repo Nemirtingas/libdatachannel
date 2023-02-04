@@ -2,19 +2,9 @@
  * Copyright (c) 2019-2020 Paul-Louis Ageneau
  * Copyright (c) 2020 Staz Modrzynski
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #ifndef RTC_DESCRIPTION_H
@@ -105,6 +95,7 @@ public:
 		struct RTC_CPP_EXPORT ExtMap {
 			static int parseId(string_view description);
 
+			ExtMap(int id, string uri, Direction direction = Direction::Unknown);
 			ExtMap(string_view description);
 
 			void setDescription(string_view description);
@@ -125,16 +116,6 @@ public:
 		                   uint16_t port = 9) const;
 
 		virtual void parseSdpLine(string_view line);
-
-		// For backward compatibility, do not use
-		[[deprecated]] std::vector<string>::iterator beginAttributes();
-		[[deprecated]] std::vector<string>::iterator endAttributes();
-		[[deprecated]] std::vector<string>::iterator
-		removeAttribute(std::vector<string>::iterator iterator);
-		[[deprecated]] std::map<int, ExtMap>::iterator beginExtMaps();
-		[[deprecated]] std::map<int, ExtMap>::iterator endExtMaps();
-		[[deprecated]] std::map<int, ExtMap>::iterator
-		removeExtMap(std::map<int, ExtMap>::iterator iterator);
 
 	protected:
 		Entry(const string &mline, string mid, Direction dir = Direction::Unknown);
@@ -191,9 +172,10 @@ public:
 		void removeSSRC(uint32_t ssrc);
 		void replaceSSRC(uint32_t old, uint32_t ssrc, optional<string> name,
 		                 optional<string> msid = none, optional<string> trackID = none);
-		bool hasSSRC(uint32_t ssrc);
-		std::vector<uint32_t> getSSRCs();
-		boost::optional<std::string> getCNameForSsrc(uint32_t ssrc);
+		bool hasSSRC(uint32_t ssrc) const;
+		void clearSSRCs();
+		std::vector<uint32_t> getSSRCs() const;
+		boost::optional<std::string> getCNameForSsrc(uint32_t ssrc) const;
 
 		int bitrate() const;
 		void setBitrate(int bitrate);
@@ -218,11 +200,6 @@ public:
 
 			std::vector<string> rtcpFbs;
 			std::vector<string> fmtps;
-
-			// For backward compatibility, do not use
-			[[deprecated]] void addFB(string fb) { addFeedback(std::move(fb)); }
-			[[deprecated]] void removeFB(const string &str) { removeFeedback(str); }
-			[[deprecated]] void addAttribute(string attr) { addParameter(std::move(attr)); }
 		};
 
 		bool hasPayloadType(int payloadType) const;
@@ -235,18 +212,6 @@ public:
 		void addRtxCodec(int payloadType, int origPayloadType, unsigned int clockRate);
 
 		virtual void parseSdpLine(string_view line) override;
-
-		// For backward compatibility, do not use
-		using RTPMap = RtpMap;
-		[[deprecated]] int getBitrate() const { return bitrate(); }
-		[[deprecated]] inline void addRTPMap(RtpMap map) { addRtpMap(std::move(map)); }
-		[[deprecated]] inline void addRTXCodec(int pt, int origpt, unsigned int clk) {
-			addRtxCodec(pt, origpt, clk);
-		}
-		[[deprecated]] std::map<int, RtpMap>::iterator beginMaps();
-		[[deprecated]] std::map<int, RtpMap>::iterator endMaps();
-		[[deprecated]] std::map<int, RtpMap>::iterator
-		removeMap(std::map<int, RtpMap>::iterator iterator);
 
 	private:
 		virtual string generateSdpLines(string_view eol) const override;
@@ -265,6 +230,10 @@ public:
 		void addAudioCodec(int payloadType, string codec, optional<string> profile = none);
 
 		void addOpusCodec(int payloadType, optional<string> profile = DEFAULT_OPUS_AUDIO_PROFILE);
+
+		void addPCMACodec(int payloadType, optional<string> profile = boost::none);
+
+		void addPCMUCodec(int payloadType, optional<string> profile = boost::none);
 	};
 
 	class RTC_CPP_EXPORT Video : public Media {
@@ -329,5 +298,6 @@ private:
 RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, const rtc::Description &description);
 RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, rtc::Description::Type type);
 RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, rtc::Description::Role role);
+RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, const rtc::Description::Direction &direction);
 
 #endif

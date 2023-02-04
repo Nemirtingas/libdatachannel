@@ -84,6 +84,7 @@ typedef struct {
 	bool enableIceTcp;
 	bool enableIceUdpMux;
 	bool disableAutoNegotiation;
+	bool forceMediaTransport;
 	uint16_t portRangeBegin;
 	uint16_t portRangeEnd;
 	int mtu;
@@ -105,6 +106,7 @@ Arguments:
   - `enableIceTcp`: if true, generate TCP candidates for ICE (ignored with libjuice as ICE backend)
   - `enableIceUdpMux`: if true, connections are multiplexed on the same UDP port (should be combined with `portRangeBegin` and `portRangeEnd`, ignored with libnice as ICE backend)
   - `disableAutoNegotiation`: if true, the user is responsible for calling `rtcSetLocalDescription` after creating a Data Channel and after setting the remote description
+  - `forceMediaTransport`: if true, the connection allocates the SRTP media transport even if no tracks are present (necessary to add tracks during later renegotiation)
   - `portRangeBegin` (optional): first port (included) of the allowed local port range (0 if unused)
   - `portRangeEnd` (optional): last port (included) of the allowed local port (0 if unused)
   - `mtu` (optional): manually set the Maximum Transfer Unit (MTU) for the connection (0 if automatic)
@@ -120,13 +122,13 @@ The `proxyServer` URI, if present, must match the format `[("http"|"socks5") (":
 
 If the username or password of an URI contains reserved special characters, they must be percent-encoded. In particular, ":" must be encoded as "%3A" and "@" must by encoded as "%40".
 
-#### rtcDeletePeerConnection
+#### rtcClosePeerConnection
 
 ```
-int rtcDeletePeerConnection(int pc)
+int rtcClosePeerConnection(int pc)
 ```
 
-Deletes the specified Peer Connection.
+Closes the Peer Connection.
 
 Arguments:
 
@@ -134,7 +136,21 @@ Arguments:
 
 Return value: `RTC_ERR_SUCCESS` or a negative error code
 
-After this function has been called, `pc` must not be used in a function call anymore. This function will block until all scheduled callbacks of `pc` return (except the one this function might be called in) and no other callback will be called for `pc` after it returns.
+#### rtcDeletePeerConnection
+
+```
+int rtcDeletePeerConnection(int pc)
+```
+
+Deletes the Peer Connection.
+
+Arguments:
+
+- `pc`: the Peer Connection identifier
+
+Return value: `RTC_ERR_SUCCESS` or a negative error code
+
+If it is not already closed, the Peer Connection is implicitly closed before being deleted. After this function has been called, `pc` must not be used in a function call anymore. This function will block until all scheduled callbacks of `pc` return (except the one this function might be called in) and no other callback will be called for `pc` after it returns.
 
 #### rtcSetXCallback
 
@@ -463,6 +479,22 @@ Return value: `RTC_ERR_SUCCESS` or a negative error code
 
 WebSocket: Like with the JavaScript API, the state will first change to closing, then closed only after the connection has been actually closed.
 
+#### rtcDelete
+
+```
+int rtcDelete(int id)
+```
+
+Deletes the channel.
+
+Arguments:
+
+- `id`: the channel identifier
+
+Return value: `RTC_ERR_SUCCESS` or a negative error code
+
+If it is not already closed, the channel is implicitly closed before being deleted. After this function has been called, `id` must not be used in a function call anymore. This function will block until all scheduled callbacks of `id` return (except the one this function might be called in) and no other callback will be called for `id` after it returns.
+
 #### rtcIsOpen
 
 ```
@@ -595,7 +627,7 @@ Arguments:
 
 Return value: the identifier of the new Data Channel or a negative error code.
 
-The Data Channel must be deleted with `rtcDeleteDataChannel`.
+The Data Channel must be deleted with `rtcDeleteDataChannel` (or `rtcDelete`).
 
 If `disableAutoNegotiation` was not set in `rtcConfiguration`, the library will automatically initiate the negotiation by calling `rtcSetLocalDescription` internally. Otherwise, the user must call `rtcSetLocalDescription` to initiate the negotiation after creating the first Data Channel.
 
@@ -695,7 +727,7 @@ Arguments:
 
 Return value: the identifier of the new Track or a negative error code
 
-The new track must be deleted with `rtcDeleteTrack`.
+The new track must be deleted with `rtcDeleteTrack` (or `rtcDelete`).
 
 The user must call `rtcSetLocalDescription` to negotiate the track.
 
@@ -780,6 +812,8 @@ typedef struct {
 	bool disableTlsVerification;
 	const char **protocols;
 	int protocolsCount;
+	int pingInterval;
+	int maxOutstandingPings;
 } rtcWsConfiguration;
 ```
 
@@ -792,11 +826,12 @@ Arguments:
   - `disableTlsVerification`: if true, don't verify the TLS certificate, else try to verify it if possible
   - `protocols` (optional): an array of pointers on null-terminated protocol names (NULL if unused)
   - `protocolsCount` (optional): number of URLs in the array pointed by `protocols` (0 if unused)
-
+  - `pingInterval` (optional): ping interval in milliseconds (0 if default, < 0 if disabled)
+  - `maxOutstandingPings` (optional): number of unanswered pings before declaring failure (0 if default, < 0 if disabled)
 
 Return value: the identifier of the new WebSocket or a negative error code
 
-The new WebSocket must be deleted with `rtcDeleteWebSocket`. The scheme of the URL must be either `ws` or `wss`.
+The new WebSocket must be deleted with `rtcDeleteWebSocket` (or `rtcDelete`). The scheme of the URL must be either `ws` or `wss`.
 
 #### rtcDeleteWebSocket
 

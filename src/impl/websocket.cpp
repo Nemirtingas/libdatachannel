@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020-2021 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #if RTC_ENABLE_WEBSOCKET
@@ -30,6 +20,7 @@
 #include "wstransport.hpp"
 
 #include <array>
+#include <chrono>
 #include <regex>
 
 #ifdef _WIN32
@@ -40,6 +31,7 @@ namespace rtc{
 namespace impl {
 
 using namespace std::placeholders;
+using namespace std::chrono_literals;
 
 WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certificate)
     : config(optConfig ? std::move(*optConfig) : Configuration()),
@@ -128,17 +120,16 @@ void WebSocket::close() {
 		PLOG_VERBOSE << "Closing WebSocket";
 		changeState(State::Closing);
 		if (auto transport = std::atomic_load(&mWsTransport))
-			transport->close();
+			transport->stop();
 		else
 			remoteClose();
 	}
 }
 
 void WebSocket::remoteClose() {
-	if (state != State::Closed) {
-		close();
+	close();
+	if (state.load() != State::Closed)
 		closeTransports();
-	}
 }
 
 bool WebSocket::isOpen() const { return state == State::Open; }
@@ -225,6 +216,8 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 		if (std::atomic_load(&mTcpTransport))
 			throw std::logic_error("TCP transport is already set");
 
+		transport->onBufferedAmount(weak_bind(&WebSocket::triggerBufferedAmount, this, _1));
+
 		transport->onStateChange([this, weak_this = workarounds::weak_from_this(*this)](State transportState) {
 			auto shared_this = weak_this.lock();
 			if (!shared_this)
@@ -248,6 +241,11 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 				break;
 			}
 		});
+
+		// WS transport sends a ping on read timeout
+		auto pingInterval = config.pingInterval.value_or(10000ms);
+		if (pingInterval > std::chrono::milliseconds::zero())
+			transport->setReadTimeout(pingInterval);
 
 		return emplaceTransport(this, &mTcpTransport, std::move(transport));
 
@@ -365,8 +363,10 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 			}
 		};
 
-		auto transport = std::make_shared<WsTransport>(
-		    lower, mWsHandshake, weak_bind(&WebSocket::incoming, this, _1), stateChangeCallback);
+		auto maxOutstandingPings = config.maxOutstandingPings.value_or(0);
+		auto transport = std::make_shared<WsTransport>(lower, mWsHandshake, maxOutstandingPings,
+		                                               weak_bind(&WebSocket::incoming, this, _1),
+		                                               stateChangeCallback);
 
 		return emplaceTransport(this, &mWsTransport, std::move(transport));
 
@@ -407,6 +407,9 @@ void WebSocket::closeTransports() {
 	if (ws)
 		ws->onRecv(nullptr);
 
+	if (tcp)
+		tcp->onBufferedAmount(nullptr);
+
 	using array = std::array<shared_ptr<Transport>, 3>;
 	array transports{std::move(ws), std::move(tls), std::move(tcp)};
 
@@ -416,9 +419,12 @@ void WebSocket::closeTransports() {
 
 	TearDownProcessor::Instance().enqueue(
 	    [transports = std::move(transports), token = Init::Instance().token()]() mutable {
-		    for (const auto &t : transports)
-			    if (t)
+		    for (const auto &t : transports) {
+			    if (t) {
 				    t->stop();
+				    break;
+			    }
+		    }
 
 		    for (auto &t : transports)
 			    t.reset();

@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "rtc/rtc.hpp"
@@ -48,20 +38,15 @@ void test_turn_connectivity() {
 
 	PeerConnection pc2(config2);
 
-	pc1.onLocalDescription([&pc2](Description sdp) {
-		cout << "Description 1: " << sdp << endl;
-		pc2.setRemoteDescription(string(sdp));
-	});
-
-	pc1.onLocalCandidate([&pc2](Candidate candidate) {
-		cout << "Candidate 1: " << candidate << endl;
-		pc2.addRemoteCandidate(string(candidate));
-	});
-
 	pc1.onStateChange([](PeerConnection::State state) { cout << "State 1: " << state << endl; });
 
-	pc1.onGatheringStateChange([](PeerConnection::GatheringState state) {
+	pc1.onGatheringStateChange([&pc1, &pc2](PeerConnection::GatheringState state) {
 		cout << "Gathering state 1: " << state << endl;
+		if (state == PeerConnection::GatheringState::Complete) {
+			auto sdp = pc1.localDescription().value();
+			cout << "Description 1: " << sdp << endl;
+			pc2.setRemoteDescription(string(sdp));
+		}
 	});
 
 	pc1.onSignalingStateChange([](PeerConnection::SignalingState state) {

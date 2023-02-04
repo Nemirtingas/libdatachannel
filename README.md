@@ -1,6 +1,6 @@
 # libdatachannel - C/C++ WebRTC network library
 
-[![License: LGPL v2.1 or later](https://img.shields.io/badge/License-LGPL_v2.1_or_later-blue.svg)](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.en.html)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
 [![Build with OpenSSL](https://github.com/paullouisageneau/libdatachannel/actions/workflows/build-openssl.yml/badge.svg)](https://github.com/paullouisageneau/libdatachannel/actions/workflows/build-openssl.yml)
 [![Build with GnuTLS](https://github.com/paullouisageneau/libdatachannel/actions/workflows/build-gnutls.yml/badge.svg)](https://github.com/paullouisageneau/libdatachannel/actions/workflows/build-gnutls.yml)
 [![Gitter](https://badges.gitter.im/libdatachannel/community.svg)](https://gitter.im/libdatachannel/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -18,13 +18,13 @@ It can be compiled with multiple backends:
 
 The WebRTC stack is fully compatible with browsers like Firefox and Chromium, see [Compatibility](#Compatibility) below. Additionally, code using Data Channels and WebSockets from the library may be compiled as is to WebAssembly for browsers with [datachannel-wasm](https://github.com/paullouisageneau/datachannel-wasm).
 
-libdatachannel is licensed under LGPLv2.1 or later, see [LICENSE](https://github.com/paullouisageneau/libdatachannel/blob/master/LICENSE).
+libdatachannel is licensed under MPL 2.0 since version 0.18, see [LICENSE](https://github.com/paullouisageneau/libdatachannel/blob/master/LICENSE) (previous versions were licensed under LGPLv2.1 or later).
 
 libdatachannel is available on [AUR](https://aur.archlinux.org/packages/libdatachannel/), [vcpkg](https://vcpkg.info/port/libdatachannel), and [FreeBSD ports](https://www.freshports.org/www/libdatachannel). Bindings are available for [Rust](https://crates.io/crates/datachannel) and [Node.js](https://www.npmjs.com/package/node-datachannel).
 
 ## Dependencies
 
-Only [GnuTLS](https://www.gnutls.org/) or [OpenSSL](https://www.openssl.org/) are necessary. Optionally, [libnice](https://nice.freedesktop.org/) can be selected as an alternative ICE backend instead of libjuice.
+Only [GnuTLS](https://www.gnutls.org/) or [OpenSSL](https://www.openssl.org/) is necessary. Optionally, [libnice](https://nice.freedesktop.org/) can be selected as an alternative ICE backend instead of libjuice.
 
 Submodules:
 - usrsctp: https://github.com/sctplab/usrsctp
@@ -38,9 +38,9 @@ See [BUILDING.md](https://github.com/paullouisageneau/libdatachannel/blob/master
 
 ## Examples
 
-See [examples](https://github.com/paullouisageneau/libdatachannel/blob/master/examples/) for complete usage examples with signaling server (under GPLv2).
+See [examples](https://github.com/paullouisageneau/libdatachannel/blob/master/examples/) for complete usage examples with signaling server (under MPL 2.0).
 
-Additionnaly, you might want to have a look at the [C API documentation](https://github.com/paullouisageneau/libdatachannel/blob/master/DOC.md).
+Additionally, you might want to have a look at the [C API documentation](https://github.com/paullouisageneau/libdatachannel/blob/master/DOC.md).
 
 ### Signal a PeerConnection
 
@@ -148,13 +148,13 @@ Features:
 - Trickle ICE ([RFC8838](https://www.rfc-editor.org/rfc/rfc8838.html))
 - JSEP-compatible session establishment with SDP ([RFC8829](https://www.rfc-editor.org/rfc/rfc8829.html))
 - SCTP over DTLS with SDP offer/answer ([RFC8841](https://www.rfc-editor.org/rfc/rfc8841.html))
-- DTLS with ECDSA or RSA keys ([RFC8824](https://www.rfc-editor.org/rfc/rfc8827.html))
+- DTLS with ECDSA or RSA keys ([RFC8827](https://www.rfc-editor.org/rfc/rfc8827.html))
 - SRTP and SRTCP key derivation from DTLS ([RFC5764](https://www.rfc-editor.org/rfc/rfc5764.html))
 - Differentiated Services QoS ([RFC8837](https://www.rfc-editor.org/rfc/rfc8837.html)) where possible
 - Multicast DNS candidates ([draft-ietf-rtcweb-mdns-ice-candidates-04](https://datatracker.ietf.org/doc/html/draft-ietf-rtcweb-mdns-ice-candidates-04))
 - Multiplexing connections on a single UDP port with libjuice as ICE backend
 
-Note only SDP BUNDLE mode is supported for media multiplexing ([RFC8843](https://www.rfc-editor.org/rfc/rfc8843.html)). The behavior is equivalent to the JSEP bundle-only policy: the library always negociates one unique network component, where SRTP media streams are multiplexed with SRTCP control packets ([RFC5761](https://www.rfc-editor.org/rfc/rfc5761.html)) and SCTP/DTLS data traffic ([RFC8261](https://www.rfc-editor.org/rfc/rfc8261.html)).
+Note only SDP BUNDLE mode is supported for media multiplexing ([RFC8843](https://www.rfc-editor.org/rfc/rfc8843.html)). The behavior is equivalent to the JSEP bundle-only policy: the library always negotiates one unique network component, where SRTP media streams are multiplexed with SRTCP control packets ([RFC5761](https://www.rfc-editor.org/rfc/rfc5761.html)) and SCTP/DTLS data traffic ([RFC8261](https://www.rfc-editor.org/rfc/rfc8261.html)).
 
 ### WebSocket
 

@@ -1,4 +1,4 @@
-/*
+/**
  * libdatachannel client-benchmark example
  * Copyright (c) 2019-2020 Paul-Louis Ageneau
  * Copyright (c) 2019-2021 Murat Dogan
@@ -7,18 +7,9 @@
  * Copyright (c) 2020 Lara Mackey
  * Copyright (c) 2020 Erik Cota-Robles
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; If not, see <http://www.gnu.org/licenses/>.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "rtc/rtc.hpp"
@@ -486,11 +477,13 @@ shared_ptr<rtc::PeerConnection> createPeerConnection(const rtc::Configuration &c
 
 // Helper function to generate a random ID
 std::string randomId(size_t length) {
+	using std::chrono::high_resolution_clock;
+	static thread_local std::mt19937 rng(
+	    static_cast<unsigned int>(high_resolution_clock::now().time_since_epoch().count()));
 	static const std::string characters(
 	    "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
 	std::string id(length, '0');
-	std::default_random_engine rng(std::random_device{}());
-	std::uniform_int_distribution<int> dist(0, int(characters.size() - 1));
-	std::generate(id.begin(), id.end(), [&]() { return characters.at(dist(rng)); });
+	std::uniform_int_distribution<int> uniform(0, int(characters.size() - 1));
+	std::generate(id.begin(), id.end(), [&]() { return characters.at(uniform(rng)); });
 	return id;
 }

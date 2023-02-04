@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "dtlssrtptransport.hpp"
@@ -158,10 +148,10 @@ void DtlsSrtpTransport::recvMedia(message_ptr message) {
 				PLOG_VERBOSE << "Incoming SRTCP packet is a replay";
 				COUNTER_SRTCP_REPLAY++;
 			} else if (err == srtp_err_status_auth_fail) {
-				PLOG_VERBOSE << "Incoming SRTCP packet failed authentication check";
+				PLOG_DEBUG << "Incoming SRTCP packet failed authentication check";
 				COUNTER_SRTCP_AUTH_FAIL++;
 			} else {
-				PLOG_VERBOSE << "SRTCP unprotect error, status=" << err;
+				PLOG_DEBUG << "SRTCP unprotect error, status=" << err;
 				COUNTER_SRTCP_FAIL++;
 			}
 
@@ -178,10 +168,10 @@ void DtlsSrtpTransport::recvMedia(message_ptr message) {
 				PLOG_VERBOSE << "Incoming SRTP packet is a replay";
 				COUNTER_SRTP_REPLAY++;
 			} else if (err == srtp_err_status_auth_fail) {
-				PLOG_VERBOSE << "Incoming SRTP packet failed authentication check";
+				PLOG_DEBUG << "Incoming SRTP packet failed authentication check";
 				COUNTER_SRTP_AUTH_FAIL++;
 			} else {
-				PLOG_VERBOSE << "SRTP unprotect error, status=" << err;
+				PLOG_DEBUG << "SRTP unprotect error, status=" << err;
 				COUNTER_SRTP_FAIL++;
 			}
 			return;
@@ -223,39 +213,50 @@ bool DtlsSrtpTransport::demuxMessage(message_ptr message) {
 
 	} else {
 		COUNTER_UNKNOWN_PACKET_TYPE++;
-		PLOG_VERBOSE << "Unknown packet type, value=" << unsigned(value1)
+		PLOG_DEBUG << "Unknown packet type, value=" << unsigned(value1)
 		             << ", size=" << message->size();
 		return true;
 	}
 }
 
+EncryptionParams DtlsSrtpTransport::getEncryptionParams(string_view suite) {
+	if (suite == "SRTP_AES128_CM_SHA1_80")
+		return {SRTP_AES_128_KEY_LEN, SRTP_SALT_LEN, srtp_profile_aes128_cm_sha1_80};
+	if (suite == "SRTP_AES128_CM_SHA1_32")
+		return {SRTP_AES_128_KEY_LEN, SRTP_SALT_LEN, srtp_profile_aes128_cm_sha1_32};
+	if (suite == "SRTP_AEAD_AES_128_GCM")
+		return {SRTP_AES_128_KEY_LEN, SRTP_AEAD_SALT_LEN, srtp_profile_aead_aes_128_gcm};
+	if (suite == "SRTP_AEAD_AES_256_GCM")
+		return {SRTP_AES_256_KEY_LEN, SRTP_AEAD_SALT_LEN, srtp_profile_aead_aes_256_gcm};
+	throw std::logic_error("Unexpected SRTP suite name: " + std::string(suite));
+}
+
 void DtlsSrtpTransport::postHandshake() {
 	if (mInitDone)
 		return;
-
-	STATIC_ASSERT(SRTP_AES_ICM_128_KEY_LEN_WSALT == SRTP_AES_128_KEY_LEN + SRTP_SALT_LEN);
-
-	const size_t materialLen = SRTP_AES_ICM_128_KEY_LEN_WSALT * 2;
-	unsigned char material[materialLen];
 	const unsigned char *clientKey, *clientSalt, *serverKey, *serverSalt;
-
 #if USE_GNUTLS
 	PLOG_INFO << "Deriving SRTP keying material (GnuTLS)";
-
+	unsigned int keySize = SRTP_AES_128_KEY_LEN;
+	unsigned int saltSize = SRTP_SALT_LEN;
+	auto srtpProfile = srtp_profile_aes128_cm_sha1_80;
+	auto keySizeWithSalt = SRTP_AES_ICM_128_KEY_LEN_WSALT;
+	const size_t materialLen = keySizeWithSalt * 2;
+	std::vector<unsigned char> material(materialLen);
 	gnutls_datum_t clientKeyDatum, clientSaltDatum, serverKeyDatum, serverSaltDatum;
-	gnutls::check(gnutls_srtp_get_keys(mSession, material, materialLen, &clientKeyDatum,
+	gnutls::check(gnutls_srtp_get_keys(mSession, material.data(), materialLen, &clientKeyDatum,
 	                                   &clientSaltDatum, &serverKeyDatum, &serverSaltDatum),
 	              "Failed to derive SRTP keys");
 
-	if (clientKeyDatum.size != SRTP_AES_128_KEY_LEN)
+	if (clientKeyDatum.size != keySize)
 		throw std::logic_error("Unexpected SRTP master key length: " +
 		                       to_string(clientKeyDatum.size));
-	if (clientSaltDatum.size != SRTP_SALT_LEN)
+	if (clientSaltDatum.size != saltSize)
 		throw std::logic_error("Unexpected SRTP salt length: " + to_string(clientSaltDatum.size));
-	if (serverKeyDatum.size != SRTP_AES_128_KEY_LEN)
+	if (serverKeyDatum.size != keySize)
 		throw std::logic_error("Unexpected SRTP master key length: " +
 		                       to_string(serverKeyDatum.size));
-	if (serverSaltDatum.size != SRTP_SALT_LEN)
+	if (serverSaltDatum.size != saltSize)
 		throw std::logic_error("Unexpected SRTP salt size: " + to_string(serverSaltDatum.size));
 
 	clientKey = reinterpret_cast<const unsigned char *>(clientKeyDatum.data);
@@ -265,35 +266,47 @@ void DtlsSrtpTransport::postHandshake() {
 	serverSalt = reinterpret_cast<const unsigned char *>(serverSaltDatum.data);
 #else
 	PLOG_INFO << "Deriving SRTP keying material (OpenSSL)";
-
+	auto profile = SSL_get_selected_srtp_profile(mSsl);
+	if (!profile)
+		throw std::runtime_error("Failed to get SRTP profile: " +
+					openssl::error_string(ERR_get_error()));
+	PLOG_DEBUG << "srtp profile used is: " << profile->name;
+	auto encryptionParams = getEncryptionParams(profile->name);
+	auto keySizeWithSalt = encryptionParams.keySize + encryptionParams.saltSize;
+	const size_t materialLen = keySizeWithSalt * 2;
+	std::vector<unsigned char> material(materialLen);
 	// The extractor provides the client write master key, the server write master key, the client
 	// write master salt and the server write master salt in that order.
 	const string label = "EXTRACTOR-dtls_srtp";
 
 	// returns 1 on success, 0 or -1 on failure (OpenSSL API is a complete mess...)
-	if (SSL_export_keying_material(mSsl, material, materialLen, label.c_str(), label.size(),
+	if (SSL_export_keying_material(mSsl, material.data(), materialLen, label.c_str(), label.size(),
 	                               nullptr, 0, 0) <= 0)
 		throw std::runtime_error("Failed to derive SRTP keys: " +
 		                         openssl::error_string(ERR_get_error()));
 
 	// Order is client key, server key, client salt, and server salt
-	clientKey = material;
-	serverKey = clientKey + SRTP_AES_128_KEY_LEN;
-	clientSalt = serverKey + SRTP_AES_128_KEY_LEN;
-	serverSalt = clientSalt + SRTP_SALT_LEN;
+	clientKey = material.data();
+	serverKey = clientKey + encryptionParams.keySize;
+	clientSalt = serverKey + encryptionParams.keySize;
+	serverSalt = clientSalt + encryptionParams.saltSize;
 #endif
+	mClientSessionKey.resize(keySizeWithSalt);
+	mServerSessionKey.resize(keySizeWithSalt);
+	std::memcpy(mClientSessionKey.data(), clientKey, encryptionParams.keySize);
+	std::memcpy(mClientSessionKey.data() + encryptionParams.keySize, clientSalt,
+	            encryptionParams.saltSize);
 
-	std::memcpy(mClientSessionKey, clientKey, SRTP_AES_128_KEY_LEN);
-	std::memcpy(mClientSessionKey + SRTP_AES_128_KEY_LEN, clientSalt, SRTP_SALT_LEN);
-
-	std::memcpy(mServerSessionKey, serverKey, SRTP_AES_128_KEY_LEN);
-	std::memcpy(mServerSessionKey + SRTP_AES_128_KEY_LEN, serverSalt, SRTP_SALT_LEN);
+	std::memcpy(mServerSessionKey.data(), serverKey, encryptionParams.keySize);
+	std::memcpy(mServerSessionKey.data() + encryptionParams.keySize, serverSalt,
+	            encryptionParams.saltSize);
 
 	srtp_policy_t inbound = {};
-	srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&inbound.rtp);
-	srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&inbound.rtcp);
+	srtp_crypto_policy_set_from_profile_for_rtp(&inbound.rtp, encryptionParams.srtpProfile);
+	srtp_crypto_policy_set_from_profile_for_rtcp(&inbound.rtp, encryptionParams.srtpProfile);
 	inbound.ssrc.type = ssrc_any_inbound;
-	inbound.key = mIsClient ? mServerSessionKey : mClientSessionKey;
+	inbound.key = mIsClient ? mServerSessionKey.data() : mClientSessionKey.data();
+
 	inbound.window_size = 1024;
 	inbound.allow_repeat_tx = true;
 	inbound.next = nullptr;
@@ -303,10 +316,10 @@ void DtlsSrtpTransport::postHandshake() {
 		                         to_string(static_cast<int>(err)));
 
 	srtp_policy_t outbound = {};
-	srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&outbound.rtp);
-	srtp_crypto_policy_set_aes_cm_128_hmac_sha1_80(&outbound.rtcp);
+	srtp_crypto_policy_set_from_profile_for_rtp(&outbound.rtp, encryptionParams.srtpProfile);
+	srtp_crypto_policy_set_from_profile_for_rtcp(&outbound.rtp, encryptionParams.srtpProfile);
 	outbound.ssrc.type = ssrc_any_outbound;
-	outbound.key = mIsClient ? mClientSessionKey : mServerSessionKey;
+	outbound.key = mIsClient ? mClientSessionKey.data() : mServerSessionKey.data();
 	outbound.window_size = 1024;
 	outbound.allow_repeat_tx = true;
 	outbound.next = nullptr;

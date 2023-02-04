@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "dtlstransport.hpp"
@@ -51,7 +41,7 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
       mVerifierCallback(std::move(verifierCallback)),
-      mIsClient(lower->role() == Description::Role::Active), mCurrentDscp(0) {
+      mIsClient(lower->role() == Description::Role::Active) {
 
 	PLOG_DEBUG << "Initializing DTLS transport (GnuTLS)";
 
@@ -95,31 +85,36 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 		gnutls_deinit(mSession);
 		throw;
 	}
+
+	// Set recommended medium-priority DSCP value for handshake
+	// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
+	mCurrentDscp = 10; // AF11: Assured Forwarding class 1, low drop probability
 }
 
 DtlsTransport::~DtlsTransport() {
 	stop();
 
+	PLOG_DEBUG << "Destroying DTLS transport";
 	gnutls_deinit(mSession);
 }
 
 void DtlsTransport::start() {
-	Transport::start();
-
-	registerIncoming();
+	if(mStarted.exchange(true))
+		return;
 
 	PLOG_DEBUG << "Starting DTLS recv thread";
+	registerIncoming();
 	mRecvThread = std::thread(&DtlsTransport::runRecvLoop, this);
 }
 
-bool DtlsTransport::stop() {
-	if (!Transport::stop())
-		return false;
+void DtlsTransport::stop() {
+	if(!mStarted.exchange(false))
+		return;
 
 	PLOG_DEBUG << "Stopping DTLS recv thread";
+	unregisterIncoming();
 	mIncomingQueue.stop();
 	mRecvThread.join();
-	return true;
 }
 
 bool DtlsTransport::send(message_ptr message) {
@@ -127,6 +122,7 @@ bool DtlsTransport::send(message_ptr message) {
 		return false;
 
 	PLOG_VERBOSE << "Send size=" << message->size();
+
 
 	ssize_t ret;
 	do {
@@ -138,7 +134,10 @@ bool DtlsTransport::send(message_ptr message) {
 	if (ret == GNUTLS_E_LARGE_PACKET)
 		return false;
 
-	return gnutls::check(ret);
+	if (!gnutls::check(ret))
+		return false;
+
+	return mOutgoingResult;
 }
 
 void DtlsTransport::incoming(message_ptr message) {
@@ -152,17 +151,11 @@ void DtlsTransport::incoming(message_ptr message) {
 }
 
 bool DtlsTransport::outgoing(message_ptr message) {
-	if (message->dscp == 0) {
-		// DTLS handshake packet
-		if (state() == State::Connecting) {
-			// Set recommended high-priority DSCP value
-			// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
-			message->dscp = 18; // AF21(18), Assured Forwarding class 2, low drop probability
-		} else {
-			message->dscp = mCurrentDscp;
-		}
-	}
-	return Transport::outgoing(std::move(message));
+	message->dscp = mCurrentDscp;
+
+	bool result = Transport::outgoing(std::move(message));
+	mOutgoingResult = result;
+	return result;
 }
 
 bool DtlsTransport::demuxMessage(message_ptr) {
@@ -380,7 +373,7 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
       mVerifierCallback(std::move(verifierCallback)),
-      mIsClient(lower->role() == Description::Role::Active), mCurrentDscp(0) {
+      mIsClient(lower->role() == Description::Role::Active) {
 	PLOG_DEBUG << "Initializing DTLS transport (OpenSSL)";
 
 	if (!mCertificate)
@@ -447,10 +440,12 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 		// RFC 8827: The DTLS-SRTP protection profile SRTP_AES128_CM_HMAC_SHA1_80 MUST be supported
 		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5 Warning:
 		// SSL_set_tlsext_use_srtp() returns 0 on success and 1 on error
-		if (SSL_set_tlsext_use_srtp(mSsl, "SRTP_AES128_CM_SHA1_80"))
-			throw std::runtime_error("Failed to set SRTP profile: " +
-			                         openssl::error_string(ERR_get_error()));
-
+		// Try to use GCM suite
+		if (SSL_set_tlsext_use_srtp(mSsl, "SRTP_AEAD_AES_256_GCM:SRTP_AEAD_AES_128_GCM:SRTP_AES128_CM_SHA1_80")) {
+			if (SSL_set_tlsext_use_srtp(mSsl, "SRTP_AES128_CM_SHA1_80"))
+				throw std::runtime_error("Failed to set SRTP profile: " +
+							openssl::error_string(ERR_get_error()));
+		}
 	} catch (...) {
 		if (mSsl)
 			SSL_free(mSsl);
@@ -458,33 +453,38 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 			SSL_CTX_free(mCtx);
 		throw;
 	}
+
+	// Set recommended medium-priority DSCP value for handshake
+	// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
+	mCurrentDscp = 10; // AF11: Assured Forwarding class 1, low drop probability
 }
 
 DtlsTransport::~DtlsTransport() {
 	stop();
 
+	PLOG_DEBUG << "Destroying DTLS transport";
 	SSL_free(mSsl);
 	SSL_CTX_free(mCtx);
 }
 
 void DtlsTransport::start() {
-	Transport::start();
-
-	registerIncoming();
+	if(mStarted.exchange(true))
+		return;
 
 	PLOG_DEBUG << "Starting DTLS recv thread";
+	registerIncoming();
 	mRecvThread = std::thread(&DtlsTransport::runRecvLoop, this);
 }
 
-bool DtlsTransport::stop() {
-	if (!Transport::stop())
-		return false;
+void DtlsTransport::stop() {
+	if(!mStarted.exchange(false))
+		return;
 
 	PLOG_DEBUG << "Stopping DTLS recv thread";
+	unregisterIncoming();
 	mIncomingQueue.stop();
 	mRecvThread.join();
 	SSL_shutdown(mSsl);
-	return true;
 }
 
 bool DtlsTransport::send(message_ptr message) {
@@ -495,7 +495,10 @@ bool DtlsTransport::send(message_ptr message) {
 
 	mCurrentDscp = message->dscp;
 	int ret = SSL_write(mSsl, message->data(), int(message->size()));
-	return openssl::check(mSsl, ret);
+	if (!openssl::check(mSsl, ret))
+		return false;
+
+	return mOutgoingResult;
 }
 
 void DtlsTransport::incoming(message_ptr message) {
@@ -509,17 +512,11 @@ void DtlsTransport::incoming(message_ptr message) {
 }
 
 bool DtlsTransport::outgoing(message_ptr message) {
-	if (message->dscp == 0) {
-		// DTLS handshake packet
-		if (state() == State::Connecting) {
-			// Set recommended high-priority DSCP value
-			// See https://www.rfc-editor.org/rfc/rfc8837.html#section-5
-			message->dscp = 18; // AF21(18), Assured Forwarding class 2, low drop probability
-		} else {
-			message->dscp = mCurrentDscp;
-		}
-	}
-	return Transport::outgoing(std::move(message));
+	message->dscp = mCurrentDscp;
+
+	bool result = Transport::outgoing(std::move(message));
+	mOutgoingResult = result;
+	return result;
 }
 
 bool DtlsTransport::demuxMessage(message_ptr) {

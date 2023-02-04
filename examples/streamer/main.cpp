@@ -1,4 +1,4 @@
-/*
+/**
  * libdatachannel client example
  * Copyright (c) 2019-2020 Paul-Louis Ageneau
  * Copyright (c) 2019 Murat Dogan
@@ -8,18 +8,9 @@
  * Copyright (c) 2020 Erik Cota-Robles
  * Copyright (c) 2020 Filip Klembara (in2core)
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License
- * as published by the Free Software Foundation; either version 2
- * of the License, or (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; If not, see <http://www.gnu.org/licenses/>.
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "nlohmann/json.hpp"
@@ -91,20 +82,17 @@ void wsOnMessage(json message, Configuration config, std::shared_ptr<WebSocket> 
     if (it == message.end())
         return;
     string id = it->get<string>();
+
     it = message.find("type");
     if (it == message.end())
         return;
     string type = it->get<string>();
 
-    if (type == "streamRequest") {
-		std::shared_ptr<Client> c = createPeerConnection(config, make_weak_ptr(ws), id);
-        clients.emplace(id, c);
+    if (type == "request") {
+        clients.emplace(id, createPeerConnection(config, make_weak_ptr(ws), id));
     } else if (type == "answer") {
-		std::shared_ptr<Client> c;
-
-		auto jt = clients.find(id);
-        if (jt != clients.end()) {
-            auto pc = clients.at(id)->peerConnection;
+        if (auto jt = clients.find(id); jt != clients.end()) {
+            auto pc = jt->second->peerConnection;
             auto sdp = message["sdp"].get<string>();
             auto description = Description(sdp, type);
             pc->setRemoteDescription(description);
@@ -377,32 +365,28 @@ std::shared_ptr<Stream> createStream(const string h264Samples, const unsigned fp
             for (auto clientTrack: tracks) {
                 auto client = clientTrack.id;
                 auto trackData = clientTrack.trackData;
+                auto rtpConfig = trackData->sender->rtpConfig;
+
                 // sample time is in us, we need to convert it to seconds
                 auto elapsedSeconds = double(sampleTime) / (1000 * 1000);
-                auto rtpConfig = trackData->sender->rtpConfig;
                 // get elapsed time in clock rate
                 uint32_t elapsedTimestamp = rtpConfig->secondsToTimestamp(elapsedSeconds);
-
                 // set new timestamp
                 rtpConfig->timestamp = rtpConfig->startTimestamp + elapsedTimestamp;
 
                 // get elapsed time in clock rate from last RTCP sender report
-                auto reportElapsedTimestamp = rtpConfig->timestamp - trackData->sender->previousReportedTimestamp;
+                auto reportElapsedTimestamp = rtpConfig->timestamp - trackData->sender->lastReportedTimestamp();
                 // check if last report was at least 1 second ago
                 if (rtpConfig->timestampToSeconds(reportElapsedTimestamp) > 1) {
                     trackData->sender->setNeedsToReport();
                 }
+
                 cout << "Sending " << streamType << " sample with size: " << to_string(sample.size()) << " to " << client << endl;
-                bool send = false;
                 try {
                     // send sample
-                    send = trackData->track->send(sample);
-                } catch (...) {
-                    send = false;
-                }
-                if (!send) {
-                    cerr << "Unable to send "<< streamType << " packet" << endl;
-                    break;
+                    trackData->track->send(sample);
+                } catch (const std::exception &e) {
+                    cerr << "Unable to send "<< streamType << " packet: " << e.what() << endl;
                 }
             }
         }
@@ -443,7 +427,7 @@ void sendInitialNalus(std::shared_ptr<Stream> stream, std::shared_ptr<ClientTrac
 
     // send previous NALU key frame so users don't have to wait to see stream works
     if (!initialNalus.empty()) {
-        const double frameDuration_s = double(h264->sampleDuration_us) / (1000 * 1000);
+        const double frameDuration_s = double(h264->getSampleDuration_us()) / (1000 * 1000);
         const uint32_t frameTimestampDuration = video->sender->rtpConfig->secondsToTimestamp(frameDuration_s);
         video->sender->rtpConfig->timestamp = video->sender->rtpConfig->startTimestamp - frameTimestampDuration * 2;
         video->track->send(initialNalus);
@@ -464,20 +448,7 @@ void addToStream(std::shared_ptr<Client> client, bool isAddingVideo) {
 
         // Audio and video tracks are collected now
         assert(client->video.has_value() && client->audio.has_value());
-
         auto video = client->video.value();
-        auto audio = client->audio.value();
-
-        auto currentTime_us = double(currentTimeInMicroSeconds());
-        auto currentTime_s = currentTime_us / (1000 * 1000);
-
-        // set start time of stream
-        video->sender->rtpConfig->setStartTime(currentTime_s, RtpPacketizationConfig::EpochStart::T1970);
-        audio->sender->rtpConfig->setStartTime(currentTime_s, RtpPacketizationConfig::EpochStart::T1970);
-
-        // start stat recording of RTCP SR
-        video->sender->startRecording();
-        audio->sender->startRecording();
 
         if (avStream.has_value()) {
             sendInitialNalus(avStream.value(), video);

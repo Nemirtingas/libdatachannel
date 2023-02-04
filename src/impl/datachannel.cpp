@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019-2021 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #include "datachannel.hpp"
@@ -46,8 +36,7 @@ enum MessageType : uint8_t {
 	MESSAGE_OPEN_REQUEST = 0x00,
 	MESSAGE_OPEN_RESPONSE = 0x01,
 	MESSAGE_ACK = 0x02,
-	MESSAGE_OPEN = 0x03,
-	MESSAGE_CLOSE = 0x04
+	MESSAGE_OPEN = 0x03
 };
 
 enum ChannelType : uint8_t {
@@ -73,9 +62,6 @@ struct AckMessage {
 	uint8_t type = MESSAGE_ACK;
 };
 
-struct CloseMessage {
-	uint8_t type = MESSAGE_CLOSE;
-};
 #pragma pack(pop)
 
 bool DataChannel::IsOpenMessage(message_ptr message) {
@@ -86,10 +72,9 @@ bool DataChannel::IsOpenMessage(message_ptr message) {
 	return !message->empty() && raw[0] == MESSAGE_OPEN;
 }
 
-DataChannel::DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label,
-                         string protocol, Reliability reliability)
-    : mPeerConnection(pc), mStream(stream), mLabel(std::move(label)),
-      mProtocol(std::move(protocol)),
+DataChannel::DataChannel(weak_ptr<PeerConnection> pc, string label, string protocol,
+                         Reliability reliability)
+    : mPeerConnection(pc), mLabel(std::move(label)), mProtocol(std::move(protocol)),
       mReliability(std::make_shared<Reliability>(std::move(reliability))),
       mRecvQueue(RECV_QUEUE_LIMIT, message_size_func),
       mIsOpen(false),
@@ -111,8 +96,8 @@ void DataChannel::close() {
 		transport = mSctpTransport.lock();
 	}
 
-	if (mIsOpen.exchange(false) && transport)
-		transport->closeStream(mStream);
+	if (mIsOpen.exchange(false) && transport && mStream.has_value())
+		transport->closeStream(mStream.value());
 
 	if (!mIsClosed.exchange(true))
 		triggerClosed();
@@ -127,38 +112,18 @@ void DataChannel::remoteClose() {
 }
 
 optional<message_variant> DataChannel::receive() {
-	while (auto next = mRecvQueue.tryPop()) {
-		message_ptr message = *next;
-		if (message->type != Message::Control)
-			return to_variant(std::move(*message));
-
-		auto raw = reinterpret_cast<const uint8_t *>(message->data());
-		if (!message->empty() && raw[0] == MESSAGE_CLOSE)
-			remoteClose();
-	}
-
-	return none;
+	auto next = mRecvQueue.tryPop();
+	return next ? boost::make_optional(to_variant(std::move(**next))) : none;
 }
 
 optional<message_variant> DataChannel::peek() {
-	while (auto next = mRecvQueue.peek()) {
-		message_ptr message = *next;
-		if (message->type != Message::Control)
-			return to_variant(std::move(*message));
-
-		auto raw = reinterpret_cast<const uint8_t *>(message->data());
-		if (!message->empty() && raw[0] == MESSAGE_CLOSE)
-			remoteClose();
-
-		mRecvQueue.tryPop();
-	}
-
-	return none;
+	auto next = mRecvQueue.peek();
+	return next ? boost::make_optional(to_variant(**next)) : none;
 }
 
 size_t DataChannel::availableAmount() const { return mRecvQueue.amount(); }
 
-uint16_t DataChannel::stream() const {
+optional<uint16_t> DataChannel::stream() const {
 	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mStream;
 }
@@ -187,8 +152,13 @@ size_t DataChannel::maxMessageSize() const {
 	return pc ? pc->remoteMaxMessageSize() : DEFAULT_MAX_MESSAGE_SIZE;
 }
 
-void DataChannel::shiftStream() {
-	// Ignore
+void DataChannel::assignStream(uint16_t stream) {
+	boost::unique_lock<boost::shared_mutex> lock(mMutex);
+
+	if (mStream.has_value())
+		throw std::logic_error("DataChannel already has a stream assigned");
+
+	mStream = stream;
 }
 
 void DataChannel::open(shared_ptr<SctpTransport> transport) {
@@ -214,12 +184,15 @@ bool DataChannel::outgoing(message_ptr message) {
 		if (!transport || mIsClosed)
 			throw std::runtime_error("DataChannel is closed");
 
+		if (!mStream.has_value())
+			throw std::logic_error("DataChannel has no stream assigned");
+
 		if (message->size() > maxMessageSize())
-			throw std::runtime_error("Message size exceeds limit");
+			throw std::invalid_argument("Message size exceeds limit");
 
 		// Before the ACK has been received on a DataChannel, all messages must be sent ordered
 		message->reliability = mIsOpen ? mReliability : nullptr;
-		message->stream = mStream;
+		message->stream = mStream.value();
 	}
 
 	return transport->send(message);
@@ -243,17 +216,15 @@ void DataChannel::incoming(message_ptr message) {
 				triggerOpen();
 			}
 			break;
-		case MESSAGE_CLOSE:
-			// The close message will be processed in-order in receive()
-			mRecvQueue.push(message);
-			triggerAvailable(mRecvQueue.size());
-			break;
 		default:
 			// Ignore
 			break;
 		}
 		break;
 	}
+	case Message::Reset:
+		remoteClose();
+		break;
 	case Message::String:
 	case Message::Binary:
 		mRecvQueue.push(message);
@@ -265,21 +236,18 @@ void DataChannel::incoming(message_ptr message) {
 	}
 }
 
-OutgoingDataChannel::OutgoingDataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label,
-                                         string protocol, Reliability reliability)
-    : DataChannel(pc, stream, std::move(label), std::move(protocol), std::move(reliability)) {}
+OutgoingDataChannel::OutgoingDataChannel(weak_ptr<PeerConnection> pc, string label, string protocol,
+                                         Reliability reliability)
+    : DataChannel(pc, std::move(label), std::move(protocol), std::move(reliability)) {}
 
 OutgoingDataChannel::~OutgoingDataChannel() {}
-
-void OutgoingDataChannel::shiftStream() {
-	boost::shared_lock<boost::shared_mutex> lock(mMutex);
-	if (mStream % 2 == 1)
-		mStream -= 1;
-}
 
 void OutgoingDataChannel::open(shared_ptr<SctpTransport> transport) {
 	std::unique_lock<boost::shared_mutex> lock(mMutex);
 	mSctpTransport = transport;
+
+	if (!mStream.has_value())
+		throw std::runtime_error("DataChannel has no stream assigned");
 
 	uint8_t channelType;
 	uint32_t reliabilityParameter;
@@ -319,7 +287,7 @@ void OutgoingDataChannel::open(shared_ptr<SctpTransport> transport) {
 
 	lock.unlock();
 
-	transport->send(make_message(buffer.begin(), buffer.end(), Message::Control, mStream));
+	transport->send(make_message(buffer.begin(), buffer.end(), Message::Control, mStream.value()));
 }
 
 void OutgoingDataChannel::processOpenMessage(message_ptr) {
@@ -327,8 +295,9 @@ void OutgoingDataChannel::processOpenMessage(message_ptr) {
 }
 
 IncomingDataChannel::IncomingDataChannel(weak_ptr<PeerConnection> pc,
-                                         weak_ptr<SctpTransport> transport, uint16_t stream)
-    : DataChannel(pc, stream, "", "", {}) {
+                                         weak_ptr<SctpTransport> transport)
+    : DataChannel(pc, "", "", {}) {
+
 	mSctpTransport = transport;
 }
 
@@ -342,7 +311,10 @@ void IncomingDataChannel::processOpenMessage(message_ptr message) {
 	std::unique_lock<boost::shared_mutex> lock(mMutex);
 	auto transport = mSctpTransport.lock();
 	if (!transport)
-		throw std::runtime_error("DataChannel has no transport");
+		throw std::logic_error("DataChannel has no transport");
+
+	if (!mStream.has_value())
+		throw std::logic_error("DataChannel has no stream assigned");
 
 	if (message->size() < sizeof(OpenMessage))
 		throw std::invalid_argument("DataChannel open message too small");
@@ -381,7 +353,7 @@ void IncomingDataChannel::processOpenMessage(message_ptr message) {
 	auto &ack = *reinterpret_cast<AckMessage *>(buffer.data());
 	ack.type = MESSAGE_ACK;
 
-	transport->send(make_message(buffer.begin(), buffer.end(), Message::Control, mStream));
+	transport->send(make_message(buffer.begin(), buffer.end(), Message::Control, mStream.value()));
 
 	if (!mIsOpen.exchange(true))
 		triggerOpen();

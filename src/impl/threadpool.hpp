@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #ifndef RTC_IMPL_THREADPOOL_H
@@ -56,17 +46,18 @@ public:
 	int count() const;
 	void spawn(int count = 1);
 	void join();
+	void clear();
 	void run();
 	bool runOne();
 
 	template <class F, class... Args>
-	auto enqueue(F &&f, Args &&...args);
+	auto enqueue(F &&f, Args &&...args) noexcept;
 
 	template <class F, class... Args>
-	auto schedule(clock::duration delay, F &&f, Args &&...args);
+	auto schedule(clock::duration delay, F &&f, Args &&...args) noexcept;
 
 	template <class F, class... Args>
-	auto schedule(clock::time_point time, F &&f, Args &&...args);
+	auto schedule(clock::time_point time, F &&f, Args &&...args) noexcept;
 
 private:
 	ThreadPool();
@@ -91,17 +82,17 @@ private:
 };
 
 template <class F, class... Args>
-auto ThreadPool::enqueue(F &&f, Args &&...args) {
+auto ThreadPool::enqueue(F &&f, Args &&...args) noexcept {
 	return schedule(clock::now(), std::forward<F>(f), std::forward<Args>(args)...);
 }
 
 template <class F, class... Args>
-auto ThreadPool::schedule(clock::duration delay, F &&f, Args &&...args) {
+auto ThreadPool::schedule(clock::duration delay, F &&f, Args &&...args) noexcept {
 	return schedule(clock::now() + delay, std::forward<F>(f), std::forward<Args>(args)...);
 }
 
 template <class F, class... Args>
-auto ThreadPool::schedule(clock::time_point time, F &&f, Args &&...args) {
+auto ThreadPool::schedule(clock::time_point time, F &&f, Args &&...args) noexcept {
 	std::unique_lock<std::mutex> lock(mMutex);
 	using R = workarounds::invoke_result_t<std::decay_t<F>, std::decay_t<Args>...>;
 	auto bound = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
@@ -117,6 +108,7 @@ auto ThreadPool::schedule(clock::time_point time, F &&f, Args &&...args) {
 
 	mTasks.push(
 	    {time, [task = std::move(task), token = Init::Instance().token()]() { return (*task)(); }});
+	mTasks.push({time, [task = std::move(task)]() { return (*task)(); }});
 	mTasksCondition.notify_one();
 	return result;
 }

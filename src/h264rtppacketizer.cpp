@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2020 Filip Klembara (in2core)
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #if RTC_ENABLE_MEDIA
@@ -63,12 +53,16 @@ NalUnitStartSequenceMatch StartSequenceMatchSucc(NalUnitStartSequenceMatch match
 	case NUSM_secondZero:
 		if (byte == 0x00 && detectLong) {
 			return NUSM_thirdZero;
+		} else if (byte == 0x00 && detectShort) {
+			return NUSM_secondZero;
 		} else if (byte == 0x01 && detectShort) {
 			return NUSM_shortMatch;
 		}
 		break;
 	case NUSM_thirdZero:
-		if (byte == 0x01 && detectLong) {
+		if (byte == 0x00 && detectLong) {
+			return NUSM_thirdZero;
+		} else if (byte == 0x01 && detectLong) {
 			return NUSM_longMatch;
 		}
 		break;

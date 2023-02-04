@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #ifndef RTC_IMPL_DATA_CHANNEL_H
@@ -38,7 +28,7 @@ struct PeerConnection;
 struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
 	static bool IsOpenMessage(message_ptr message);
 
-	DataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label, string protocol,
+	DataChannel(weak_ptr<PeerConnection> pc, string label, string protocol,
 	            Reliability reliability);
 	virtual ~DataChannel();
 
@@ -51,7 +41,7 @@ struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
 	optional<message_variant> peek() override;
 	size_t availableAmount() const override;
 
-	uint16_t stream() const;
+	optional<uint16_t> stream() const;
 	string label() const;
 	string protocol() const;
 	Reliability reliability() const;
@@ -60,7 +50,7 @@ struct DataChannel : Channel, std::enable_shared_from_this<DataChannel> {
 	bool isClosed(void) const;
 	size_t maxMessageSize() const;
 
-	virtual void shiftStream();
+	virtual void assignStream(uint16_t stream);
 	virtual void open(shared_ptr<SctpTransport> transport);
 	virtual void processOpenMessage(message_ptr);
 
@@ -68,32 +58,31 @@ protected:
 	const weak_ptr<impl::PeerConnection> mPeerConnection;
 	weak_ptr<SctpTransport> mSctpTransport;
 
-	uint16_t mStream;
+	optional<uint16_t> mStream;
 	string mLabel;
 	string mProtocol;
 	shared_ptr<Reliability> mReliability;
 
 	mutable boost::shared_mutex mMutex;
 
-	Queue<message_ptr> mRecvQueue;
-
 	boost::atomic<bool> mIsOpen;
 	boost::atomic<bool> mIsClosed;
+
+private:
+	Queue<message_ptr> mRecvQueue;
 };
 
 struct OutgoingDataChannel final : public DataChannel {
-	OutgoingDataChannel(weak_ptr<PeerConnection> pc, uint16_t stream, string label,
-	                      string protocol, Reliability reliability);
+	OutgoingDataChannel(weak_ptr<PeerConnection> pc, string label, string protocol,
+	                    Reliability reliability);
 	~OutgoingDataChannel();
 
-	void shiftStream() override;
 	void open(shared_ptr<SctpTransport> transport) override;
 	void processOpenMessage(message_ptr message) override;
 };
 
 struct IncomingDataChannel final : public DataChannel {
-	IncomingDataChannel(weak_ptr<PeerConnection> pc, weak_ptr<SctpTransport> transport,
-	                    uint16_t stream);
+	IncomingDataChannel(weak_ptr<PeerConnection> pc, weak_ptr<SctpTransport> transport);
 	~IncomingDataChannel();
 
 	void open(shared_ptr<SctpTransport> transport) override;

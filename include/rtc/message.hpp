@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019-2020 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #ifndef RTC_MESSAGE_H
@@ -70,6 +60,14 @@ RTC_CPP_EXPORT message_ptr make_message(binary &&data, Message::Type type = Mess
                                         shared_ptr<Reliability> reliability = nullptr);
 
 RTC_CPP_EXPORT message_ptr make_message(message_variant data);
+
+#if RTC_ENABLE_MEDIA
+
+// Reconstructs a message_ptr from an opaque rtcMessage pointer that
+// was allocated by rtcCreateOpaqueMessage().
+message_ptr make_message_from_opaque_ptr(rtcMessage *&&message);
+
+#endif
 
 RTC_CPP_EXPORT message_variant to_variant(Message &&message);
 RTC_CPP_EXPORT message_variant to_variant(const Message &message);

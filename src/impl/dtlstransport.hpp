@@ -1,19 +1,9 @@
 /**
  * Copyright (c) 2019 Paul-Louis Ageneau
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
 #ifndef RTC_IMPL_DTLS_TRANSPORT_H
@@ -48,7 +38,7 @@ public:
 	~DtlsTransport();
 
 	virtual void start() override;
-	virtual bool stop() override;
+	virtual void stop() override;
 	virtual bool send(message_ptr message) override; // false if dropped
 
 	bool isClient() const { return mIsClient; }
@@ -58,6 +48,7 @@ protected:
 	virtual bool outgoing(message_ptr message) override;
 	virtual bool demuxMessage(message_ptr message);
 	virtual void postHandshake();
+
 	void runRecvLoop();
 
 	const optional<size_t> mMtu;
@@ -67,7 +58,9 @@ protected:
 
 	Queue<message_ptr> mIncomingQueue;
 	std::thread mRecvThread;
-	boost::atomic<unsigned int> mCurrentDscp;
+	std::atomic<bool> mStarted = false;
+	std::atomic<unsigned int> mCurrentDscp = 0;
+	std::atomic<bool> mOutgoingResult = true;
 
 #if USE_GNUTLS
 	gnutls_session_t mSession;
