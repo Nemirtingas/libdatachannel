@@ -103,7 +103,7 @@ void WsTransport::close() {
 	}
 
 	ThreadPool::Instance().schedule(std::chrono::seconds(10),
-	                                [this, weak_this = weak_from_this()]() {
+	                                [this, weak_this = workarounds::weak_from_this(*this)]() {
 		                                if (auto shared_this = weak_this.lock()) {
 			                                PLOG_DEBUG << "WebSocket close timeout";
 			                                changeState(State::Disconnected);

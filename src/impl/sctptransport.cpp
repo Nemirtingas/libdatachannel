@@ -528,7 +528,7 @@ void SctpTransport::enqueueRecv() {
 	if (mPendingRecvCount > 0)
 		return;
 
-	if (auto shared_this = weak_from_this().lock()) {
+	if (auto shared_this = workarounds::weak_from_this(*this).lock()) {
 		// This is called from the upcall callback, we must not release the shared ptr here
 		++mPendingRecvCount;
 		mProcessor.enqueue(&SctpTransport::doRecv, std::move(shared_this));
@@ -539,7 +539,7 @@ void SctpTransport::enqueueFlush() {
 	if (mPendingFlushCount > 0)
 		return;
 
-	if (auto shared_this = weak_from_this().lock()) {
+	if (auto shared_this = workarounds::weak_from_this(*this).lock()) {
 		// This is called from the upcall callback, we must not release the shared ptr here
 		++mPendingFlushCount;
 		mProcessor.enqueue(&SctpTransport::doFlush, std::move(shared_this));

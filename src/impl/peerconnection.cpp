@@ -586,9 +586,10 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 	// If the DataChannel is user-negotiated, do not negotiate it in-band
 	auto channel =
 	    init.negotiated
-	        ? std::make_shared<DataChannel>(weak_from_this(), std::move(label),
+	        ? std::make_shared<DataChannel>(workarounds::weak_from_this(*this), std::move(label),
 	                                        std::move(init.protocol), std::move(init.reliability))
-	        : std::make_shared<OutgoingDataChannel>(weak_from_this(), std::move(label),
+	        : std::make_shared<OutgoingDataChannel>(workarounds::weak_from_this(*this),
+	                                                std::move(label),
 	                                                std::move(init.protocol),
 	                                                std::move(init.reliability));
 
@@ -917,8 +918,8 @@ void PeerConnection::processLocalDescription(Description description) {
 				                   << reciprocated.isRemoved();
 
 				        // Create incoming track
-				        auto track =
-				            std::make_shared<Track>(weak_from_this(), std::move(reciprocated));
+				        auto track = std::make_shared<Track>(workarounds::weak_from_this(*this),
+				                                             std::move(reciprocated));
 				        mTracks.emplace(std::make_pair(track->mid(), track));
 				        mTrackLines.emplace_back(track);
 				        triggerTrack(track); // The user may modify the track description
