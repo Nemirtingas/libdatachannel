@@ -106,8 +106,6 @@ auto ThreadPool::schedule(clock::time_point time, F &&f, Args &&...args) noexcep
 	});
 	std::future<R> result = task->get_future();
 
-	mTasks.push(
-	    {time, [task = std::move(task), token = Init::Instance().token()]() { return (*task)(); }});
 	mTasks.push({time, [task = std::move(task)]() { return (*task)(); }});
 	mTasksCondition.notify_one();
 	return result;
