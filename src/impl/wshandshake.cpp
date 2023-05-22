@@ -132,6 +132,9 @@ string WsHandshake::generateHttpError(int responseCode) {
 }
 
 size_t WsHandshake::parseHttpRequest(const byte *buffer, size_t size) {
+	if (!utils::IsHttpRequest(buffer, size))
+		throw RequestError("Invalid HTTP request for WebSocket", 400);
+
 	std::unique_lock<std::mutex> lock(mMutex);
 	std::list<string> lines;
 	size_t length = parseHttpLines(buffer, size, lines);
@@ -264,7 +267,11 @@ std::multimap<string, string> WsHandshake::parseHttpHeaders(const std::list<stri
 		size_t pos = line.find_first_of(':');
 		if (pos != string::npos) {
 			string key = line.substr(0, pos);
-			string value = line.substr(line.find_first_not_of(' ', pos + 1));
+			string value = "";
+			if (size_t subPos = line.find_first_not_of(' ', pos + 1); subPos != string::npos )
+			{
+				value = line.substr(subPos);
+			}
 			std::transform(key.begin(), key.end(), key.begin(),
 			               [](char c) { return std::tolower(c); });
 			headers.emplace(std::move(key), std::move(value));

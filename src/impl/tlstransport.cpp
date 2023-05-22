@@ -201,7 +201,7 @@ void TlsTransport::runRecvLoop() {
 		PLOG_ERROR << "TLS recv: " << e.what();
 	}
 
-	gnutls_bye(mSession, GNUTLS_SHUT_RDWR);
+	gnutls_bye(mSession, GNUTLS_SHUT_WR);
 
 	PLOG_INFO << "TLS closed";
 	changeState(State::Disconnected);
@@ -268,6 +268,12 @@ ssize_t TlsTransport::ReadCallback(gnutls_transport_ptr_t ptr, void *data, size_
 int TlsTransport::TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int ms) {
 	TlsTransport *t = static_cast<TlsTransport *>(ptr);
 	try {
+		message_ptr &message = t->mIncomingMessage;
+		size_t &position = t->mIncomingMessagePosition;
+
+		if(message && position < message->size())
+			return 1;
+
 		bool isReadable = t->mIncomingQueue.wait(
 		    ms != GNUTLS_INDEFINITE_TIMEOUT ? boost::make_optional(milliseconds(ms)) : none);
 		return isReadable ? 1 : 0;
@@ -482,9 +488,11 @@ void TlsTransport::runRecvLoop() {
 
 	if (state() == State::Connected) {
 		PLOG_INFO << "TLS closed";
+		changeState(State::Disconnected);
 		recv(nullptr);
 	} else {
 		PLOG_ERROR << "TLS handshake failed";
+		changeState(State::Failed);
 	}
 }
 

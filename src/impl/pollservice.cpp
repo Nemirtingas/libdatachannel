@@ -52,9 +52,10 @@ void PollService::join() {
 }
 
 void PollService::add(socket_t sock, Params params) {
-	std::unique_lock<std::recursive_mutex> lock(mMutex);
+	assert(sock != INVALID_SOCKET);
 	assert(params.callback);
 
+	std::unique_lock<std::recursive_mutex> lock(mMutex);
 	PLOG_VERBOSE << "Registering socket in poll service, direction=" << params.direction;
 	auto until = params.timeout ? boost::make_optional(clock::now() + *params.timeout) : none;
 	assert(mSocks);
@@ -65,8 +66,9 @@ void PollService::add(socket_t sock, Params params) {
 }
 
 void PollService::remove(socket_t sock) {
-	std::unique_lock<std::recursive_mutex> lock(mMutex);
+	assert(sock != INVALID_SOCKET);
 
+	std::unique_lock<std::recursive_mutex> lock(mMutex);
 	PLOG_VERBOSE << "Unregistering socket in poll service";
 	assert(mSocks);
 	mSocks->erase(sock);
@@ -106,11 +108,13 @@ void PollService::prepare(std::vector<struct pollfd> &pfds, optional<clock::time
 }
 
 void PollService::process(std::vector<struct pollfd> &pfds) {
-	std::unique_lock<std::recursive_mutex> lock(mMutex);
-
 	auto it = pfds.begin();
-	mInterrupter->process(*it++);
+	if (it != pfds.end()) {
+		std::unique_lock lock(mMutex);
+		mInterrupter->process(*it++);
+	}
 	while (it != pfds.end()) {
+		std::unique_lock lock(mMutex);
 		socket_t sock = it->fd;
 		auto jt = mSocks->find(sock);
 		if (jt != mSocks->end()) {
@@ -124,13 +128,14 @@ void PollService::process(std::vector<struct pollfd> &pfds) {
 					mSocks->erase(sock);
 					callback(Event::Error);
 
-				} else if (it->revents & POLLIN || it->revents & POLLOUT) {
+				} else if (it->revents & POLLIN || it->revents & POLLOUT || it->revents & POLLHUP) {
 					entry.until = params.timeout
 					                  ? boost::make_optional(clock::now() + *params.timeout)
 					                  : none;
 
 					auto callback = params.callback;
-					if (it->revents & POLLIN) {
+					if (it->revents & POLLIN ||
+					    it->revents & POLLHUP) { // Windows does not set POLLIN on close
 						PLOG_VERBOSE << "Poll in event";
 						callback(Event::In);
 					}
@@ -185,6 +190,10 @@ void PollService::runLoop() {
 
 			} while (ret < 0 && (sockerrno == SEINTR || sockerrno == SEAGAIN));
 
+#ifdef _WIN32
+			if (ret == WSAENOTSOCK)
+				continue; // prepare again as the fd has been removed
+#endif
 			if (ret < 0)
 				throw std::runtime_error("poll failed, errno=" + std::to_string(sockerrno));
 
