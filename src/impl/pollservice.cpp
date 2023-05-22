@@ -110,11 +110,11 @@ void PollService::prepare(std::vector<struct pollfd> &pfds, optional<clock::time
 void PollService::process(std::vector<struct pollfd> &pfds) {
 	auto it = pfds.begin();
 	if (it != pfds.end()) {
-		std::unique_lock lock(mMutex);
+		std::unique_lock<std::recursive_mutex> lock(mMutex);
 		mInterrupter->process(*it++);
 	}
 	while (it != pfds.end()) {
-		std::unique_lock lock(mMutex);
+		std::unique_lock<std::recursive_mutex> lock(mMutex);
 		socket_t sock = it->fd;
 		auto jt = mSocks->find(sock);
 		if (jt != mSocks->end()) {

@@ -133,7 +133,7 @@ std::seed_seq* random_seed() {
 bool IsHttpRequest(const byte *buffer, size_t size) {
 	// Check the buffer starts with a valid-looking HTTP method
 	for (size_t i = 0; i < size; ++i) {
-		char c = static_cast<char>(buffer[i]);
+		char c = static_cast<char>(buffer[i].v);
 		if (i > 0 && c == ' ')
 			break;
 		else if (i >= 8 || c < 'A' || c > 'Z')
