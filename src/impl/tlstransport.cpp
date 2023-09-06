@@ -27,7 +27,7 @@ void TlsTransport::enqueueRecv() {
 	if (mPendingRecvCount > 0)
 		return;
 
-	if (auto shared_this = weak_from_this().lock()) {
+	if (auto shared_this = workarounds::weak_from_this(*this).lock()) {
 		++mPendingRecvCount;
 		ThreadPool::Instance().enqueue(&TlsTransport::doRecv, std::move(shared_this));
 	}
@@ -63,9 +63,21 @@ void TlsTransport::Cleanup() {
 TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>> lower,
                            optional<string> host, certificate_ptr certificate,
                            state_callback callback)
-    : Transport(std::visit([](auto l) { return std::static_pointer_cast<Transport>(l); }, lower),
+    : Transport(boost::apply_visitor(rtc::make_visitor(
+                                         [](shared_ptr<TcpTransport> l) {
+	                                         return std::static_pointer_cast<Transport>(l);
+                                         },
+                                         [](shared_ptr<HttpProxyTransport> l) {
+	                                         return std::static_pointer_cast<Transport>(l);
+                                         }),
+                                     lower),
                 std::move(callback)),
-      mHost(std::move(host)), mIsClient(std::visit([](auto l) { return l->isActive(); }, lower)),
+      mHost(std::move(host)),
+      mIsClient(boost::apply_visitor(
+          rtc::make_visitor([](shared_ptr<TcpTransport> l) { return l->isActive(); },
+                            [](shared_ptr<HttpProxyTransport> l) { return l->isActive(); }),
+          lower)),
+      mPendingRecvCount(0),
       mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
 
 	PLOG_DEBUG << "Initializing TLS transport (GnuTLS)";
@@ -315,9 +327,21 @@ void TlsTransport::Cleanup() {
 TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>> lower,
                            optional<string> host, certificate_ptr certificate,
                            state_callback callback)
-    : Transport(std::visit([](auto l) { return std::static_pointer_cast<Transport>(l); }, lower),
+    : Transport(boost::apply_visitor(rtc::make_visitor(
+                                         [](shared_ptr<TcpTransport> l) {
+	                                         return std::static_pointer_cast<Transport>(l);
+                                         },
+                                         [](shared_ptr<HttpProxyTransport> l) {
+	                                         return std::static_pointer_cast<Transport>(l);
+                                         }),
+                                     lower),
                 std::move(callback)),
-      mHost(std::move(host)), mIsClient(std::visit([](auto l) { return l->isActive(); }, lower)),
+      mHost(std::move(host)),
+      mIsClient(boost::apply_visitor(
+          rtc::make_visitor([](shared_ptr<TcpTransport> l) { return l->isActive(); },
+                            [](shared_ptr<HttpProxyTransport> l) { return l->isActive(); }),
+          lower)),
+      mPendingRecvCount(0),
       mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
 
 	PLOG_DEBUG << "Initializing TLS transport (MbedTLS)";
@@ -555,9 +579,19 @@ void TlsTransport::Cleanup() {
 TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>> lower,
                            optional<string> host, certificate_ptr certificate,
                            state_callback callback)
-    : Transport(std::visit([](auto l) { return std::static_pointer_cast<Transport>(l); }, lower),
+    : Transport(boost::apply_visitor(
+              rtc::make_visitor(
+				  [](shared_ptr<TcpTransport> l) { return std::static_pointer_cast<Transport>(l); },
+				  [](shared_ptr<HttpProxyTransport> l) { return std::static_pointer_cast<Transport>(l); }
+				), lower),
                 std::move(callback)),
-      mHost(std::move(host)), mIsClient(std::visit([](auto l) { return l->isActive(); }, lower)),
+      mHost(std::move(host)),
+      mIsClient(boost::apply_visitor(
+		  rtc::make_visitor(
+				[](shared_ptr<TcpTransport> l) { return l->isActive(); },
+				[](shared_ptr<HttpProxyTransport> l) { return l->isActive(); }
+		  ), lower)),
+      mPendingRecvCount(0),
       mIncomingQueue(RECV_QUEUE_LIMIT, message_size_func) {
 
 	PLOG_DEBUG << "Initializing TLS transport (OpenSSL)";
@@ -645,7 +679,7 @@ void TlsTransport::start() {
 	// Initiate the handshake
 	int ret, err;
 	{
-		std::lock_guard lock(mSslMutex);
+		std::lock_guard<std::mutex> lock(mSslMutex);
 		ret = SSL_do_handshake(mSsl);
 		err = SSL_get_error(mSsl, ret);
 		flushOutput();
@@ -673,7 +707,7 @@ bool TlsTransport::send(message_ptr message) {
 	int err;
 	bool result;
 	{
-		std::lock_guard lock(mSslMutex);
+		std::lock_guard<std::mutex> lock(mSslMutex);
 		int ret = SSL_write(mSsl, message->data(), int(message->size()));
 		err = SSL_get_error(mSsl, ret);
 		result = flushOutput();
@@ -704,7 +738,7 @@ void TlsTransport::postHandshake() {
 }
 
 void TlsTransport::doRecv() {
-	std::lock_guard lock(mRecvMutex);
+	std::lock_guard<std::mutex> lock(mRecvMutex);
 	--mPendingRecvCount;
 
 	if (state() != State::Connecting && state() != State::Connected)
@@ -730,7 +764,7 @@ void TlsTransport::doRecv() {
 				// Continue the handshake
 				int ret, err;
 				{
-					std::lock_guard lock(mSslMutex);
+					std::lock_guard<std::mutex> lock(mSslMutex);
 					ret = SSL_do_handshake(mSsl);
 					err = SSL_get_error(mSsl, ret);
 					flushOutput();
@@ -747,7 +781,7 @@ void TlsTransport::doRecv() {
 				int ret, err;
 				while (true) {
 					{
-						std::lock_guard lock(mSslMutex);
+						std::lock_guard<std::mutex> lock(mSslMutex);
 						ret = SSL_read(mSsl, buffer, bufferSize);
 						err = SSL_get_error(mSsl, ret);
 						flushOutput(); // SSL_read() can also cause write operations
@@ -769,7 +803,7 @@ void TlsTransport::doRecv() {
 			}
 		}
 
-		std::lock_guard lock(mSslMutex);
+		std::lock_guard<std::mutex> lock(mSslMutex);
 		SSL_shutdown(mSsl);
 
 	} catch (const std::exception &e) {

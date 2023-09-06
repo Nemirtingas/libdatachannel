@@ -33,7 +33,7 @@ void DtlsTransport::enqueueRecv() {
 	if (mPendingRecvCount > 0)
 		return;
 
-	if (auto shared_this = weak_from_this().lock()) {
+	if (auto shared_this = workarounds::weak_from_this(*this).lock()) {
 		++mPendingRecvCount;
 		ThreadPool::Instance().enqueue(&DtlsTransport::doRecv, std::move(shared_this));
 	}
@@ -52,7 +52,8 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
       mVerifierCallback(std::move(verifierCallback)),
-      mIsClient(lower->role() == Description::Role::Active), mStarted(false), mCurrentDscp(0),
+      mIsClient(lower->role() == Description::Role::Active), mStarted(false), mPendingRecvCount(0),
+      mCurrentDscp(0),
       mOutgoingResult(true) {
 
 	PLOG_DEBUG << "Initializing DTLS transport (GnuTLS)";
@@ -200,7 +201,7 @@ void DtlsTransport::doRecv() {
 				if (ret == GNUTLS_E_AGAIN) {
 					// Schedule next call on timeout and return
 					auto timeout = milliseconds(gnutls_dtls_get_timeout(mSession));
-					ThreadPool::Instance().schedule(timeout, [weak_this = weak_from_this()]() {
+					ThreadPool::Instance().schedule(timeout, [weak_this = workarounds::weak_from_this(*this)]() {
 						if (auto locked = weak_this.lock())
 							locked->doRecv();
 					});
@@ -542,7 +543,7 @@ void DtlsTransport::doRecv() {
 
 				if (ret == MBEDTLS_ERR_SSL_WANT_READ) {
 					ThreadPool::Instance().schedule(mTimerSetAt + milliseconds(mFinMs),
-					                                [weak_this = weak_from_this()]() {
+					                                [weak_this = workarounds::weak_from_this(*this)]() {
 						                                if (auto locked = weak_this.lock())
 							                                locked->doRecv();
 					                                });
@@ -730,7 +731,7 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
                              state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
       mVerifierCallback(std::move(verifierCallback)),
-      mIsClient(lower->role() == Description::Role::Active), mStarted(false), mCurrentDscp(0),
+      mIsClient(lower->role() == Description::Role::Active), mPendingRecvCount(0), mCurrentDscp(0),
       mOutgoingResult(true) {
 	PLOG_DEBUG << "Initializing DTLS transport (OpenSSL)";
 
@@ -837,7 +838,7 @@ void DtlsTransport::start() {
 
 	int ret, err;
 	{
-		std::lock_guard lock(mSslMutex);
+		std::lock_guard<std::mutex> lock(mSslMutex);
 
 		size_t mtu = mMtu.value_or(DEFAULT_MTU) - 8 - 40; // UDP/IPv6
 		SSL_set_mtu(mSsl, static_cast<unsigned int>(mtu));
@@ -868,7 +869,7 @@ bool DtlsTransport::send(message_ptr message) {
 
 	int ret, err;
 	{
-		std::lock_guard lock(mSslMutex);
+		std::lock_guard<std::mutex> lock(mSslMutex);
 		mCurrentDscp = message->dscp;
 		ret = SSL_write(mSsl, message->data(), int(message->size()));
 		err = SSL_get_error(mSsl, ret);
@@ -910,7 +911,7 @@ void DtlsTransport::postHandshake() {
 }
 
 void DtlsTransport::doRecv() {
-	std::lock_guard lock(mRecvMutex);
+	std::lock_guard<std::mutex> lock(mRecvMutex);
 	--mPendingRecvCount;
 
 	if (state() != State::Connecting && state() != State::Connected)
@@ -941,7 +942,7 @@ void DtlsTransport::doRecv() {
 				// Continue the handshake
 				int ret, err;
 				{
-					std::lock_guard lock(mSslMutex);
+					std::lock_guard<std::mutex> lock(mSslMutex);
 					ret = SSL_do_handshake(mSsl);
 					err = SSL_get_error(mSsl, ret);
 				}
@@ -950,7 +951,7 @@ void DtlsTransport::doRecv() {
 					// RFC 8261: DTLS MUST support sending messages larger than the current path MTU
 					// See https://www.rfc-editor.org/rfc/rfc8261.html#section-5
 					{
-						std::lock_guard lock(mSslMutex);
+						std::lock_guard<std::mutex> lock(mSslMutex);
 						SSL_set_mtu(mSsl, bufferSize + 1);
 					}
 
@@ -963,7 +964,7 @@ void DtlsTransport::doRecv() {
 			if (state() == State::Connected) {
 				int ret, err;
 				{
-					std::lock_guard lock(mSslMutex);
+					std::lock_guard<std::mutex> lock(mSslMutex);
 					ret = SSL_read(mSsl, buffer, bufferSize);
 					err = SSL_get_error(mSsl, ret);
 				}
@@ -978,7 +979,7 @@ void DtlsTransport::doRecv() {
 			}
 		}
 
-		std::lock_guard lock(mSslMutex);
+		std::lock_guard<std::mutex> lock(mSslMutex);
 		SSL_shutdown(mSsl);
 
 	} catch (const std::exception &e) {
@@ -996,7 +997,7 @@ void DtlsTransport::doRecv() {
 }
 
 void DtlsTransport::handleTimeout() {
-	std::lock_guard lock(mSslMutex);
+	std::lock_guard<std::mutex> lock(mSslMutex);
 
 	// Warning: This function breaks the usual return value convention
 	int ret = DTLSv1_handle_timeout(mSsl);
@@ -1017,7 +1018,7 @@ void DtlsTransport::handleTimeout() {
 			throw std::runtime_error("Handshake timeout");
 
 		LOG_VERBOSE << "DTLS retransmit timeout is " << timeout.count() << "ms";
-		ThreadPool::Instance().schedule(timeout, [weak_this = weak_from_this()]() {
+		ThreadPool::Instance().schedule(timeout, [weak_this = workarounds::weak_from_this(*this)]() {
 			if (auto locked = weak_this.lock())
 				locked->doRecv();
 		});

@@ -21,7 +21,7 @@ namespace rtc {
 class RTC_CPP_EXPORT AACRtpPacketizer final : public RtpPacketizer, public MediaHandlerRootElement {
 public:
 	/// default clock rate used in aac RTP communication
-	inline static const uint32_t defaultClockRate = 48 * 1000;
+	static const uint32_t defaultClockRate = 48 * 1000;
 
 	/// Constructs aac packetizer with given RTP configuration.
 	/// @note RTP configuration is used in packetization process which may change some configuration

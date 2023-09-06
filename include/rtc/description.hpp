@@ -245,10 +245,10 @@ public:
 		void addVideoCodec(int payloadType, string codec, optional<string> profile = none);
 
 		void addH264Codec(int payloadType, optional<string> profile = DEFAULT_H264_VIDEO_PROFILE);
-		void addH265Codec(int payloadType, optional<string> profile = std::nullopt);
-		void addVP8Codec(int payloadType, optional<string> profile = std::nullopt);
-		void addVP9Codec(int payloadType, optional<string> profile = std::nullopt);
-		void addAV1Codec(int payloadType, optional<string> profile = std::nullopt);
+		void addH265Codec(int payloadType, optional<string> profile = boost::none);
+		void addVP8Codec(int payloadType, optional<string> profile = boost::none);
+		void addVP9Codec(int payloadType, optional<string> profile = boost::none);
+		void addAV1Codec(int payloadType, optional<string> profile = boost::none);
 	};
 
 	bool hasApplication() const;

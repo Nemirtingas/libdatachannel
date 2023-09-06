@@ -456,7 +456,9 @@ void PeerConnection::forwardMessage(message_ptr message) {
 		return;
 
 	const uint16_t stream = uint16_t(message->stream);
-	auto [channel, found] = findDataChannel(stream);
+	auto dataChannel = findDataChannel(stream);
+	auto &channel = dataChannel.first;
+	auto &found = dataChannel.second;
 
 	if (DataChannel::IsOpenMessage(message)) {
 		if (found) {
@@ -602,7 +604,10 @@ void PeerConnection::forwardMedia(message_ptr message) {
 }
 
 void PeerConnection::forwardBufferedAmount(uint16_t stream, size_t amount) {
-	[[maybe_unused]] auto [channel, found] = findDataChannel(stream);
+	auto dataChannel = findDataChannel(stream);
+	auto &channel = dataChannel.first;
+	auto &found = dataChannel.second;
+
 	if (channel)
 		channel->triggerBufferedAmount(amount);
 }
@@ -655,7 +660,7 @@ std::pair<shared_ptr<DataChannel>, bool> PeerConnection::findDataChannel(uint16_
 }
 
 bool PeerConnection::removeDataChannel(uint16_t stream) {
-	std::unique_lock lock(mDataChannelsMutex); // we are going to erase
+	std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to erase
 	return mDataChannels.erase(stream) != 0;
 }
 

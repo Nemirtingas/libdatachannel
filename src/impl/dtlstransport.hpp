@@ -58,7 +58,7 @@ protected:
 	const bool mIsClient;
 
 	Queue<message_ptr> mIncomingQueue;
-	std::atomic<int> mPendingRecvCount = 0;
+	std::atomic<int> mPendingRecvCount;
 	std::mutex mRecvMutex;
 	std::atomic<unsigned int> mCurrentDscp;
 	std::atomic<bool> mOutgoingResult;

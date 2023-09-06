@@ -297,7 +297,11 @@ void DtlsSrtpTransport::postHandshake() {
 
 	PLOG_DEBUG << "SRTP profile is: " << profile->name;
 
-	const auto [srtpProfile, keySize, saltSize] = getProfileParamsFromName(profile->name);
+	const auto profileParamsFromName = getProfileParamsFromName(profile->name);
+	auto &srtpProfile = profileParamsFromName.srtpProfile;
+	auto &keySize = profileParamsFromName.keySize;
+	auto &saltSize = profileParamsFromName.saltSize;
+
 	const size_t keySizeWithSalt = keySize + saltSize;
 
 	// The extractor provides the client write master key, the server write master key, the client
@@ -321,13 +325,11 @@ void DtlsSrtpTransport::postHandshake() {
 
 	mClientSessionKey.resize(keySizeWithSalt);
 	mServerSessionKey.resize(keySizeWithSalt);
-	std::memcpy(mClientSessionKey.data(), clientKey, encryptionParams.keySize);
-	std::memcpy(mClientSessionKey.data() + encryptionParams.keySize, clientSalt,
-	            encryptionParams.saltSize);
+	std::memcpy(mClientSessionKey.data(), clientKey, keySize);
+	std::memcpy(mClientSessionKey.data() + keySize, clientSalt, saltSize);
 
-	std::memcpy(mServerSessionKey.data(), serverKey, encryptionParams.keySize);
-	std::memcpy(mServerSessionKey.data() + encryptionParams.keySize, serverSalt,
-	            encryptionParams.saltSize);
+	std::memcpy(mServerSessionKey.data(), serverKey, keySize);
+	std::memcpy(mServerSessionKey.data() + keySize, serverSalt, saltSize);
 
 	srtp_policy_t inbound = {};
 	srtp_crypto_policy_set_from_profile_for_rtp(&inbound.rtp, srtpProfile);

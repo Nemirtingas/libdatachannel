@@ -25,7 +25,7 @@ class RTC_CPP_EXPORT H265RtpPacketizer final : public RtpPacketizer,
 
 public:
 	/// Default clock rate for H265 in RTP
-	inline static const uint32_t defaultClockRate = 90 * 1000;
+	static const uint32_t defaultClockRate = 90 * 1000;
 
 	H265RtpPacketizer(NalUnit::Separator separator, shared_ptr<RtpPacketizationConfig> rtpConfig,
 	                  uint16_t maximumFragmentSize = H265NalUnits::defaultMaximumFragmentSize);

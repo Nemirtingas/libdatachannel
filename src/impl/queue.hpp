@@ -103,7 +103,7 @@ template <typename T> void Queue<T>::push(T element) {
 template <typename T> optional<T> Queue<T>::pop() {
 	std::unique_lock<std::mutex> lock(mMutex);
 	if (mQueue.empty())
-		return nullopt;
+		return boost::none;
 
 	mAmount -= mAmountFunction(mQueue.front());
 	optional<T> element{std::move(mQueue.front())};

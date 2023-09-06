@@ -144,7 +144,7 @@ void RtpExtensionHeader::writeOneByteHeader(size_t offset, uint8_t id, const byt
 
 void RtpExtensionHeader::writeCurrentVideoOrientation(size_t offset, const uint8_t id,
                                                       uint8_t value) {
-	auto v = std::byte{value};
+	auto v = nonstd::byte{value};
 	writeOneByteHeader(offset, id, &v, 1);
 }
 

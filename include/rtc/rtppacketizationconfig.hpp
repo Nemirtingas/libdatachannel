@@ -54,11 +54,11 @@ public:
 	uint8_t videoOrientation;
 
 	// MID Extension Header
-	uint8_t midId = 0;
+	uint8_t midId;
 	optional<std::string> mid;
 
 	// RID Extension Header
-	uint8_t ridId = 0;
+	uint8_t ridId;
 	optional<std::string> rid;
 
 	/// Construct RTP configuration used in packetization process

@@ -24,7 +24,7 @@ class RTC_CPP_EXPORT AV1RtpPacketizer final : public RtpPacketizer, public Media
 
 public:
 	/// Default clock rate for AV1 in RTP
-	inline static const uint32_t defaultClockRate = 90 * 1000;
+	static const uint32_t defaultClockRate = 90 * 1000;
 
 	// Define how OBUs are seperated in a AV1 Sample
 	enum class Packetization {

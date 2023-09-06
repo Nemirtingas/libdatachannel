@@ -94,7 +94,7 @@ void test_track() {
 	Description::Video media(newTrackMid, Description::Direction::SendOnly);
 	media.addH264Codec(96);
 	media.setBitrate(3000);
-	media.addSSRC(1234, "video-send");
+	media.addSSRC(1234, std::string("video-send"));
 
 	auto t1 = pc1.addTrack(media);
 
@@ -118,7 +118,7 @@ void test_track() {
 	Description::Video media2(newTrackMid, Description::Direction::SendOnly);
 	media2.addH264Codec(96);
 	media2.setBitrate(3000);
-	media2.addSSRC(2468, "video-send");
+	media2.addSSRC(2468, std::string("video-send"));
 
 	// NOTE: Overwriting the old shared_ptr for t1 will cause it's respective
 	//       track to be dropped (so it's SSRCs won't be on the description next time)

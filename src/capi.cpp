@@ -1100,8 +1100,8 @@ int rtcAddTrackEx(int pc, const rtcTrackInit *init) {
 				break;
 			case RTC_CODEC_AAC:
 				desc.addAacCodec(init->payloadType, init->profile
-				                                        ? std::make_optional(string(init->profile))
-				                                        : nullopt);
+				                                        ? boost::make_optional(string(init->profile))
+				                                        : boost::none);
 				break;
 			default:
 				break;

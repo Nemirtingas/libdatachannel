@@ -53,7 +53,7 @@ protected:
 	const bool mIsClient;
 
 	Queue<message_ptr> mIncomingQueue;
-	std::atomic<int> mPendingRecvCount = 0;
+	std::atomic<int> mPendingRecvCount;
 	std::mutex mRecvMutex;
 
 #if USE_GNUTLS

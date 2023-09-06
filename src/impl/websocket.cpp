@@ -153,12 +153,12 @@ size_t WebSocket::maxMessageSize() const { return DEFAULT_MAX_MESSAGE_SIZE; }
 
 optional<message_variant> WebSocket::receive() {
 	auto next = mRecvQueue.pop();
-	return next ? std::make_optional(to_variant(std::move(**next))) : nullopt;
+	return next ? boost::make_optional(to_variant(std::move(**next))) : boost::none;
 }
 
 optional<message_variant> WebSocket::peek() {
 	auto next = mRecvQueue.peek();
-	return next ? std::make_optional(to_variant(std::move(**next))) : nullopt;
+	return next ? boost::make_optional(to_variant(std::move(**next))) : boost::none;
 }
 
 size_t WebSocket::availableAmount() const { return mRecvQueue.amount(); }
@@ -274,7 +274,7 @@ shared_ptr<HttpProxyTransport> WebSocket::initProxyTransport() {
 		if (!lower)
 			throw std::logic_error("No underlying TCP transport for Proxy transport");
 
-		auto stateChangeCallback = [this, weak_this = weak_from_this()](State transportState) {
+		auto stateChangeCallback = [this, weak_this = workarounds::weak_from_this(*this)](State transportState) {
 			auto shared_this = weak_this.lock();
 			if (!shared_this)
 				return;
@@ -509,7 +509,7 @@ void WebSocket::scheduleConnectionTimeout() {
 	auto defaultTimeout = 30s;
 	auto timeout = config.connectionTimeout.value_or(milliseconds(defaultTimeout));
 	if (timeout > milliseconds::zero()) {
-		ThreadPool::Instance().schedule(timeout, [weak_this = weak_from_this()]() {
+		ThreadPool::Instance().schedule(timeout, [weak_this = workarounds::weak_from_this(*this)]() {
 			if (auto locked = weak_this.lock()) {
 				if (locked->state == WebSocket::State::Connecting) {
 					PLOG_WARNING << "WebSocket connection timed out";

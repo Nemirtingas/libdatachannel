@@ -76,7 +76,7 @@ binary_ptr RtpPacketizer::packetize(shared_ptr<binary> payload, bool setMark) {
 		if (rtpConfig->mid.has_value()) {
 			extHeader->writeOneByteHeader(
 			    offset, rtpConfig->midId,
-			    reinterpret_cast<const std::byte *>(rtpConfig->mid->c_str()),
+			    reinterpret_cast<const nonstd::byte *>(rtpConfig->mid->c_str()),
 			    rtpConfig->mid->length());
 			offset += (1 + rtpConfig->mid->length());
 		}
@@ -84,7 +84,7 @@ binary_ptr RtpPacketizer::packetize(shared_ptr<binary> payload, bool setMark) {
 		if (rtpConfig->rid.has_value()) {
 			extHeader->writeOneByteHeader(
 			    offset, rtpConfig->ridId,
-			    reinterpret_cast<const std::byte *>(rtpConfig->rid->c_str()),
+			    reinterpret_cast<const nonstd::byte *>(rtpConfig->rid->c_str()),
 			    rtpConfig->rid->length());
 		}
 	}

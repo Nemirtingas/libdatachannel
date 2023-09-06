@@ -65,7 +65,7 @@ std::vector<binary_ptr> extractTemporalUnitObus(binary_ptr message) {
 				break;
 			}
 
-			auto leb128_byte = uint8_t(message->at(leb128Index));
+			auto leb128_byte = uint8_t(message->at(leb128Index).v);
 
 			obuLength |= ((leb128_byte & sevenLsbBitmask) << (leb128Size * 7));
 			leb128Size++;

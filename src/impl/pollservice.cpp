@@ -109,7 +109,7 @@ void PollService::prepare(std::vector<struct pollfd> &pfds, optional<clock::time
 }
 
 void PollService::process(std::vector<struct pollfd> &pfds) {
-	std::unique_lock lock(mMutex);
+	std::unique_lock<std::recursive_mutex> lock(mMutex);
 	auto it = pfds.begin();
 	if (it != pfds.end()) {
 		mInterrupter->process(*it++);

@@ -17,7 +17,7 @@ namespace rtc {
 AACRtpPacketizer::AACRtpPacketizer(shared_ptr<RtpPacketizationConfig> rtpConfig)
     : RtpPacketizer(rtpConfig), MediaHandlerRootElement() {}
 
-binary_ptr AACRtpPacketizer::packetize(binary_ptr payload, [[maybe_unused]] bool setMark) {
+binary_ptr AACRtpPacketizer::packetize(binary_ptr payload, bool setMark) {
 	assert(!setMark);
 	return RtpPacketizer::packetize(payload, false);
 }

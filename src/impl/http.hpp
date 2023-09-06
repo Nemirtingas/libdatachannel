@@ -14,7 +14,8 @@
 #include <list>
 #include <map>
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 // Check the buffer contains the beginning of an HTTP request
 bool isHttpRequest(const byte *buffer, size_t size);
@@ -25,6 +26,7 @@ size_t parseHttpLines(const byte *buffer, size_t size, std::list<string> &lines)
 // Parse headers of a http message
 std::multimap<string, string> parseHttpHeaders(const std::list<string> &lines);
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif

@@ -53,8 +53,9 @@ WsTransport::WsTransport(
 		mHandshake(std::move(handshake)),
 		mIsClient(boost::apply_visitor(
 			rtc::make_visitor(
-				[](shared_ptr<TcpTransport> l) { return l->isActive(); },
-				[](shared_ptr<TlsTransport> l) { return l->isClient(); }
+				[](shared_ptr<TcpTransport> l)       { return l->isActive(); },
+				[](shared_ptr<HttpProxyTransport> l) { return l->isActive(); },
+				[](shared_ptr<TlsTransport> l)       { return l->isClient(); }
 			),
             lower)
 		),

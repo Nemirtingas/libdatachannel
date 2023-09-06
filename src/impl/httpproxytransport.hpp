@@ -15,7 +15,8 @@
 
 #if RTC_ENABLE_WEBSOCKET
 
-namespace rtc::impl {
+namespace rtc {
+namespace impl {
 
 class TcpTransport;
 
@@ -36,14 +37,15 @@ private:
 	void incoming(message_ptr message) override;
 	bool sendHttpRequest();
 	string generateHttpRequest();
-	size_t parseHttpResponse(std::byte *buffer, size_t size);
+	size_t parseHttpResponse(nonstd::byte *buffer, size_t size);
 
 	string mHostname;
 	string mService;
 	binary mBuffer;
 };
 
-} // namespace rtc::impl
+} // namespace impl
+} // namespace rtc
 
 #endif
 

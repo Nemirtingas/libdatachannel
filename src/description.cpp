@@ -1172,7 +1172,7 @@ void Description::Audio::addAacCodec(int payloadType, optional<string> profile) 
 	if (profile) {
 		addAudioCodec(payloadType, "MP4A-LATM", profile);
 	} else {
-		addAudioCodec(payloadType, "MP4A-LATM", "cpresent=1");
+		addAudioCodec(payloadType, "MP4A-LATM", std::string("cpresent=1"));
 	}
 }
 

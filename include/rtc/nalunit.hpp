@@ -102,9 +102,9 @@ struct RTC_CPP_EXPORT NalUnit : binary {
 	};
 
 	static NalUnitStartSequenceMatch StartSequenceMatchSucc(NalUnitStartSequenceMatch match,
-	                                                        std::byte _byte, Separator separator) {
+	                                                        nonstd::byte _byte, Separator separator) {
 		assert(separator != Separator::Length);
-		auto byte = (uint8_t)_byte;
+		auto byte = (uint8_t)_byte.v;
 		auto detectShort =
 		    separator == Separator::ShortStartSequence || separator == Separator::StartSequence;
 		auto detectLong =
