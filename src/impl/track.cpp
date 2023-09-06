@@ -21,17 +21,22 @@ static LogCounter COUNTER_QUEUE_FULL(plog::warning,
                                      "Number of media packets dropped due to a full queue");
 
 Track::Track(weak_ptr<PeerConnection> pc, Description::Media description)
-    : mPeerConnection(pc),
-      mMediaDescription(std::move(description)),
+    : mPeerConnection(pc), mMediaDescription(std::move(description)),
       mIsClosed (false),
-      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func)
-{
+      mRecvQueue(RECV_QUEUE_LIMIT, [](const message_ptr &m) { return m->size(); }) {
+
+	// Discard messages by default if track is send only
+	if (mMediaDescription.direction() == Description::Direction::SendOnly)
+		messageCallback = [](message_variant) {};
 }
 
 Track::~Track() {
 	PLOG_VERBOSE << "Destroying Track";
-
-	close();
+	try {
+		close();
+	} catch (const std::exception &e) {
+		PLOG_ERROR << e.what();
+	}
 }
 
 string Track::mid() const {
@@ -68,7 +73,7 @@ void Track::close() {
 }
 
 optional<message_variant> Track::receive() {
-	if (auto next = mRecvQueue.tryPop()) {
+	if (auto next = mRecvQueue.pop()) {
 		message_ptr message = *next;
 		if (message->type == Message::Control)
 			return to_variant(**next); // The same message may be frowarded into multiple Tracks
@@ -201,11 +206,12 @@ bool Track::transportSend(message_ptr message) {
 }
 
 void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
+	auto currentHandler = getMediaHandler();
+	if (currentHandler)
+		currentHandler->onOutgoing(nullptr);
+
 	{
 		std::unique_lock<boost::shared_mutex> lock(mMutex);
-		if (mMediaHandler)
-			mMediaHandler->onOutgoing(nullptr);
-
 		mMediaHandler = handler;
 	}
 

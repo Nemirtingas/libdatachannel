@@ -82,8 +82,11 @@ DataChannel::DataChannel(weak_ptr<PeerConnection> pc, string label, string proto
 
 DataChannel::~DataChannel() {
 	PLOG_VERBOSE << "Destroying DataChannel";
-
-	close();
+	try {
+		close();
+	} catch (const std::exception &e) {
+		PLOG_ERROR << e.what();
+	}
 }
 
 void DataChannel::close() {
@@ -95,23 +98,20 @@ void DataChannel::close() {
 		transport = mSctpTransport.lock();
 	}
 
-	if (mIsOpen.exchange(false) && transport && mStream.has_value())
-		transport->closeStream(mStream.value());
+	if (!mIsClosed.exchange(true)) {
+		if (transport && mStream.has_value())
+			transport->closeStream(mStream.value());
 
-	if (!mIsClosed.exchange(true))
 		triggerClosed();
+	}
 
 	resetCallbacks();
 }
 
-void DataChannel::remoteClose() {
-	mIsOpen = false;
-	if (!mIsClosed.exchange(true))
-		triggerClosed();
-}
+void DataChannel::remoteClose() { close(); }
 
 optional<message_variant> DataChannel::receive() {
-	auto next = mRecvQueue.tryPop();
+	auto next = mRecvQueue.pop();
 	return next ? boost::make_optional(to_variant(std::move(**next))) : none;
 }
 
@@ -142,7 +142,7 @@ Reliability DataChannel::reliability() const {
 	return *mReliability;
 }
 
-bool DataChannel::isOpen(void) const { return mIsOpen; }
+bool DataChannel::isOpen(void) const { return !mIsClosed && mIsOpen; }
 
 bool DataChannel::isClosed(void) const { return mIsClosed; }
 

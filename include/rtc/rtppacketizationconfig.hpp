@@ -18,7 +18,7 @@ namespace rtc {
 // RTP configuration used in packetization process
 class RTC_CPP_EXPORT RtpPacketizationConfig {
 public:
-	const SSRC ssrc;
+	SSRC ssrc;
 	const std::string cname;
 	const uint8_t payloadType;
 	const uint32_t clockRate;
@@ -53,6 +53,14 @@ public:
 	///   3 - 270 degrees
 	uint8_t videoOrientation;
 
+	// MID Extension Header
+	uint8_t midId = 0;
+	optional<std::string> mid;
+
+	// RID Extension Header
+	uint8_t ridId = 0;
+	optional<std::string> rid;
+
 	/// Construct RTP configuration used in packetization process
 	/// @param ssrc SSRC of source
 	/// @param cname CNAME of source
@@ -82,15 +90,6 @@ public:
 	/// Convert seconds to timestamp
 	/// @param seconds Number of seconds
 	uint32_t secondsToTimestamp(double seconds);
-
-	// deprecated, do not use
-	double startTime;
-	enum class EpochStart : uint64_t {
-		T1970 = 2208988800, // number of seconds between 1970 and 1900
-		T1900 = 0
-	};
-	[[deprecated]] void setStartTime(double startTime, EpochStart epochStart,
-	                                 optional<uint32_t> startTimestamp = boost::none);
 };
 
 } // namespace rtc

@@ -16,6 +16,8 @@ namespace rtc {
 Track::Track(impl_ptr<impl::Track> impl)
     : CheshireCat<impl::Track>(impl), Channel(std::dynamic_pointer_cast<impl::Channel>(impl)) {}
 
+Track::~Track() {}
+
 string Track::mid() const { return impl()->mid(); }
 
 Description::Direction Track::direction() const { return impl()->direction(); }
@@ -43,9 +45,12 @@ void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
 }
 
 bool Track::requestKeyframe() {
-	if (auto handler = impl()->getMediaHandler())
-		return handler->requestKeyframe();
-
+	// only push PLI for video
+	if (description().type() == "video") {
+		if (auto handler = impl()->getMediaHandler()) {
+			return handler->requestKeyframe();
+		}
+	}
 	return false;
 }
 

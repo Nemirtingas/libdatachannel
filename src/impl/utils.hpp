@@ -13,6 +13,7 @@
 
 #include <climits>
 #include <limits>
+#include <map>
 #include <random>
 #include <vector>
 
@@ -33,9 +34,6 @@ string base64_encode(const binary &data);
 
 // Return a random seed sequence
 std::seed_seq* random_seed();
-
-// Check the buffer contains the beginning of an HTTP request
-bool IsHttpRequest(const byte *buffer, size_t size);
 
 template <typename Generator, typename Result = typename Generator::result_type>
 struct random_engine_wrapper {
@@ -70,6 +68,12 @@ template <typename Generator = std::mt19937> auto random_bytes_engine() {
 	static_assert(char_independent_bits_engine::max() == std::numeric_limits<uint8_t>::max());
 	return random_engine<char_independent_bits_engine, uint8_t>();
 }
+
+namespace this_thread {
+
+void set_name(const string &name);
+
+} // namespace this_thread
 
 } // namespace utils
 } // namespace impl

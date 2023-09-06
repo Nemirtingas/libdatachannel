@@ -327,7 +327,7 @@ public:
 			return msg;
 		}
 
-		auto res = incomingCallback(reinterpret_cast<void *>(msg->data()), msg->size());
+		auto res = incomingCallback(reinterpret_cast<void *>(msg->data()), int(msg->size()));
 
 		// If a null pointer was returned, drop the incoming message
 		if (res == nullptr) {
@@ -510,6 +510,20 @@ int rtcSetStateChangeCallback(int pc, rtcStateChangeCallbackFunc cb) {
 			});
 		else
 			peerConnection->onStateChange(nullptr);
+		return RTC_ERR_SUCCESS;
+	});
+}
+
+int rtcSetIceStateChangeCallback(int pc, rtcIceStateChangeCallbackFunc cb) {
+	return wrap([&] {
+		auto peerConnection = getPeerConnection(pc);
+		if (cb)
+			peerConnection->onIceStateChange([pc, cb](PeerConnection::IceState state) {
+				if (auto ptr = getUserPointer(pc))
+					cb(pc, static_cast<rtcIceState>(state), *ptr);
+			});
+		else
+			peerConnection->onIceStateChange(nullptr);
 		return RTC_ERR_SUCCESS;
 	});
 }
@@ -1025,13 +1039,15 @@ int rtcAddTrackEx(int pc, const rtcTrackInit *init) {
 		} else {
 			switch (init->codec) {
 			case RTC_CODEC_H264:
+			case RTC_CODEC_H265:
 			case RTC_CODEC_VP8:
 			case RTC_CODEC_VP9:
 				mid = "video";
 				break;
 			case RTC_CODEC_OPUS:
-            case RTC_CODEC_PCMU:
-            case RTC_CODEC_PCMA:
+			case RTC_CODEC_PCMU:
+			case RTC_CODEC_PCMA:
+			case RTC_CODEC_AAC:
 				mid = "audio";
 				break;
 			default:
@@ -1044,12 +1060,16 @@ int rtcAddTrackEx(int pc, const rtcTrackInit *init) {
 
 		switch (init->codec) {
 		case RTC_CODEC_H264:
+		case RTC_CODEC_H265:
 		case RTC_CODEC_VP8:
 		case RTC_CODEC_VP9: {
 			auto desc = Description::Video(mid, direction);
 			switch (init->codec) {
 			case RTC_CODEC_H264:
 				desc.addH264Codec(init->payloadType);
+				break;
+			case RTC_CODEC_H265:
+				desc.addH265Codec(init->payloadType);
 				break;
 			case RTC_CODEC_VP8:
 				desc.addVP8Codec(init->payloadType);
@@ -1064,19 +1084,25 @@ int rtcAddTrackEx(int pc, const rtcTrackInit *init) {
 			break;
 		}
 		case RTC_CODEC_OPUS:
-        case RTC_CODEC_PCMU:
-        case RTC_CODEC_PCMA:{
+		case RTC_CODEC_PCMU:
+		case RTC_CODEC_PCMA:
+		case RTC_CODEC_AAC: {
 			auto desc = Description::Audio(mid, direction);
 			switch (init->codec) {
 			case RTC_CODEC_OPUS:
 				desc.addOpusCodec(init->payloadType);
 				break;
-            case RTC_CODEC_PCMU:
-                desc.addPCMUCodec(init->payloadType);
-                break;
-            case RTC_CODEC_PCMA:
-                desc.addPCMACodec(init->payloadType);
-                break;
+			case RTC_CODEC_PCMU:
+				desc.addPCMUCodec(init->payloadType);
+				break;
+			case RTC_CODEC_PCMA:
+				desc.addPCMACodec(init->payloadType);
+				break;
+			case RTC_CODEC_AAC:
+				desc.addAacCodec(init->payloadType, init->profile
+				                                        ? std::make_optional(string(init->profile))
+				                                        : nullopt);
+				break;
 			default:
 				break;
 			}
@@ -1204,14 +1230,34 @@ int rtcSetH264PacketizationHandler(int tr, const rtcPacketizationHandlerInit *in
 		auto maxFragmentSize = init && init->maxFragmentSize ? init->maxFragmentSize
 		                                                     : RTC_DEFAULT_MAXIMUM_FRAGMENT_SIZE;
 		auto packetizer = std::make_shared<H264RtpPacketizer>(
-		    static_cast<rtc::H264RtpPacketizer::Separator>(nalSeparator), rtpConfig,
-		    maxFragmentSize);
+		    static_cast<rtc::NalUnit::Separator>(nalSeparator), rtpConfig, maxFragmentSize);
 		// create H264 handler
 		auto h264Handler = std::make_shared<H264PacketizationHandler>(packetizer);
 		emplaceMediaChainableHandler(h264Handler, tr);
 		emplaceRtpConfig(rtpConfig, tr);
 		// set handler
 		track->setMediaHandler(h264Handler);
+		return RTC_ERR_SUCCESS;
+	});
+}
+
+int rtcSetH265PacketizationHandler(int tr, const rtcPacketizationHandlerInit *init) {
+	return wrap([&] {
+		auto track = getTrack(tr);
+		// create RTP configuration
+		auto rtpConfig = createRtpPacketizationConfig(init);
+		// create packetizer
+		auto nalSeparator = init ? init->nalSeparator : RTC_NAL_SEPARATOR_LENGTH;
+		auto maxFragmentSize = init && init->maxFragmentSize ? init->maxFragmentSize
+		                                                     : RTC_DEFAULT_MAXIMUM_FRAGMENT_SIZE;
+		auto packetizer = std::make_shared<H265RtpPacketizer>(
+		    static_cast<rtc::NalUnit::Separator>(nalSeparator), rtpConfig, maxFragmentSize);
+		// create H265 handler
+		auto h265Handler = std::make_shared<H265PacketizationHandler>(packetizer);
+		emplaceMediaChainableHandler(h265Handler, tr);
+		emplaceRtpConfig(rtpConfig, tr);
+		// set handler
+		track->setMediaHandler(h265Handler);
 		return RTC_ERR_SUCCESS;
 	});
 }
@@ -1229,6 +1275,23 @@ int rtcSetOpusPacketizationHandler(int tr, const rtcPacketizationHandlerInit *in
 		emplaceRtpConfig(rtpConfig, tr);
 		// set handler
 		track->setMediaHandler(opusHandler);
+		return RTC_ERR_SUCCESS;
+	});
+}
+
+int rtcSetAACPacketizationHandler(int tr, const rtcPacketizationHandlerInit *init) {
+	return wrap([&] {
+		auto track = getTrack(tr);
+		// create RTP configuration
+		auto rtpConfig = createRtpPacketizationConfig(init);
+		// create packetizer
+		auto packetizer = std::make_shared<AACRtpPacketizer>(rtpConfig);
+		// create AAC handler
+		auto aacHandler = std::make_shared<AACPacketizationHandler>(packetizer);
+		emplaceMediaChainableHandler(aacHandler, tr);
+		emplaceRtpConfig(rtpConfig, tr);
+		// set handler
+		track->setMediaHandler(aacHandler);
 		return RTC_ERR_SUCCESS;
 	});
 }
@@ -1408,12 +1471,16 @@ int rtcCreateWebSocketEx(const char *url, const rtcWsConfiguration *config) {
 		for (int i = 0; i < config->protocolsCount; ++i)
 			c.protocols.emplace_back(string(config->protocols[i]));
 
-		if (config->pingInterval > 0)
-			c.pingInterval = std::chrono::milliseconds(config->pingInterval);
-		else if (config->pingInterval < 0)
-			c.pingInterval = std::chrono::milliseconds::zero(); // setting to 0 disables,
-			                                                    // not setting keeps default
-
+		if (config->connectionTimeoutMs > 0)
+			c.connectionTimeout = milliseconds(config->connectionTimeoutMs);
+		else if (config->connectionTimeoutMs < 0)
+			c.connectionTimeout = milliseconds::zero(); // setting to 0 disables,
+			                                            // not setting keeps default
+		if (config->pingIntervalMs > 0)
+			c.pingInterval = milliseconds(config->pingIntervalMs);
+		else if (config->pingIntervalMs < 0)
+			c.pingInterval = milliseconds::zero(); // setting to 0 disables,
+			                                       // not setting keeps default
 		if (config->maxOutstandingPings > 0)
 			c.maxOutstandingPings = config->maxOutstandingPings;
 		else if (config->maxOutstandingPings < 0)
@@ -1456,7 +1523,7 @@ int rtcGetWebSocketPath(int ws, char *buffer, int size) {
 }
 
 RTC_C_EXPORT int rtcCreateWebSocketServer(const rtcWsServerConfiguration *config,
-                                        rtcWebSocketClientCallbackFunc cb) {
+                                          rtcWebSocketClientCallbackFunc cb) {
 	return wrap([&] {
 		if (!config)
 			throw std::invalid_argument("Unexpected null pointer for config");
@@ -1556,25 +1623,24 @@ int rtcSetSctpSettings(const rtcSctpSettings *settings) {
 			s.congestionControlModule = unsigned(settings->congestionControlModule);
 
 		if (settings->delayedSackTimeMs > 0)
-			s.delayedSackTime = std::chrono::milliseconds(settings->delayedSackTimeMs);
+			s.delayedSackTime = milliseconds(settings->delayedSackTimeMs);
 		else if (settings->delayedSackTimeMs < 0)
-			s.delayedSackTime = std::chrono::milliseconds(0);
+			s.delayedSackTime = milliseconds(0);
 
 		if (settings->minRetransmitTimeoutMs > 0)
-			s.minRetransmitTimeout = std::chrono::milliseconds(settings->minRetransmitTimeoutMs);
+			s.minRetransmitTimeout = milliseconds(settings->minRetransmitTimeoutMs);
 
 		if (settings->maxRetransmitTimeoutMs > 0)
-			s.maxRetransmitTimeout = std::chrono::milliseconds(settings->maxRetransmitTimeoutMs);
+			s.maxRetransmitTimeout = milliseconds(settings->maxRetransmitTimeoutMs);
 
 		if (settings->initialRetransmitTimeoutMs > 0)
-			s.initialRetransmitTimeout =
-			    std::chrono::milliseconds(settings->initialRetransmitTimeoutMs);
+			s.initialRetransmitTimeout = milliseconds(settings->initialRetransmitTimeoutMs);
 
 		if (settings->maxRetransmitAttempts > 0)
 			s.maxRetransmitAttempts = settings->maxRetransmitAttempts;
 
 		if (settings->heartbeatIntervalMs > 0)
-			s.heartbeatInterval = std::chrono::milliseconds(settings->heartbeatIntervalMs);
+			s.heartbeatInterval = milliseconds(settings->heartbeatIntervalMs);
 
 		SetSctpSettings(std::move(s));
 		return RTC_ERR_SUCCESS;

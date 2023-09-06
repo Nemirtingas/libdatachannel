@@ -18,6 +18,18 @@
 #include <sstream>
 #include <thread>
 
+#if defined(_WIN32)
+#include <Windows.h>
+
+typedef HRESULT(WINAPI *pfnSetThreadDescription)(HANDLE, PCWSTR);
+#endif
+#if defined(__linux__)
+#include <sys/prctl.h> // for prctl(PR_SET_NAME)
+#endif
+#if defined(__FreeBSD__)
+#include <pthread_np.h> // for pthread_set_name_np
+#endif
+
 namespace rtc{
 namespace impl {
 namespace utils {
@@ -130,17 +142,45 @@ std::seed_seq* random_seed() {
 	return new std::seed_seq(seed.begin(), seed.end());
 }
 
-bool IsHttpRequest(const byte *buffer, size_t size) {
-	// Check the buffer starts with a valid-looking HTTP method
-	for (size_t i = 0; i < size; ++i) {
-		char c = static_cast<char>(buffer[i].v);
-		if (i > 0 && c == ' ')
-			break;
-		else if (i >= 8 || c < 'A' || c > 'Z')
-			return false;
+namespace {
+
+void thread_set_name_self(const char *name) {
+#if defined(_WIN32)
+	int name_length = (int)strlen(name);
+	int wname_length =
+	    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, name_length, nullptr, 0);
+	if (wname_length > 0) {
+		std::wstring wname(wname_length, L'\0');
+		wname_length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, name_length,
+		                                   &wname[0], wname_length + 1);
+
+		HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+		if (kernel32 != nullptr) {
+			auto pSetThreadDescription =
+			    (pfnSetThreadDescription)GetProcAddress(kernel32, "SetThreadDescription");
+			if (pSetThreadDescription != nullptr) {
+				pSetThreadDescription(GetCurrentThread(), wname.c_str());
+			}
+		}
 	}
-	return true;
+#elif defined(__linux__)
+	prctl(PR_SET_NAME, name);
+#elif defined(__APPLE__)
+	pthread_setname_np(name);
+#elif defined(__FreeBSD__)
+	pthread_set_name_np(pthread_self(), name);
+#else
+	(void)name;
+#endif
 }
+
+} // namespace
+
+namespace this_thread {
+
+void set_name(const string &name) { thread_set_name_self(name.c_str()); }
+
+} // namespace this_thread
 
 } // namespace utils
 } // namespace impl

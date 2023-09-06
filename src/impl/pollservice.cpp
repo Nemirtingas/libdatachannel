@@ -8,6 +8,7 @@
 
 #include "pollservice.hpp"
 #include "internals.hpp"
+#include "utils.hpp"
 
 #if RTC_ENABLE_WEBSOCKET
 
@@ -108,13 +109,12 @@ void PollService::prepare(std::vector<struct pollfd> &pfds, optional<clock::time
 }
 
 void PollService::process(std::vector<struct pollfd> &pfds) {
+	std::unique_lock lock(mMutex);
 	auto it = pfds.begin();
 	if (it != pfds.end()) {
-		std::unique_lock<std::recursive_mutex> lock(mMutex);
 		mInterrupter->process(*it++);
 	}
 	while (it != pfds.end()) {
-		std::unique_lock<std::recursive_mutex> lock(mMutex);
 		socket_t sock = it->fd;
 		auto jt = mSocks->find(sock);
 		if (jt != mSocks->end()) {
@@ -162,10 +162,11 @@ void PollService::process(std::vector<struct pollfd> &pfds) {
 }
 
 void PollService::runLoop() {
-	try {
-		PLOG_DEBUG << "Poll service started";
-		assert(mSocks);
+	utils::this_thread::set_name("RTC poll");
+	PLOG_DEBUG << "Poll service started";
 
+	try {
+		assert(mSocks);
 		std::vector<struct pollfd> pfds;
 		optional<clock::time_point> next;
 		while (!mStopped) {

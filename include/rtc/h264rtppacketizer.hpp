@@ -23,20 +23,13 @@ class RTC_CPP_EXPORT H264RtpPacketizer final : public RtpPacketizer,
 	shared_ptr<NalUnits> splitMessage(binary_ptr message);
 	const uint16_t maximumFragmentSize;
 
+	using Separator = NalUnit::Separator;
+
 public:
 	/// Default clock rate for H264 in RTP
 	static constexpr uint32_t defaultClockRate = 90 * 1000;
 
-	/// NAL unit separator
-	enum class Separator {
-		Length = RTC_NAL_SEPARATOR_LENGTH, // first 4 bytes are NAL unit length
-		LongStartSequence = RTC_NAL_SEPARATOR_LONG_START_SEQUENCE,   // 0x00, 0x00, 0x00, 0x01
-		ShortStartSequence = RTC_NAL_SEPARATOR_SHORT_START_SEQUENCE, // 0x00, 0x00, 0x01
-		StartSequence = RTC_NAL_SEPARATOR_START_SEQUENCE, // LongStartSequence or ShortStartSequence
-	};
-
-	H264RtpPacketizer(H264RtpPacketizer::Separator separator,
-	                  shared_ptr<RtpPacketizationConfig> rtpConfig,
+	H264RtpPacketizer(Separator separator, shared_ptr<RtpPacketizationConfig> rtpConfig,
 	                  uint16_t maximumFragmentSize = NalUnits::defaultMaximumFragmentSize);
 
 	/// Constructs h264 payload packetizer with given RTP configuration.

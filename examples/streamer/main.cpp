@@ -216,7 +216,7 @@ std::shared_ptr<ClientTrackData> addVideo(const std::shared_ptr<PeerConnection> 
 	auto rtpConfig = boost::make_shared<RtpPacketizationConfig>(
 	    ssrc, cname, payloadType, H264RtpPacketizer::defaultClockRate);
     // create packetizer
-    auto packetizer = boost::make_shared<H264RtpPacketizer>(H264RtpPacketizer::Separator::Length, rtpConfig);
+    auto packetizer = boost::make_shared<H264RtpPacketizer>(NalUnit::Separator::Length, rtpConfig);
     // create H264 handler
 	auto h264Handler = boost::make_shared<H264PacketizationHandler>(packetizer);
     // add RTCP SR handler

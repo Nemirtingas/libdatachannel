@@ -11,6 +11,8 @@
 
 #include "common.hpp"
 
+#include <chrono>
+
 #if USE_GNUTLS
 
 #include <gnutls/gnutls.h>
@@ -38,25 +40,41 @@ gnutls_datum_t make_datum(char *data, size_t size);
 } // namespace gnutls
 } // namespace rtc
 
-#else // USE_GNUTLS==0
+#elif USE_MBEDTLS
+
+#include "mbedtls/ctr_drbg.h"
+#include "mbedtls/ecdsa.h"
+#include "mbedtls/entropy.h"
+#include "mbedtls/error.h"
+#include "mbedtls/pk.h"
+#include "mbedtls/rsa.h"
+#include "mbedtls/sha256.h"
+#include "mbedtls/ssl.h"
+#include "mbedtls/x509_crt.h"
+
+namespace rtc::mbedtls {
+
+bool check(int ret, const string &message = "MbedTLS error");
+
+string format_time(const std::chrono::system_clock::time_point &tp);
+
+std::shared_ptr<mbedtls_pk_context> new_pk_context();
+std::shared_ptr<mbedtls_x509_crt> new_x509_crt();
+
+} // namespace rtc::mbedtls
+
+#else // OPENSSL
 
 #ifdef _WIN32
 // Include winsock2.h header first since OpenSSL may include winsock.h
 #include <winsock2.h>
 #endif
 
-#ifndef OPENSSL_API_COMPAT
-#define OPENSSL_API_COMPAT 0x10100000L
-#endif
-
 #include <openssl/ssl.h>
 
 #include <openssl/bio.h>
-#include <openssl/bn.h>
-#include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/pem.h>
-#include <openssl/rsa.h>
 #include <openssl/x509.h>
 
 #ifndef BIO_EOF
@@ -67,10 +85,10 @@ namespace rtc {
 namespace openssl {
 
 void init();
-string error_string(unsigned long err);
+string error_string(unsigned long error);
 
 bool check(int success, const string &message = "OpenSSL error");
-bool check(SSL *ssl, int ret, const string &message = "OpenSSL error");
+bool check_error(int err, const string &message = "OpenSSL error");
 
 BIO *BIO_new_from_file(const string &filename);
 

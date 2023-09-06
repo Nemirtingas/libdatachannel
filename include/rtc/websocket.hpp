@@ -34,16 +34,17 @@ public:
 
 	struct Configuration {
 		bool disableTlsVerification = false; // if true, don't verify the TLS certificate
-		optional<ProxyServer> proxyServer;   // unsupported for now
+		optional<ProxyServer> proxyServer;   // only non-authenticated http supported for now
 		std::vector<string> protocols;
-		optional<std::chrono::milliseconds> pingInterval; // zero to disable
+		optional<std::chrono::milliseconds> connectionTimeout; // zero to disable
+		optional<std::chrono::milliseconds> pingInterval;      // zero to disable
 		optional<int> maxOutstandingPings;
 	};
 
 	WebSocket();
 	WebSocket(Configuration config);
 	WebSocket(impl_ptr<impl::WebSocket> impl);
-	~WebSocket();
+	~WebSocket() override;
 
 	State readyState() const;
 

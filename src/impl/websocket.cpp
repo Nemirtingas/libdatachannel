@@ -14,6 +14,7 @@
 #include "processor.hpp"
 #include "utils.hpp"
 
+#include "httpproxytransport.hpp"
 #include "tcptransport.hpp"
 #include "tlstransport.hpp"
 #include "verifiedtlstransport.hpp"
@@ -32,6 +33,7 @@ namespace impl {
 
 using namespace std::placeholders;
 using namespace std::chrono_literals;
+using std::chrono::milliseconds;
 
 WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certificate)
     : config(optConfig ? std::move(*optConfig) : Configuration()),
@@ -40,6 +42,14 @@ WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certific
 	state(State::Closed)
 {
 	PLOG_VERBOSE << "Creating WebSocket";
+	if (config.proxyServer) {
+		if (config.proxyServer->type == ProxyServer::Type::Socks5)
+			throw std::invalid_argument(
+			    "Proxy server support for WebSocket is not implemented for Socks5");
+		if (config.proxyServer->username || config.proxyServer->password) {
+			PLOG_WARNING << "HTTP authentication support for proxy is not implemented";
+		}
+	}
 }
 
 WebSocket::~WebSocket() { PLOG_VERBOSE << "Destroying WebSocket"; }
@@ -49,10 +59,6 @@ void WebSocket::open(const string &url) {
 
 	if (state != State::Closed)
 		throw std::logic_error("WebSocket must be closed before opening");
-
-	if (config.proxyServer) {
-		PLOG_WARNING << "Proxy server support for WebSocket is not implemented";
-	}
 
 	// Modified regex from RFC 3986, see https://www.rfc-editor.org/rfc/rfc3986.html#appendix-B
 	static const char *rs =
@@ -107,11 +113,18 @@ void WebSocket::open(const string &url) {
 			path += "?" + query;
 	}
 
-	mHostname = hostname; // for TLS SNI
+	mHostname = hostname; // for TLS SNI and Proxy
+	mService = service;   // For proxy
 	std::atomic_store(&mWsHandshake, std::make_shared<WsHandshake>(host, path, config.protocols));
 
 	changeState(State::Connecting);
-	setTcpTransport(std::make_shared<TcpTransport>(hostname, service, nullptr));
+
+	if (config.proxyServer) {
+		setTcpTransport(std::make_shared<TcpTransport>(
+		    config.proxyServer->hostname, std::to_string(config.proxyServer->port), nullptr));
+	} else {
+		setTcpTransport(std::make_shared<TcpTransport>(hostname, service, nullptr));
+	}
 }
 
 void WebSocket::close() {
@@ -139,23 +152,13 @@ bool WebSocket::isClosed() const { return state == State::Closed; }
 size_t WebSocket::maxMessageSize() const { return DEFAULT_MAX_MESSAGE_SIZE; }
 
 optional<message_variant> WebSocket::receive() {
-	while (auto next = mRecvQueue.tryPop()) {
-		message_ptr message = *next;
-		if (message->type != Message::Control)
-			return to_variant(std::move(*message));
-	}
-	return none;
+	auto next = mRecvQueue.pop();
+	return next ? std::make_optional(to_variant(std::move(**next))) : nullopt;
 }
 
 optional<message_variant> WebSocket::peek() {
-	while (auto next = mRecvQueue.peek()) {
-		message_ptr message = *next;
-		if (message->type != Message::Control)
-			return to_variant(std::move(*message));
-
-		mRecvQueue.tryPop();
-	}
-	return none;
+	auto next = mRecvQueue.peek();
+	return next ? std::make_optional(to_variant(std::move(**next))) : nullopt;
 }
 
 size_t WebSocket::availableAmount() const { return mRecvQueue.amount(); }
@@ -224,7 +227,9 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 				return;
 			switch (transportState) {
 			case State::Connected:
-				if (mIsSecure)
+				if (config.proxyServer)
+					initProxyTransport();
+				else if (mIsSecure)
 					initTlsTransport();
 				else
 					initWsTransport();
@@ -244,8 +249,10 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 
 		// WS transport sends a ping on read timeout
 		auto pingInterval = config.pingInterval.value_or(10000ms);
-		if (pingInterval > std::chrono::milliseconds::zero())
+		if (pingInterval > milliseconds::zero())
 			transport->setReadTimeout(pingInterval);
+
+		scheduleConnectionTimeout();
 
 		return emplaceTransport(this, &mTcpTransport, std::move(transport));
 
@@ -256,6 +263,53 @@ shared_ptr<TcpTransport> WebSocket::setTcpTransport(shared_ptr<TcpTransport> tra
 	}
 }
 
+shared_ptr<HttpProxyTransport> WebSocket::initProxyTransport() {
+	PLOG_VERBOSE << "Starting Tcp Proxy transport";
+	using State = HttpProxyTransport::State;
+	try {
+		if (auto transport = std::atomic_load(&mProxyTransport))
+			return transport;
+
+		auto lower = std::atomic_load(&mTcpTransport);
+		if (!lower)
+			throw std::logic_error("No underlying TCP transport for Proxy transport");
+
+		auto stateChangeCallback = [this, weak_this = weak_from_this()](State transportState) {
+			auto shared_this = weak_this.lock();
+			if (!shared_this)
+				return;
+			switch (transportState) {
+			case State::Connected:
+				if (mIsSecure)
+					initTlsTransport();
+				else
+					initWsTransport();
+				break;
+			case State::Failed:
+				triggerError("Proxy connection failed");
+				remoteClose();
+				break;
+			case State::Disconnected:
+				remoteClose();
+				break;
+			default:
+				// Ignore
+				break;
+			}
+		};
+
+		auto transport = std::make_shared<HttpProxyTransport>(
+		    lower, mHostname.value(), mService.value(), stateChangeCallback);
+
+		return emplaceTransport(this, &mProxyTransport, std::move(transport));
+
+	} catch (const std::exception &e) {
+		PLOG_ERROR << e.what();
+		remoteClose();
+		throw std::runtime_error("Tcp Proxy transport initialization failed");
+	}
+}
+
 shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 	PLOG_VERBOSE << "Starting TLS transport";
 	using State = TlsTransport::State;
@@ -263,9 +317,20 @@ shared_ptr<TlsTransport> WebSocket::initTlsTransport() {
 		if (auto transport = std::atomic_load(&mTlsTransport))
 			return transport;
 
-		auto lower = std::atomic_load(&mTcpTransport);
-		if (!lower)
-			throw std::logic_error("No underlying TCP transport for TLS transport");
+		variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>> lower;
+		if (config.proxyServer) {
+			auto transport = std::atomic_load(&mProxyTransport);
+			if (!transport)
+				throw std::logic_error("No underlying proxy transport for TLS transport");
+
+			lower = transport;
+		} else {
+			auto transport = std::atomic_load(&mTcpTransport);
+			if (!transport)
+				throw std::logic_error("No underlying TCP transport for TLS transport");
+
+			lower = transport;
+		}
 
 		auto stateChangeCallback = [this, weak_this = workarounds::weak_from_this(*this)](State transportState) {
 			auto shared_this = weak_this.lock();
@@ -320,11 +385,18 @@ shared_ptr<WsTransport> WebSocket::initWsTransport() {
 		if (auto transport = std::atomic_load(&mWsTransport))
 			return transport;
 
-		variant<shared_ptr<TcpTransport>, shared_ptr<TlsTransport>> lower;
+		variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>, shared_ptr<TlsTransport>>
+		    lower;
 		if (mIsSecure) {
 			auto transport = std::atomic_load(&mTlsTransport);
 			if (!transport)
 				throw std::logic_error("No underlying TLS transport for WebSocket transport");
+
+			lower = transport;
+		} else if (config.proxyServer) {
+			auto transport = std::atomic_load(&mProxyTransport);
+			if (!transport)
+				throw std::logic_error("No underlying proxy transport for WebSocket transport");
 
 			lower = transport;
 		} else {
@@ -431,6 +503,22 @@ void WebSocket::closeTransports() {
 	    });
 
 	triggerClosed();
+}
+
+void WebSocket::scheduleConnectionTimeout() {
+	auto defaultTimeout = 30s;
+	auto timeout = config.connectionTimeout.value_or(milliseconds(defaultTimeout));
+	if (timeout > milliseconds::zero()) {
+		ThreadPool::Instance().schedule(timeout, [weak_this = weak_from_this()]() {
+			if (auto locked = weak_this.lock()) {
+				if (locked->state == WebSocket::State::Connecting) {
+					PLOG_WARNING << "WebSocket connection timed out";
+					locked->triggerError("Connection timed out");
+					locked->remoteClose();
+				}
+			}
+		});
+	}
 }
 
 } // namespace impl

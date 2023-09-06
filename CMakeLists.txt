@@ -1,14 +1,19 @@
 cmake_minimum_required(VERSION 3.7)
 project(libdatachannel
-	VERSION 0.18.4
+	VERSION 0.19.0
 	LANGUAGES CXX)
 set(PROJECT_DESCRIPTION "C/C++ WebRTC network library featuring Data Channels, Media Transport, and WebSockets")
 
 # Options
+option(USE_MBEDTLS "Use Mbed TLS instead of OpenSSL" OFF)
 option(USE_GNUTLS "Use GnuTLS instead of OpenSSL" OFF)
 option(USE_NICE "Use libnice instead of libjuice" OFF)
-option(USE_SYSTEM_SRTP "Use system libSRTP" OFF)
-option(USE_SYSTEM_JUICE "Use system libjuice" OFF)
+option(PREFER_SYSTEM_LIB "Prefer system libraries over deps folder" OFF)
+option(USE_SYSTEM_SRTP "Use system libSRTP" ${PREFER_SYSTEM_LIB})
+option(USE_SYSTEM_JUICE "Use system libjuice" ${PREFER_SYSTEM_LIB})
+option(USE_SYSTEM_USRSCTP "Use system libusrsctp" ${PREFER_SYSTEM_LIB})
+option(USE_SYSTEM_PLOG "Use system Plog" ${PREFER_SYSTEM_LIB})
+option(USE_SYSTEM_JSON "Use system Nlohmann JSON" ${PREFER_SYSTEM_LIB})
 option(NO_WEBSOCKET "Disable WebSocket support" OFF)
 option(NO_MEDIA "Disable media transport support" OFF)
 option(NO_EXAMPLES "Disable examples" OFF)
@@ -17,13 +22,27 @@ option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(CAPI_STDCALL "Set calling convention of C API callbacks stdcall" OFF)
 option(SCTP_DEBUG "Enable SCTP debugging output to verbose log" OFF)
 
+if (USE_MBEDTLS AND USE_GNUTLS)
+	message(FATAL_ERROR "Both USE_MBEDTLS and USE_GNUTLS can not be enabled at the same time")
+endif()
+
+
 if(USE_GNUTLS)
 	option(USE_NETTLE "Use Nettle in libjuice" ON)
 else()
 	option(USE_NETTLE "Use Nettle in libjuice" OFF)
+
 	if(NOT USE_SYSTEM_SRTP)
-		option(ENABLE_OPENSSL "Enable OpenSSL crypto engine for SRTP" ON)
+		if (USE_MBEDTLS)
+			option(ENABLE_MBEDTLS "Enable Mbed TLS crypto engine for libSRTP" ON)
+		else()
+			option(ENABLE_OPENSSL "Enable OpenSSL crypto engine for libSRTP" ON)
+		endif()
 	endif()
+endif()
+
+if(NOT WARNINGS_AS_ERRORS AND NOT USE_SYSTEM_SRTP)
+	option(BUILD_WITH_WARNINGS "Add warning as error flags for libSRTP" OFF)
 endif()
 
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/Modules)
@@ -35,7 +54,6 @@ if(WIN32)
 	if(MSVC)
 		add_definitions(-DNOMINMAX)
 		add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-		add_definitions(-D_SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING)
 	endif()
 endif()
 
@@ -57,9 +75,15 @@ set(LIBDATACHANNEL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/opusrtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/opuspacketizationhandler.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/aacrtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h264rtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/nalunit.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h264packetizationhandler.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/h265rtppacketizer.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/h265nalunit.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/h265packetizationhandler.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/av1rtppacketizer.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/av1packetizationhandler.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/mediachainablehandler.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/mediahandlerelement.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/mediahandlerrootelement.cpp
@@ -92,9 +116,15 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/opusrtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/opuspacketizationhandler.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/aacrtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h264rtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/nalunit.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h264packetizationhandler.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265rtppacketizer.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265nalunit.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265packetizationhandler.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/av1rtppacketizer.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/av1packetizationhandler.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediachainablehandler.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediahandlerelement.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediahandlerrootelement.hpp
@@ -124,6 +154,8 @@ set(LIBDATACHANNEL_IMPL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/sha.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollinterrupter.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollservice.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/http.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/httpproxytransport.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/tcpserver.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/tcptransport.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/tlstransport.cpp
@@ -156,6 +188,8 @@ set(LIBDATACHANNEL_IMPL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/sha.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollinterrupter.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/pollservice.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/http.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/httpproxytransport.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/tcpserver.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/tcptransport.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/impl/tlstransport.hpp
@@ -205,25 +239,32 @@ set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
-set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
-add_subdirectory(deps/plog EXCLUDE_FROM_ALL)
+if(USE_SYSTEM_PLOG)
+	find_package(plog REQUIRED)
+else()
+	set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
+	add_subdirectory(deps/plog EXCLUDE_FROM_ALL)
+endif()
 
 if(SCTP_DEBUG)
 	add_definitions(-DSCTP_DEBUG)
 endif()
-option(sctp_build_shared_lib OFF)
-option(sctp_build_programs OFF)
-option(sctp_inet OFF)
-option(sctp_inet6 OFF)
-set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-add_subdirectory(deps/usrsctp EXCLUDE_FROM_ALL)
-if (MSYS OR MINGW)
-	target_compile_definitions(usrsctp PUBLIC -DSCTP_STDINT_INCLUDE=<stdint.h>)
+
+if(USE_SYSTEM_USRSCTP)
+	find_package(Usrsctp REQUIRED)
+else()
+	option(sctp_build_shared_lib OFF)
+	option(sctp_build_programs OFF)
+	option(sctp_inet OFF)
+	option(sctp_inet6 OFF)
+	option(sctp_werror OFF)
+	set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+	add_subdirectory(deps/usrsctp EXCLUDE_FROM_ALL)
+	if (MSYS OR MINGW)
+		target_compile_definitions(usrsctp PUBLIC -DSCTP_STDINT_INCLUDE=<stdint.h>)
+	endif()
+	add_library(Usrsctp::Usrsctp ALIAS usrsctp)
 endif()
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    target_compile_options(usrsctp PRIVATE -Wno-error=format-truncation)
-endif()
-add_library(Usrsctp::Usrsctp ALIAS usrsctp)
 
 add_library(datachannel SHARED
 	${LIBDATACHANNEL_SOURCES}
@@ -327,6 +368,13 @@ if (USE_GNUTLS)
 		target_link_libraries(datachannel PRIVATE Nettle::Nettle)
 		target_link_libraries(datachannel-static PRIVATE Nettle::Nettle)
 	endif()
+elseif(USE_MBEDTLS)
+	find_package(MbedTLS 3 REQUIRED)
+
+	target_compile_definitions(datachannel PRIVATE USE_MBEDTLS)
+	target_compile_definitions(datachannel-static PRIVATE USE_MBEDTLS)
+	target_link_libraries(datachannel PRIVATE MbedTLS::MbedTLS)
+	target_link_libraries(datachannel-static PRIVATE MbedTLS::MbedTLS)
 else()
 	if(APPLE)
 		# This is a bug in CMake that causes it to prefer the system version over
@@ -483,7 +531,11 @@ endif()
 # Examples
 if(NOT NO_EXAMPLES)
 	set(JSON_BuildTests OFF CACHE INTERNAL "")
-	add_subdirectory(deps/json EXCLUDE_FROM_ALL)
+	if(USE_SYSTEM_JSON)
+		find_package(nlohmann_json REQUIRED)
+	else()
+		add_subdirectory(deps/json EXCLUDE_FROM_ALL)
+	endif()
 
 	if(NOT NO_WEBSOCKET)
 		add_subdirectory(examples/client)

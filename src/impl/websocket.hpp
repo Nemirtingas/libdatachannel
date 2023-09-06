@@ -13,6 +13,7 @@
 
 #include "channel.hpp"
 #include "common.hpp"
+#include "httpproxytransport.hpp"
 #include "init.hpp"
 #include "message.hpp"
 #include "queue.hpp"
@@ -52,6 +53,7 @@ struct WebSocket final : public Channel, public std::enable_shared_from_this<Web
 	bool changeState(State state);
 
 	shared_ptr<TcpTransport> setTcpTransport(shared_ptr<TcpTransport> transport);
+	shared_ptr<HttpProxyTransport> initProxyTransport();
 	shared_ptr<TlsTransport> initTlsTransport();
 	shared_ptr<WsTransport> initWsTransport();
 	shared_ptr<TcpTransport> getTcpTransport() const;
@@ -66,14 +68,18 @@ struct WebSocket final : public Channel, public std::enable_shared_from_this<Web
 	boost::atomic<State> state;
 
 private:
+	void scheduleConnectionTimeout();
+
 	const init_token mInitToken = Init::Instance().token();
 
 	const certificate_ptr mCertificate;
 	bool mIsSecure;
 
-	optional<string> mHostname; // for TLS SNI
+	optional<string> mHostname; // for TLS SNI and Proxy
+	optional<string> mService;  // for Proxy
 
 	shared_ptr<TcpTransport> mTcpTransport;
+	shared_ptr<HttpProxyTransport> mProxyTransport;
 	shared_ptr<TlsTransport> mTlsTransport;
 	shared_ptr<WsTransport> mWsTransport;
 	shared_ptr<WsHandshake> mWsHandshake;

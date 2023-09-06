@@ -68,6 +68,16 @@ typedef enum {
 } rtcState;
 
 typedef enum {
+	RTC_ICE_NEW = 0,
+	RTC_ICE_CHECKING = 1,
+	RTC_ICE_CONNECTED = 2,
+	RTC_ICE_COMPLETED = 3,
+	RTC_ICE_FAILED = 4,
+	RTC_ICE_DISCONNECTED = 5,
+	RTC_ICE_CLOSED = 6
+} rtcIceState;
+
+typedef enum {
 	RTC_GATHERING_NEW = 0,
 	RTC_GATHERING_INPROGRESS = 1,
 	RTC_GATHERING_COMPLETE = 2
@@ -102,11 +112,13 @@ typedef enum {
 	RTC_CODEC_H264 = 0,
 	RTC_CODEC_VP8 = 1,
 	RTC_CODEC_VP9 = 2,
+	RTC_CODEC_H265 = 3,
 
 	// audio
 	RTC_CODEC_OPUS = 128,
-    RTC_CODEC_PCMU = 129,
-    RTC_CODEC_PCMA = 130
+	RTC_CODEC_PCMU = 129,
+	RTC_CODEC_PCMA = 130,
+	RTC_CODEC_AAC = 131,
 } rtcCodec;
 
 typedef enum {
@@ -131,6 +143,7 @@ typedef void(RTC_API *rtcDescriptionCallbackFunc)(int pc, const char *sdp, const
 typedef void(RTC_API *rtcCandidateCallbackFunc)(int pc, const char *cand, const char *mid,
                                                 void *ptr);
 typedef void(RTC_API *rtcStateChangeCallbackFunc)(int pc, rtcState state, void *ptr);
+typedef void(RTC_API *rtcIceStateChangeCallbackFunc)(int pc, rtcIceState state, void *ptr);
 typedef void(RTC_API *rtcGatheringStateCallbackFunc)(int pc, rtcGatheringState state, void *ptr);
 typedef void(RTC_API *rtcSignalingStateCallbackFunc)(int pc, rtcSignalingState state, void *ptr);
 typedef void(RTC_API *rtcDataChannelCallbackFunc)(int pc, int dc, void *ptr);
@@ -179,6 +192,7 @@ RTC_C_EXPORT int rtcDeletePeerConnection(int pc);
 RTC_C_EXPORT int rtcSetLocalDescriptionCallback(int pc, rtcDescriptionCallbackFunc cb);
 RTC_C_EXPORT int rtcSetLocalCandidateCallback(int pc, rtcCandidateCallbackFunc cb);
 RTC_C_EXPORT int rtcSetStateChangeCallback(int pc, rtcStateChangeCallbackFunc cb);
+RTC_C_EXPORT int rtcSetIceStateChangeCallback(int pc, rtcIceStateChangeCallbackFunc cb);
 RTC_C_EXPORT int rtcSetGatheringStateChangeCallback(int pc, rtcGatheringStateCallbackFunc cb);
 RTC_C_EXPORT int rtcSetSignalingStateChangeCallback(int pc, rtcSignalingStateCallbackFunc cb);
 
@@ -196,7 +210,7 @@ RTC_C_EXPORT int rtcGetLocalAddress(int pc, char *buffer, int size);
 RTC_C_EXPORT int rtcGetRemoteAddress(int pc, char *buffer, int size);
 
 RTC_C_EXPORT int rtcGetSelectedCandidatePair(int pc, char *local, int localSize, char *remote,
-                                           int remoteSize);
+                                             int remoteSize);
 
 RTC_C_EXPORT int rtcGetMaxDataChannelStream(int pc);
 
@@ -242,7 +256,7 @@ typedef struct {
 RTC_C_EXPORT int rtcSetDataChannelCallback(int pc, rtcDataChannelCallbackFunc cb);
 RTC_C_EXPORT int rtcCreateDataChannel(int pc, const char *label); // returns dc id
 RTC_C_EXPORT int rtcCreateDataChannelEx(int pc, const char *label,
-                                      const rtcDataChannelInit *init); // returns dc id
+                                        const rtcDataChannelInit *init); // returns dc id
 RTC_C_EXPORT int rtcDeleteDataChannel(int dc);
 
 RTC_C_EXPORT int rtcGetDataChannelStream(int dc);
@@ -261,6 +275,10 @@ typedef struct {
 	const char *name;    // optional
 	const char *msid;    // optional
 	const char *trackId; // optional, track ID used in MSID
+
+	//indicate the coder capability and configuration
+	//e.g: aac latm streammuxconfig
+	const char *profile;
 } rtcTrackInit;
 
 RTC_C_EXPORT int rtcSetTrackCallback(int pc, rtcTrackCallbackFunc cb);
@@ -276,7 +294,13 @@ RTC_C_EXPORT int rtcGetTrackDirection(int tr, rtcDirection *direction);
 
 // Media
 
-// Define how NAL units are separated in a H264 sample
+// Define how OBUs are packetizied in a AV1 Sample
+typedef enum {
+	RTC_OBU_PACKETIZED_OBU = 0,
+	RTC_OBU_PACKETIZED_TEMPORAL_UNIT = 1,
+} rtcObuPacketization;
+
+// Define how NAL units are separated in a H264/H265 sample
 typedef enum {
 	RTC_NAL_SEPARATOR_LENGTH = 0,               // first 4 bytes are NAL unit length
 	RTC_NAL_SEPARATOR_LONG_START_SEQUENCE = 1,  // 0x00, 0x00, 0x00, 0x01
@@ -292,7 +316,7 @@ typedef struct {
 	uint16_t sequenceNumber;
 	uint32_t timestamp;
 
-	// H264
+	// H264/H265
 	rtcNalUnitSeparator nalSeparator; // NAL unit separator
 	uint16_t maxFragmentSize;         // Maximum NAL unit fragment size
 
@@ -308,7 +332,7 @@ typedef struct {
 // Opaque message
 
 // Opaque type used (via rtcMessage*) to reference an rtc::Message
-typedef void* rtcMessage;
+typedef void *rtcMessage;
 
 // Allocate a new opaque message.
 // Must be explicitly freed by rtcDeleteOpaqueMessage() unless
@@ -322,8 +346,14 @@ RTC_C_EXPORT int rtcSetMediaInterceptorCallback(int id, rtcInterceptorCallbackFu
 // Set H264PacketizationHandler for track
 RTC_C_EXPORT int rtcSetH264PacketizationHandler(int tr, const rtcPacketizationHandlerInit *init);
 
+// Set H265PacketizationHandler for track
+RTC_C_EXPORT int rtcSetH265PacketizationHandler(int tr, const rtcPacketizationHandlerInit *init);
+
 // Set OpusPacketizationHandler for track
 RTC_C_EXPORT int rtcSetOpusPacketizationHandler(int tr, const rtcPacketizationHandlerInit *init);
+
+// Set AACPacketizationHandler for track
+RTC_C_EXPORT int rtcSetAACPacketizationHandler(int tr, const rtcPacketizationHandlerInit *init);
 
 // Chain RtcpSrReporter to handler chain for given track
 RTC_C_EXPORT int rtcChainRtcpSrReporter(int tr);
@@ -374,10 +404,11 @@ int rtcSetSsrcForType(const char *mediaType, const char *sdp, char *buffer, cons
 
 typedef struct {
 	bool disableTlsVerification; // if true, don't verify the TLS certificate
-	const char *proxyServer;     // unsupported for now
+	const char *proxyServer;     // only non-authenticated http supported for now
 	const char **protocols;
 	int protocolsCount;
-	int pingInterval;        // in milliseconds, 0 means default, < 0 means disabled
+	int connectionTimeoutMs; // in milliseconds, 0 means default, < 0 means disabled
+	int pingIntervalMs;      // in milliseconds, 0 means default, < 0 means disabled
 	int maxOutstandingPings; // 0 means default, < 0 means disabled
 } rtcWsConfiguration;
 
@@ -399,10 +430,11 @@ typedef struct {
 	const char *keyPemFile;         // NULL for autogenerated certificate
 	const char *keyPemPass;         // NULL if no pass
 	const char *bindAddress;        // NULL for IP_ANY_ADDR
+	int connectionTimeoutMs;        // in milliseconds, 0 means default, < 0 means disabled
 } rtcWsServerConfiguration;
 
 RTC_C_EXPORT int rtcCreateWebSocketServer(const rtcWsServerConfiguration *config,
-                                        rtcWebSocketClientCallbackFunc cb); // returns wsserver id
+                                          rtcWebSocketClientCallbackFunc cb); // returns wsserver id
 RTC_C_EXPORT int rtcDeleteWebSocketServer(int wsserver);
 
 RTC_C_EXPORT int rtcGetWebSocketServerPort(int wsserver);
@@ -417,18 +449,18 @@ RTC_C_EXPORT void rtcCleanup(void);
 // SCTP global settings
 
 typedef struct {
-	int recvBufferSize;             // in bytes, <= 0 means optimized default
-	int sendBufferSize;             // in bytes, <= 0 means optimized default
-	int maxChunksOnQueue;           // in chunks, <= 0 means optimized default
-	int initialCongestionWindow;    // in MTUs, <= 0 means optimized default
-	int maxBurst;                   // in MTUs, 0 means optimized default, < 0 means disabled
-	int congestionControlModule;    // 0: RFC2581 (default), 1: HSTCP, 2: H-TCP, 3: RTCC
-	int delayedSackTimeMs;          // in msecs, 0 means optimized default, < 0 means disabled
-	int minRetransmitTimeoutMs;     // in msecs, <= 0 means optimized default
-	int maxRetransmitTimeoutMs;     // in msecs, <= 0 means optimized default
-	int initialRetransmitTimeoutMs; // in msecs, <= 0 means optimized default
+	int recvBufferSize;          // in bytes, <= 0 means optimized default
+	int sendBufferSize;          // in bytes, <= 0 means optimized default
+	int maxChunksOnQueue;        // in chunks, <= 0 means optimized default
+	int initialCongestionWindow; // in MTUs, <= 0 means optimized default
+	int maxBurst;                // in MTUs, 0 means optimized default, < 0 means disabled
+	int congestionControlModule; // 0: RFC2581 (default), 1: HSTCP, 2: H-TCP, 3: RTCC
+	int delayedSackTimeMs;       // in milliseconds, 0 means optimized default, < 0 means disabled
+	int minRetransmitTimeoutMs;  // in milliseconds, <= 0 means optimized default
+	int maxRetransmitTimeoutMs;  // in milliseconds, <= 0 means optimized default
+	int initialRetransmitTimeoutMs; // in milliseconds, <= 0 means optimized default
 	int maxRetransmitAttempts;      // number of retransmissions, <= 0 means optimized default
-	int heartbeatIntervalMs;        // in msecs, <= 0 means optimized default
+	int heartbeatIntervalMs;        // in milliseconds, <= 0 means optimized default
 } rtcSctpSettings;
 
 // Note: SCTP settings apply to newly-created PeerConnections only

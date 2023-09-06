@@ -7,6 +7,7 @@
  */
 
 #include "wstransport.hpp"
+#include "httpproxytransport.hpp"
 #include "tcptransport.hpp"
 #include "threadpool.hpp"
 #include "tlstransport.hpp"
@@ -43,12 +44,11 @@ using nonstd::to_integer;
 using std::to_string;
 using std::chrono::system_clock;
 
-
-WsTransport::WsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<TlsTransport>> lower,
-                         shared_ptr<WsHandshake> handshake, int maxOutstandingPings,
-                         message_callback recvCallback, state_callback stateCallback)
-    : Transport(boost::apply_visitor([](auto l) { return std::static_pointer_cast<Transport>(l); },
-                                     lower),
+WsTransport::WsTransport(
+    variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>, shared_ptr<TlsTransport>> lower,
+    shared_ptr<WsHandshake> handshake, int maxOutstandingPings, message_callback recvCallback,
+    state_callback stateCallback)
+    : Transport(boost::apply_visitor([](auto l) { return std::static_pointer_cast<Transport>(l); }, lower),
 		std::move(stateCallback)),
 		mHandshake(std::move(handshake)),
 		mIsClient(boost::apply_visitor(

@@ -9,7 +9,6 @@
 
 #include "peerconnection.hpp"
 #include "certificate.hpp"
-#include "common.hpp"
 #include "dtlstransport.hpp"
 #include "icetransport.hpp"
 #include "internals.hpp"
@@ -18,6 +17,7 @@
 #include "processor.hpp"
 #include "rtp.hpp"
 #include "sctptransport.hpp"
+#include "utils.hpp"
 
 #if RTC_ENABLE_MEDIA
 #include "dtlssrtptransport.hpp"
@@ -48,6 +48,7 @@ static LogCounter
 PeerConnection::PeerConnection(Configuration config_)
     : config(std::move(config_)),
       state(State::New),
+	  iceState(IceState::New),
       gatheringState(GatheringState::New),
       signalingState(SignalingState::Stable),
 	  negotiationNeeded(false),
@@ -162,16 +163,23 @@ shared_ptr<IceTransport> PeerConnection::initIceTransport() {
 				    return;
 			    switch (transportState) {
 			    case IceTransport::State::Connecting:
+				    changeIceState(IceState::Checking);
 				    changeState(State::Connecting);
 				    break;
 			    case IceTransport::State::Connected:
+				    changeIceState(IceState::Connected);
 				    initDtlsTransport();
 				    break;
+			    case IceTransport::State::Completed:
+				    changeIceState(IceState::Completed);
+				    break;
 			    case IceTransport::State::Failed:
+				    changeIceState(IceState::Failed);
 				    changeState(State::Failed);
 				    mProcessor.enqueue(&PeerConnection::remoteClose, shared_from_this());
 				    break;
 			    case IceTransport::State::Disconnected:
+				    changeIceState(IceState::Disconnected);
 				    changeState(State::Disconnected);
 				    mProcessor.enqueue(&PeerConnection::remoteClose, shared_from_this());
 				    break;
@@ -360,11 +368,14 @@ shared_ptr<SctpTransport> PeerConnection::getSctpTransport() const {
 void PeerConnection::closeTransports() {
 	PLOG_VERBOSE << "Closing transports";
 
+	// Change ICE state to sink state Closed
+	changeIceState(IceState::Closed);
+
 	// Change state to sink state Closed
 	if (!changeState(State::Closed))
 		return; // already closed
 
-	// Reset intercceptor and callbacks now that state is changed
+	// Reset interceptor and callbacks now that state is changed
 	setMediaHandler(nullptr);
 	resetCallbacks();
 
@@ -445,21 +456,26 @@ void PeerConnection::forwardMessage(message_ptr message) {
 		return;
 
 	const uint16_t stream = uint16_t(message->stream);
-	auto channel = findDataChannel(stream);
+	auto [channel, found] = findDataChannel(stream);
 
 	if (DataChannel::IsOpenMessage(message)) {
-		const uint16_t remoteParity = (iceTransport->role() == Description::Role::Active) ? 1 : 0;
-		if (stream % 2 != remoteParity) {
-			// The odd/even rule is violated, close the DataChannel
-			PLOG_WARNING << "Got open message violating the odd/even rule on stream " << stream;
-			sctpTransport->closeStream(message->stream);
+		if (found) {
+			// The stream is already used, the receiver must close the DataChannel
+			PLOG_WARNING << "Got open message on already used stream " << stream;
+			if (channel && !channel->isClosed())
+				channel->close();
+			else
+				sctpTransport->closeStream(message->stream);
+
 			return;
 		}
 
-		if (channel && channel->isOpen()) {
-			PLOG_WARNING << "Got open message on stream " << stream
-			             << " for an already open DataChannel, closing it first";
-			channel->close();
+		const uint16_t remoteParity = (iceTransport->role() == Description::Role::Active) ? 1 : 0;
+		if (stream % 2 != remoteParity) {
+			// The odd/even rule is violated, the receiver must close the DataChannel
+			PLOG_WARNING << "Got open message violating the odd/even rule on stream " << stream;
+			sctpTransport->closeStream(message->stream);
+			return;
 		}
 
 		channel = std::make_shared<IncomingDataChannel>(workarounds::weak_from_this(*this), sctpTransport);
@@ -469,9 +485,7 @@ void PeerConnection::forwardMessage(message_ptr message) {
 
 		std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
 		mDataChannels.emplace(stream, channel);
-	}
-
-	if (!channel) {
+	} else if (!found) {
 		if (message->type == Message::Reset)
 			return; // ignore
 
@@ -481,8 +495,18 @@ void PeerConnection::forwardMessage(message_ptr message) {
 		return;
 	}
 
-	// Forward the message
-	channel->incoming(message);
+	if (message->type == Message::Reset) {
+		// Incoming stream is reset, unregister it
+		removeDataChannel(stream);
+	}
+
+	if (channel) {
+		// Forward the message
+		channel->incoming(message);
+	} else {
+		// DataChannel was destroyed, ignore
+		PLOG_DEBUG << "Ignored message on stream " << stream << ", DataChannel is destroyed";
+	}
 }
 
 void PeerConnection::forwardMedia(message_ptr message) {
@@ -578,12 +602,12 @@ void PeerConnection::forwardMedia(message_ptr message) {
 }
 
 void PeerConnection::forwardBufferedAmount(uint16_t stream, size_t amount) {
-	if (auto channel = findDataChannel(stream))
+	[[maybe_unused]] auto [channel, found] = findDataChannel(stream);
+	if (channel)
 		channel->triggerBufferedAmount(amount);
 }
 
 shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataChannelInit init) {
-	cleanupDataChannels();
 	std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to emplace
 
 	// If the DataChannel is user-negotiated, do not negotiate it in-band
@@ -621,14 +645,18 @@ shared_ptr<DataChannel> PeerConnection::emplaceDataChannel(string label, DataCha
 	return channel;
 }
 
-shared_ptr<DataChannel> PeerConnection::findDataChannel(uint16_t stream) {
+std::pair<shared_ptr<DataChannel>, bool> PeerConnection::findDataChannel(uint16_t stream) {
 	boost::shared_lock<boost::shared_mutex> lock(mDataChannelsMutex); // read-only
 	auto it = mDataChannels.find(stream);
 	if (it != mDataChannels.end())
-		if (auto channel = it->second.lock())
-			return channel;
+		return std::make_pair(it->second.lock(), true);
 
-	return nullptr;
+	return std::make_pair(nullptr, false);
+}
+
+bool PeerConnection::removeDataChannel(uint16_t stream) {
+	std::unique_lock lock(mDataChannelsMutex); // we are going to erase
+	return mDataChannels.erase(stream) != 0;
 }
 
 uint16_t PeerConnection::maxDataChannelStream() const {
@@ -659,8 +687,7 @@ void PeerConnection::assignDataChannels() {
 			if (stream > maxStream)
 				throw std::runtime_error("Too many DataChannels");
 
-			auto it = mDataChannels.find(stream);
-			if (it == mDataChannels.end() || !it->second.lock())
+			if (mDataChannels.find(stream) == mDataChannels.end())
 				break;
 
 			stream += 2;
@@ -697,19 +724,6 @@ void PeerConnection::iterateDataChannels(
 		} catch (const std::exception &e) {
 			PLOG_WARNING << e.what();
 		}
-	}
-}
-
-void PeerConnection::cleanupDataChannels() {
-	std::unique_lock<boost::shared_mutex> lock(mDataChannelsMutex); // we are going to erase
-	auto it = mDataChannels.begin();
-	while (it != mDataChannels.end()) {
-		if (!it->second.lock()) {
-			it = mDataChannels.erase(it);
-			continue;
-		}
-
-		++it;
 	}
 }
 
@@ -1092,6 +1106,7 @@ void PeerConnection::processRemoteCandidate(Candidate candidate) {
 		if ((iceTransport = std::atomic_load(&mIceTransport))) {
 			weak_ptr<IceTransport> weakIceTransport{iceTransport};
 			std::thread t([weakIceTransport, candidate = std::move(candidate)]() mutable {
+				utils::this_thread::set_name("RTC resolver");
 				if (candidate.resolve(Candidate::ResolveMode::Lookup))
 					if (auto iceTransport = weakIceTransport.lock())
 						iceTransport->addRemoteCandidate(std::move(candidate));
@@ -1138,7 +1153,7 @@ void PeerConnection::triggerTrack(weak_ptr<Track> weakTrack) {
 
 void PeerConnection::triggerPendingDataChannels() {
 	while (dataChannelCallback) {
-		auto next = mPendingDataChannels.tryPop();
+		auto next = mPendingDataChannels.pop();
 		if (!next)
 			break;
 
@@ -1156,7 +1171,7 @@ void PeerConnection::triggerPendingDataChannels() {
 
 void PeerConnection::triggerPendingTracks() {
 	while (trackCallback) {
-		auto next = mPendingTracks.tryPop();
+		auto next = mPendingTracks.pop();
 		if (!next)
 			break;
 
@@ -1205,6 +1220,24 @@ bool PeerConnection::changeState(State newState) {
 	return true;
 }
 
+bool PeerConnection::changeIceState(IceState newState) {
+	if (iceState.exchange(newState) == newState)
+		return false;
+
+	std::ostringstream s;
+	s << newState;
+	PLOG_INFO << "Changed ICE state to " << s.str();
+
+	if (newState == IceState::Closed) {
+		auto callback = std::move(iceStateChangeCallback); // steal the callback
+		callback(IceState::Closed);                        // call it synchronously
+	} else {
+		mProcessor.enqueue(&PeerConnection::trigger<IceState>, shared_from_this(),
+		                   &iceStateChangeCallback, newState);
+	}
+	return true;
+}
+
 bool PeerConnection::changeGatheringState(GatheringState newState) {
 	if (gatheringState.exchange(newState) == newState)
 		return false;
@@ -1237,6 +1270,7 @@ void PeerConnection::resetCallbacks() {
 	localDescriptionCallback = nullptr;
 	localCandidateCallback = nullptr;
 	stateChangeCallback = nullptr;
+	iceStateChangeCallback = nullptr;
 	gatheringStateChangeCallback = nullptr;
 	signalingStateChangeCallback = nullptr;
 	trackCallback = nullptr;

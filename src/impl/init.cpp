@@ -7,15 +7,15 @@
  */
 
 #include "init.hpp"
-#include "internals.hpp"
-
 #include "certificate.hpp"
 #include "dtlstransport.hpp"
+#include "icetransport.hpp"
+#include "internals.hpp"
 #include "pollservice.hpp"
 #include "sctptransport.hpp"
-#include "icetransport.hpp"
 #include "threadpool.hpp"
 #include "tls.hpp"
+#include "utils.hpp"
 
 #if RTC_ENABLE_WEBSOCKET
 #include "tlstransport.hpp"
@@ -28,6 +28,8 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #endif
+
+#include <thread>
 
 namespace rtc {
 namespace impl {
@@ -42,6 +44,7 @@ struct Init::TokenPayload {
 	~TokenPayload() {
 		std::thread t(
 		    [](std::promise<void> promise) {
+			    utils::this_thread::set_name("RTC cleanup");
 			    try {
 				    Init::Instance().doCleanup();
 				    promise.set_value();
@@ -116,12 +119,18 @@ void Init::doInit() {
 		throw std::runtime_error("WSAStartup failed, error=" + std::to_string(WSAGetLastError()));
 #endif
 
-	ThreadPool::Instance().spawn(THREADPOOL_SIZE);
+	int concurrency = std::thread::hardware_concurrency();
+	int count = std::max(concurrency, MIN_THREADPOOL_SIZE);
+	PLOG_DEBUG << "Spawning " << count << " threads";
+	ThreadPool::Instance().spawn(count);
+
 #if RTC_ENABLE_WEBSOCKET
 	PollService::Instance().start();
 #endif
 
 #if USE_GNUTLS
+	// Nothing to do
+#elif USE_MBEDTLS
 	// Nothing to do
 #else
 	openssl::init();
@@ -136,6 +145,7 @@ void Init::doInit() {
 #if RTC_ENABLE_MEDIA
 	DtlsSrtpTransport::Init();
 #endif
+	IceTransport::Init();
 }
 
 void Init::doCleanup() {
@@ -162,6 +172,7 @@ void Init::doCleanup() {
 #if RTC_ENABLE_MEDIA
 	DtlsSrtpTransport::Cleanup();
 #endif
+	IceTransport::Cleanup();
 
 #ifdef _WIN32
 	WSACleanup();

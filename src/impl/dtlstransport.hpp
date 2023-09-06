@@ -26,7 +26,7 @@ namespace impl {
 
 class IceTransport;
 
-class DtlsTransport : public Transport {
+class DtlsTransport : public Transport, public std::enable_shared_from_this<DtlsTransport> {
 public:
 	static void Init();
 	static void Cleanup();
@@ -49,7 +49,8 @@ protected:
 	virtual bool demuxMessage(message_ptr message);
 	virtual void postHandshake();
 
-	void runRecvLoop();
+	void enqueueRecv();
+	void doRecv();
 
 	const optional<size_t> mMtu;
 	const certificate_ptr mCertificate;
@@ -57,8 +58,8 @@ protected:
 	const bool mIsClient;
 
 	Queue<message_ptr> mIncomingQueue;
-	std::thread mRecvThread;
-	std::atomic<bool> mStarted;
+	std::atomic<int> mPendingRecvCount = 0;
+	std::mutex mRecvMutex;
 	std::atomic<unsigned int> mCurrentDscp;
 	std::atomic<bool> mOutgoingResult;
 
@@ -70,10 +71,40 @@ protected:
 	static ssize_t WriteCallback(gnutls_transport_ptr_t ptr, const void *data, size_t len);
 	static ssize_t ReadCallback(gnutls_transport_ptr_t ptr, void *data, size_t maxlen);
 	static int TimeoutCallback(gnutls_transport_ptr_t ptr, unsigned int ms);
-#else
+
+#elif USE_MBEDTLS
+	mbedtls_entropy_context mEntropy;
+	mbedtls_ctr_drbg_context mDrbg;
+	mbedtls_ssl_config mConf;
+	mbedtls_ssl_context mSsl;
+
+	std::mutex mSslMutex;
+
+	uint32_t mFinMs = 0, mIntMs = 0;
+	std::chrono::time_point<std::chrono::steady_clock> mTimerSetAt;
+
+	char mMasterSecret[48];
+	char mRandBytes[64];
+	mbedtls_tls_prf_types mTlsProfile = MBEDTLS_SSL_TLS_PRF_NONE;
+
+	static int CertificateCallback(void *ctx, mbedtls_x509_crt *crt, int depth, uint32_t *flags);
+	static int WriteCallback(void *ctx, const unsigned char *buf, size_t len);
+	static int ReadCallback(void *ctx, unsigned char *buf, size_t len);
+	static void ExportKeysCallback(void *ctx, mbedtls_ssl_key_export_type type,
+	                               const unsigned char *secret, size_t secret_len,
+	                               const unsigned char client_random[32],
+	                               const unsigned char server_random[32],
+	                               mbedtls_tls_prf_types tls_prf_type);
+	static void SetTimerCallback(void *ctx, uint32_t int_ms, uint32_t fin_ms);
+	static int GetTimerCallback(void *ctx);
+
+#else // OPENSSL
 	SSL_CTX *mCtx = NULL;
 	SSL *mSsl = NULL;
 	BIO *mInBio, *mOutBio;
+	std::mutex mSslMutex;
+
+	void handleTimeout();
 
 	static BIO_METHOD *BioMethods;
 	static int TransportExIndex;

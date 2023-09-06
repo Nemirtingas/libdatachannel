@@ -7,6 +7,7 @@
  */
 
 #include "threadpool.hpp"
+#include "utils.hpp"
 
 namespace rtc{
 namespace impl {
@@ -55,6 +56,7 @@ void ThreadPool::clear() {
 }
 
 void ThreadPool::run() {
+	utils::this_thread::set_name("RTC worker");
 	++mBusyWorkers;
 	scope_guard guard([&]() { --mBusyWorkers; });
 	while (runOne()) {

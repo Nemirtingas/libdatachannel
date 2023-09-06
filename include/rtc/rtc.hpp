@@ -33,8 +33,11 @@
 #include "rtcpreceivingsession.hpp"
 #include "rtcpsrreporter.hpp"
 
-// Opus/h264 streaming
+// Opus/AAC/h264/h265/AV1 streaming
+#include "aacrtppacketizer.hpp"
+#include "av1packetizationhandler.hpp"
 #include "h264packetizationhandler.hpp"
+#include "h265packetizationhandler.hpp"
 #include "opuspacketizationhandler.hpp"
 
 #endif // RTC_ENABLE_MEDIA

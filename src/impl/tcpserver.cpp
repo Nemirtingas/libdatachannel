@@ -90,7 +90,7 @@ void TcpServer::close() {
 	}
 }
 
-void TcpServer::listen(uint16_t port, const char* bindAddress) {
+void TcpServer::listen(uint16_t port, const char *bindAddress) {
 	PLOG_DEBUG << "Listening on port " << port;
 
 	struct addrinfo hints = {};

@@ -78,19 +78,20 @@ public:
 	public:
 		virtual ~Entry() = default;
 
-		virtual string type() const { return mType; }
-		virtual string description() const { return mDescription; }
-		virtual string mid() const { return mMid; }
+		virtual string type() const;
+		virtual string description() const;
+		virtual string mid() const;
 
-		Direction direction() const { return mDirection; }
+		Direction direction() const;
 		void setDirection(Direction dir);
 
-		bool isRemoved() const { return mIsRemoved; }
+		bool isRemoved() const;
 		void markRemoved();
 
 		std::vector<string> attributes() const;
 		void addAttribute(string attr);
 		void removeAttribute(const string &attr);
+		void addRid(string rid);
 
 		struct RTC_CPP_EXPORT ExtMap {
 			static int parseId(string_view description);
@@ -119,6 +120,7 @@ public:
 
 	protected:
 		Entry(const string &mline, string mid, Direction dir = Direction::Unknown);
+
 		virtual string generateSdpLines(string_view eol) const;
 
 		std::vector<string> mAttributes;
@@ -128,6 +130,7 @@ public:
 		string mType;
 		string mDescription;
 		string mMid;
+		std::vector<string> mRids;
 		Direction mDirection;
 		bool mIsRemoved;
 	};
@@ -141,12 +144,12 @@ public:
 		string description() const override;
 		Application reciprocate() const;
 
-		void setSctpPort(uint16_t port) { mSctpPort = port; }
-		void hintSctpPort(uint16_t port) { mSctpPort = mSctpPort.value_or(port); }
-		void setMaxMessageSize(size_t size) { mMaxMessageSize = size; }
+		void setSctpPort(uint16_t port);
+		void hintSctpPort(uint16_t port);
+		void setMaxMessageSize(size_t size);
 
-		optional<uint16_t> sctpPort() const { return mSctpPort; }
-		optional<size_t> maxMessageSize() const { return mMaxMessageSize; }
+		optional<uint16_t> sctpPort() const;
+		optional<size_t> maxMessageSize() const;
 
 		virtual void parseSdpLine(string_view line) override;
 
@@ -230,10 +233,9 @@ public:
 		void addAudioCodec(int payloadType, string codec, optional<string> profile = none);
 
 		void addOpusCodec(int payloadType, optional<string> profile = DEFAULT_OPUS_AUDIO_PROFILE);
-
 		void addPCMACodec(int payloadType, optional<string> profile = boost::none);
-
 		void addPCMUCodec(int payloadType, optional<string> profile = boost::none);
+		void addAacCodec(int payloadType, optional<string> profile = boost::none);
 	};
 
 	class RTC_CPP_EXPORT Video : public Media {
@@ -243,8 +245,10 @@ public:
 		void addVideoCodec(int payloadType, string codec, optional<string> profile = none);
 
 		void addH264Codec(int payloadType, optional<string> profile = DEFAULT_H264_VIDEO_PROFILE);
-		void addVP8Codec(int payloadType);
-		void addVP9Codec(int payloadType);
+		void addH265Codec(int payloadType, optional<string> profile = std::nullopt);
+		void addVP8Codec(int payloadType, optional<string> profile = std::nullopt);
+		void addVP9Codec(int payloadType, optional<string> profile = std::nullopt);
+		void addAV1Codec(int payloadType, optional<string> profile = std::nullopt);
 	};
 
 	bool hasApplication() const;
