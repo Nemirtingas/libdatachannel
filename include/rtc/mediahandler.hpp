@@ -23,17 +23,17 @@ public:
 
 	/// Called when a media is added or updated
 	/// @param desc Description of the media
-	virtual void media([[maybe_unused]] const Description::Media &desc) {}
+	virtual void media(const Description::Media &desc) {}
 
 	/// Called when there is traffic coming from the peer
 	/// @param messages Incoming messages from the peer, can be modified by the handler
 	/// @param send Send callback to send messages back to the peer
-	virtual void incoming([[maybe_unused]] message_vector &messages, [[maybe_unused]] const message_callback &send) {}
+	virtual void incoming(message_vector &messages, const message_callback &send) {}
 
 	/// Called when there is traffic that needs to be sent to the peer
 	/// @param messages Outgoing messages to the peer, can be modified by the handler
 	/// @param send Send callback to send messages back to the peer
-	virtual void outgoing([[maybe_unused]] message_vector &messages, [[maybe_unused]] const message_callback &send) {}
+	virtual void outgoing(message_vector &messages, const message_callback &send) {}
 
 	virtual bool requestKeyframe(const message_callback &send);
 	virtual bool requestBitrate(unsigned int bitrate, const message_callback &send);

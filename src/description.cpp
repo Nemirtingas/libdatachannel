@@ -123,7 +123,7 @@ Description::Description(const string &sdp, Type type, Role role)
 					std::transform(first.begin(), first.end(), first.begin(),
 					               [](char c) { return char(std::tolower(c)); });
 
-					std::optional<CertificateFingerprint::Algorithm> fingerprintAlgorithm;
+					boost::optional<CertificateFingerprint::Algorithm> fingerprintAlgorithm;
 
 					for (auto a : std::array<CertificateFingerprint::Algorithm, 5>{
 					         CertificateFingerprint::Algorithm::Sha1,
@@ -149,15 +149,13 @@ Description::Description(const string &sdp, Type type, Role role)
 				// session-level or media-level. When present in both, the value in the media-level
 				// takes precedence.
 				if (!mIceUfrag || index == 0) // media-level for first media overrides session-level
-					mIceUfrag = value;
-				mIceUfrag = std::string(value.data(), value.size());
+					mIceUfrag = std::string(value.data(), value.size());
 			} else if (key == "ice-pwd") {
 				// RFC 8839: The "ice-pwd" and "ice-ufrag" attributes can appear at either the
 				// session-level or media-level. When present in both, the value in the media-level
 				// takes precedence.
 				if (!mIcePwd || index == 0) // media-level for first media overrides session-level
-					mIcePwd = value;
-				mIcePwd = std::string(value.data(), value.size());
+					mIcePwd = std::string(value.data(), value.size());
 			} else if (key == "ice-options") {
 				// RFC 8839: The "ice-options" attribute is a session-level and media-level
 				// attribute.

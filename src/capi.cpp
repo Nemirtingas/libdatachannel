@@ -302,7 +302,7 @@ public:
 
 	// Called when there is traffic coming from the peer
 	void incoming(message_vector &messages,
-	              [[maybe_unused]] const message_callback &send) override {
+	              const message_callback &send) override {
 		// If no callback is provided, just forward the message on
 		if (!incomingCallback)
 			return;
@@ -989,7 +989,7 @@ int rtcGetDataChannelReliability(int dc, rtcReliability *reliability) {
 			reliability->maxPacketLifeTime = static_cast<unsigned int>(boost::get<milliseconds>(dcr.maxPacketLifeTime).count());
 		} else if (dcr.maxRetransmits) {
 			reliability->unreliable = true;
-			reliability->maxRetransmits = boost::get<int>(dcr.maxRetransmits);
+			reliability->maxRetransmits = boost::get<unsigned int>(dcr.maxRetransmits);
 		} else {
 			reliability->unreliable = false;
 		}

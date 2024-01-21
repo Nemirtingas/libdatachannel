@@ -55,7 +55,7 @@ void RtcpNackResponder::incoming(message_vector &messages, const message_callbac
 }
 
 void RtcpNackResponder::outgoing(message_vector &messages,
-                                 [[maybe_unused]] const message_callback &send) {
+                                 const message_callback &send) {
 	for (const auto &message : messages)
 		if (message->type != Message::Control)
 			mStorage->store(message);

@@ -224,7 +224,8 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 		PLOG_VERBOSE << "Starting DTLS transport";
 
 		auto fingerprintAlgorithm = CertificateFingerprint::Algorithm::Sha256;
-		if (auto remote = remoteDescription(); remote && remote->fingerprint()) {
+		auto remote = remoteDescription();
+		if (remote && remote->fingerprint()) {
 			fingerprintAlgorithm = remote->fingerprint()->algorithm;
 		}
 
@@ -442,13 +443,13 @@ bool PeerConnection::checkFingerprint(const std::string &fingerprint) const {
 	if (!mRemoteDescription || !mRemoteDescription->fingerprint())
 		return false;
 
-	auto expectedFingerprint = mRemoteDescription ? mRemoteDescription->fingerprint()->value : none;
+	auto expectedFingerprint = mRemoteDescription ? boost::make_optional(mRemoteDescription->fingerprint()->value) : none;
 	if (expectedFingerprint == fingerprint) {
 		PLOG_VERBOSE << "Valid fingerprint \"" << fingerprint << "\"";
 		return true;
 	}
 
-	PLOG_ERROR << "Invalid fingerprint \"" << fingerprint << "\", expected \"" << expectedFingerprint << "\"";
+	PLOG_ERROR << "Invalid fingerprint \"" << fingerprint << "\", expected \"" << expectedFingerprint.get_value_or("(none)") << "\"";
 	return false;
 }
 
@@ -519,7 +520,7 @@ void PeerConnection::forwardMessage(message_ptr message) {
 	}
 }
 
-void PeerConnection::forwardMedia([[maybe_unused]] message_ptr message) {
+void PeerConnection::forwardMedia(message_ptr message) {
 #if RTC_ENABLE_MEDIA
 	if (!message)
 		return;
@@ -543,9 +544,9 @@ void PeerConnection::forwardMedia([[maybe_unused]] message_ptr message) {
 #endif
 }
 
-void PeerConnection::dispatchMedia([[maybe_unused]] message_ptr message) {
+void PeerConnection::dispatchMedia(message_ptr message) {
 #if RTC_ENABLE_MEDIA
-	std::shared_lock lock(mTracksMutex); // read-only
+	boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 	if (mTrackLines.size()==1) {
 		if (auto track = mTrackLines.front().lock())
 			track->incoming(message);

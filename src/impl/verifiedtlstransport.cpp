@@ -18,7 +18,7 @@ static const string PemBeginCertificateTag = "-----BEGIN CERTIFICATE-----";
 
 VerifiedTlsTransport::VerifiedTlsTransport(
     variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>> lower, string host,
-    certificate_ptr certificate, state_callback callback, [[maybe_unused]] optional<string> cacert)
+    certificate_ptr certificate, state_callback callback, optional<string> cacert)
     : TlsTransport(std::move(lower), std::move(host), std::move(certificate), std::move(callback)) {
 
 	PLOG_DEBUG << "Setting up TLS certificate verification";

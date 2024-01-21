@@ -247,7 +247,7 @@ public:
 		void addOpusCodec(int payloadType, optional<string> profile = DEFAULT_OPUS_AUDIO_PROFILE);
 		void addPCMACodec(int payloadType, optional<string> profile = boost::none);
 		void addPCMUCodec(int payloadType, optional<string> profile = boost::none);
-		void addAacCodec(int payloadType, optional<string> profile = boost::none);
+		void addAACCodec(int payloadType, optional<string> profile = boost::none);
 
 		[[deprecated("Use addAACCodec")]] inline void
 		addAacCodec(int payloadType, optional<string> profile = boost::none) {

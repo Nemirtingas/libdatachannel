@@ -262,7 +262,7 @@ void OutgoingDataChannel::open(shared_ptr<SctpTransport> transport) {
 		reliabilityParameter = to_uint32(mReliability->maxPacketLifeTime->count());
 	} else if (mReliability->maxRetransmits) {
 		channelType = CHANNEL_PARTIAL_RELIABLE_REXMIT;
-		reliabilityParameter = to_uint32(std::max(boost::get<int>(mReliability->maxRetransmits), 0));
+		reliabilityParameter = std::max<uint32_t>(boost::get<unsigned int>(mReliability->maxRetransmits), 0);
 	}
 	// else {
 	//	channelType = CHANNEL_RELIABLE;

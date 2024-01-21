@@ -77,7 +77,8 @@ void RtcpReceivingSession::incoming(message_vector &messages, const message_call
 
 				// TODO For the time being, we will send RR's/REMB's when we get an SR
 				pushRR(send, 0);
-				if (unsigned int bitrate = mRequestedBitrate.load(); bitrate > 0)
+				unsigned int bitrate = mRequestedBitrate.load();
+				if (bitrate > 0)
 					pushREMB(send, bitrate);
 			}
 			break;

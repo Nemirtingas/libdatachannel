@@ -15,7 +15,7 @@ namespace rtc {
 
 PliHandler::PliHandler(std::function<void(void)> onPli) : mOnPli(onPli) {}
 
-void PliHandler::incoming(message_vector &messages, [[maybe_unused]] const message_callback &send) {
+void PliHandler::incoming(message_vector &messages, const message_callback &send) {
 	for (const auto &message : messages) {
 		size_t offset = 0;
 		while ((sizeof(RtcpHeader) + offset) <= message->size()) {

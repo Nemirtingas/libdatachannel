@@ -95,10 +95,10 @@ message_ptr RtpPacketizer::packetize(shared_ptr<binary> payload, bool mark) {
 	return message;
 }
 
-void RtpPacketizer::media([[maybe_unused]] const Description::Media &desc) {}
+void RtpPacketizer::media(const Description::Media &desc) {}
 
-void RtpPacketizer::outgoing([[maybe_unused]] message_vector &messages,
-                             [[maybe_unused]] const message_callback &send) {
+void RtpPacketizer::outgoing(message_vector &messages,
+                             const message_callback &send) {
 	// Default implementation
 	for (auto &message : messages)
 		message = packetize(message, false);

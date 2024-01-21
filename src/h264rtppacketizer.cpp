@@ -90,7 +90,7 @@ H264RtpPacketizer::H264RtpPacketizer(Separator separator,
                                      uint16_t maxFragmentSize)
     : RtpPacketizer(rtpConfig), maxFragmentSize(maxFragmentSize), separator(separator) {}
 
-void H264RtpPacketizer::outgoing(message_vector &messages, [[maybe_unused]] const message_callback &send) {
+void H264RtpPacketizer::outgoing(message_vector &messages, const message_callback &send) {
 	message_vector result;
 	for(const auto &message : messages) {
 		auto nalus = splitMessage(message);

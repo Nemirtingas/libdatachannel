@@ -192,7 +192,7 @@ AV1RtpPacketizer::AV1RtpPacketizer(AV1RtpPacketizer::Packetization packetization
       packetization(packetization) {}
 
 void AV1RtpPacketizer::outgoing(message_vector &messages,
-                                [[maybe_unused]] const message_callback &send) {
+                                const message_callback &send) {
 	message_vector result;
 	for (const auto &message : messages) {
 		std::vector<binary_ptr> obus;

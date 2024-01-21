@@ -38,8 +38,8 @@ using std::chrono::milliseconds;
 WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certificate)
     : config(optConfig ? std::move(*optConfig) : Configuration()),
       mCertificate(certificate ? std::move(certificate) : std::move(loadCertificate(config))),
-      mIsSecure(mCertificate != nullptr), mRecvQueue(RECV_QUEUE_LIMIT, message_size_func)
-	state(State::Closed)
+      mIsSecure(mCertificate != nullptr), mRecvQueue(RECV_QUEUE_LIMIT, message_size_func),
+	  state(State::Closed)
 {
 	PLOG_VERBOSE << "Creating WebSocket";
 	if (config.proxyServer) {
