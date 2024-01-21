@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.7)
 project(libdatachannel
-	VERSION 0.19.1
+	VERSION 0.20.1
 	LANGUAGES CXX)
 set(PROJECT_DESCRIPTION "C/C++ WebRTC network library featuring Data Channels, Media Transport, and WebSockets")
 
+include(GNUInstallDirs)
+
 # Options
-option(USE_MBEDTLS "Use Mbed TLS instead of OpenSSL" OFF)
 option(USE_GNUTLS "Use GnuTLS instead of OpenSSL" OFF)
+option(USE_MBEDTLS "Use Mbed TLS instead of OpenSSL" OFF)
 option(USE_NICE "Use libnice instead of libjuice" OFF)
 option(PREFER_SYSTEM_LIB "Prefer system libraries over deps folder" OFF)
 option(USE_SYSTEM_SRTP "Use system libSRTP" ${PREFER_SYSTEM_LIB})
@@ -22,10 +24,9 @@ option(WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 option(CAPI_STDCALL "Set calling convention of C API callbacks stdcall" OFF)
 option(SCTP_DEBUG "Enable SCTP debugging output to verbose log" OFF)
 
-if (USE_MBEDTLS AND USE_GNUTLS)
-	message(FATAL_ERROR "Both USE_MBEDTLS and USE_GNUTLS can not be enabled at the same time")
+if (USE_GNUTLS AND USE_MBEDTLS)
+	message(FATAL_ERROR "Both USE_MBEDTLS and USE_GNUTLS cannot be enabled at the same time")
 endif()
-
 
 if(USE_GNUTLS)
 	option(USE_NETTLE "Use Nettle in libjuice" ON)
@@ -63,6 +64,7 @@ set(LIBDATACHANNEL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/configuration.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/datachannel.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/description.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/mediahandler.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/global.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/message.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/peerconnection.cpp
@@ -73,23 +75,16 @@ set(LIBDATACHANNEL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtppacketizationconfig.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtcpsrreporter.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtppacketizer.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/opusrtppacketizer.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/opuspacketizationhandler.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/aacrtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h264rtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/nalunit.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/h264packetizationhandler.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h265rtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h265nalunit.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/h265packetizationhandler.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/av1rtppacketizer.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/av1packetizationhandler.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/mediachainablehandler.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/mediahandlerelement.cpp
-	${CMAKE_CURRENT_SOURCE_DIR}/src/mediahandlerrootelement.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/nalunit.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtcpnackresponder.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtp.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/capi.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/plihandler.cpp
 )
 
 set(LIBDATACHANNEL_HEADERS
@@ -114,22 +109,15 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizationconfig.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtcpsrreporter.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizer.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/opusrtppacketizer.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/opuspacketizationhandler.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/aacrtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h264rtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/nalunit.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h264packetizationhandler.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265rtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265nalunit.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265packetizationhandler.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/av1rtppacketizer.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/av1packetizationhandler.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediachainablehandler.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediahandlerelement.hpp
-	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/mediahandlerrootelement.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/nalunit.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtcpnackresponder.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/utils.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/plihandler.hpp
 	
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/byte.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/workarounds.hpp
@@ -205,6 +193,7 @@ set(TESTS_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/test/main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/connectivity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/negotiated.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test/reliability.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/turn_connectivity.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/track.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/test/capi_connectivity.cpp
@@ -273,9 +262,16 @@ add_library(datachannel SHARED
 	${LIBDATACHANNEL_IMPL_HEADERS})
 set_target_properties(datachannel PROPERTIES
 	VERSION ${PROJECT_VERSION}
-	SOVERSION ${PROJECT_VERSION}
+	SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 	CXX_STANDARD 14
 	CXX_VISIBILITY_PRESET default)
+
+if(APPLE)
+	set_target_properties(datachannel PROPERTIES
+		VERSION ${PROJECT_VERSION_MAJOR}
+		SOVERSION ${PROJECT_VERSION_MAJOR})
+endif()
+
 target_compile_definitions(datachannel PRIVATE RTC_EXPORTS)
 
 add_library(datachannel-static STATIC EXCLUDE_FROM_ALL
@@ -370,9 +366,8 @@ if (USE_GNUTLS)
 	endif()
 elseif(USE_MBEDTLS)
 	find_package(MbedTLS 3 REQUIRED)
-
-	target_compile_definitions(datachannel PRIVATE USE_MBEDTLS)
-	target_compile_definitions(datachannel-static PRIVATE USE_MBEDTLS)
+	target_compile_definitions(datachannel PRIVATE USE_MBEDTLS=1)
+	target_compile_definitions(datachannel-static PRIVATE USE_MBEDTLS=1)
 	target_link_libraries(datachannel PRIVATE MbedTLS::MbedTLS)
 	target_link_libraries(datachannel-static PRIVATE MbedTLS::MbedTLS)
 else()
@@ -455,13 +450,13 @@ if(WARNINGS_AS_ERRORS)
 endif()
 
 install(TARGETS datachannel EXPORT LibDataChannelTargets
-	RUNTIME DESTINATION bin
-	LIBRARY DESTINATION lib
-	ARCHIVE DESTINATION lib
+	RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+	LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 install(FILES ${LIBDATACHANNEL_HEADERS}
-	DESTINATION include/rtc
+	DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/rtc
 )
 
 # Export targets
@@ -469,13 +464,13 @@ install(
 	EXPORT LibDataChannelTargets
 	FILE LibDataChannelTargets.cmake
 	NAMESPACE LibDataChannel::
-	DESTINATION lib/cmake/LibDataChannel
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibDataChannel
 )
 
 # Export config
 install(
 	FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/LibDataChannelConfig.cmake
-	DESTINATION lib/cmake/LibDataChannel
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibDataChannel
 )
 
 # Export config version
@@ -485,7 +480,7 @@ write_basic_package_version_file(
 	VERSION ${PROJECT_VERSION}
 	COMPATIBILITY SameMajorVersion)
 install(FILES ${CMAKE_BINARY_DIR}/LibDataChannelConfigVersion.cmake
-	DESTINATION lib/cmake/LibDataChannel)
+	DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/LibDataChannel)
 
 # Tests
 if(NOT NO_TESTS)

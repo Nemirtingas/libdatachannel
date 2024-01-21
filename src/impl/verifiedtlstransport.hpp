@@ -19,8 +19,14 @@ namespace impl {
 class VerifiedTlsTransport final : public TlsTransport {
 public:
 	VerifiedTlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProxyTransport>> lower,
-	                     string host, certificate_ptr certificate, state_callback callback);
+	                     string host, certificate_ptr certificate, state_callback callback,
+	                     optional<string> cacert);
 	~VerifiedTlsTransport();
+
+private:
+#if USE_MBEDTLS
+	mbedtls_x509_crt mCaCert;
+#endif
 };
 
 } // namespace impl

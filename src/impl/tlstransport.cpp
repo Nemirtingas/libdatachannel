@@ -114,6 +114,8 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 
 TlsTransport::~TlsTransport() {
 	stop();
+
+	PLOG_DEBUG << "Destroying TLS transport";
 	gnutls_deinit(mSession);
 }
 
@@ -367,6 +369,11 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 			mbedtls::check(mbedtls_ssl_conf_own_cert(&mConf, crt.get(), pk.get()));
 		}
 
+		if (mIsClient && mHost) {
+			PLOG_VERBOSE << "Server Name Indication: " << *mHost;
+			mbedtls_ssl_set_hostname(&mSsl, mHost->c_str());
+		}
+
 		mbedtls::check(mbedtls_ssl_setup(&mSsl, &mConf));
 		mbedtls_ssl_set_bio(&mSsl, static_cast<void *>(this), WriteCallback, ReadCallback, NULL);
 
@@ -379,7 +386,15 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 	}
 }
 
-TlsTransport::~TlsTransport() {}
+TlsTransport::~TlsTransport() {
+	stop();
+
+	PLOG_DEBUG << "Destroying TLS transport";
+	mbedtls_entropy_free(&mEntropy);
+	mbedtls_ctr_drbg_free(&mDrbg);
+	mbedtls_ssl_free(&mSsl);
+	mbedtls_ssl_config_free(&mConf);
+}
 
 void TlsTransport::start() {
 	PLOG_DEBUG << "Starting TLS transport";
@@ -609,8 +624,13 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 		auto ecdh = unique_ptr<EC_KEY, decltype(&EC_KEY_free)>(
 		    EC_KEY_new_by_curve_name(NID_X9_62_prime256v1), EC_KEY_free);
 		SSL_CTX_set_tmp_ecdh(mCtx, ecdh.get());
-		SSL_CTX_set_options(mCtx, SSL_OP_SINGLE_ECDH_USE);
 #endif
+
+		if(mIsClient) {
+			if (!SSL_CTX_set_default_verify_paths(mCtx)) {
+				PLOG_WARNING << "SSL root CA certificates unavailable";
+			}
+		}
 
 		if (certificate) {
 			auto tuple = certificate->credentials();
@@ -618,10 +638,6 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 			auto &pkey = std::get<1>(tuple);
 			SSL_CTX_use_certificate(mCtx, x509);
 			SSL_CTX_use_PrivateKey(mCtx, pkey);
-		} else {
-			if (!SSL_CTX_set_default_verify_paths(mCtx)) {
-				PLOG_WARNING << "SSL root CA certificates unavailable";
-			}
 		}
 
 		SSL_CTX_set_options(mCtx, SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION);
@@ -667,6 +683,8 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 
 TlsTransport::~TlsTransport() {
 	stop();
+
+	PLOG_DEBUG << "Destroying TLS transport";
 	SSL_free(mSsl);
 	SSL_CTX_free(mCtx);
 }

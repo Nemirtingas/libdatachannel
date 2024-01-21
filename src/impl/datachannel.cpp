@@ -12,7 +12,7 @@
 #include "logcounter.hpp"
 #include "peerconnection.hpp"
 #include "sctptransport.hpp"
-
+#include "utils.hpp"
 #include "rtc/datachannel.hpp"
 #include "rtc/track.hpp"
 
@@ -28,6 +28,9 @@ using std::chrono::milliseconds;
 
 namespace rtc {
 namespace impl {
+
+using utils::to_uint16;
+using utils::to_uint32;
 
 // Messages for the DataChannel establishment protocol (RFC 8832)
 // See https://www.rfc-editor.org/rfc/rfc8832.html
@@ -75,10 +78,14 @@ bool DataChannel::IsOpenMessage(message_ptr message) {
 DataChannel::DataChannel(weak_ptr<PeerConnection> pc, string label, string protocol,
                          Reliability reliability)
     : mPeerConnection(pc), mLabel(std::move(label)), mProtocol(std::move(protocol)),
-      mReliability(std::make_shared<Reliability>(std::move(reliability))), mIsOpen(false),
-      mIsClosed(false),
-      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func)
-{}
+      mIsOpen(false), mIsClosed(false),
+      mRecvQueue(RECV_QUEUE_LIMIT, message_size_func) {
+
+	if(reliability.maxPacketLifeTime && reliability.maxRetransmits)
+		throw std::invalid_argument("Both maxPacketLifeTime and maxRetransmits are set");
+
+    mReliability = std::make_shared<Reliability>(std::move(reliability));
+}
 
 DataChannel::~DataChannel() {
 	PLOG_VERBOSE << "Destroying DataChannel";
@@ -148,7 +155,7 @@ bool DataChannel::isClosed(void) const { return mIsClosed; }
 
 size_t DataChannel::maxMessageSize() const {
 	auto pc = mPeerConnection.lock();
-	return pc ? pc->remoteMaxMessageSize() : DEFAULT_MAX_MESSAGE_SIZE;
+	return pc ? pc->remoteMaxMessageSize() : DEFAULT_REMOTE_MAX_MESSAGE_SIZE;
 }
 
 void DataChannel::assignStream(uint16_t stream) {
@@ -250,22 +257,35 @@ void OutgoingDataChannel::open(shared_ptr<SctpTransport> transport) {
 
 	uint8_t channelType;
 	uint32_t reliabilityParameter;
-	switch (mReliability->type) {
-	case Reliability::Type::Rexmit:
-		channelType = CHANNEL_PARTIAL_RELIABLE_REXMIT;
-		reliabilityParameter = uint32_t(std::max(boost::get<int>(mReliability->rexmit), 0));
-		break;
-
-	case Reliability::Type::Timed:
+	if (mReliability->maxPacketLifeTime) {
 		channelType = CHANNEL_PARTIAL_RELIABLE_TIMED;
-		reliabilityParameter = uint32_t(boost::get<milliseconds>(mReliability->rexmit).count());
-		break;
-
-	default:
-		channelType = CHANNEL_RELIABLE;
-		reliabilityParameter = 0;
-		break;
+		reliabilityParameter = to_uint32(mReliability->maxPacketLifeTime->count());
+	} else if (mReliability->maxRetransmits) {
+		channelType = CHANNEL_PARTIAL_RELIABLE_REXMIT;
+		reliabilityParameter = to_uint32(std::max(boost::get<int>(mReliability->maxRetransmits), 0));
 	}
+	// else {
+	//	channelType = CHANNEL_RELIABLE;
+	//	reliabilityParameter = 0;
+	// }
+	// Deprecated
+	else
+		switch (mReliability->typeDeprecated) {
+		case Reliability::Type::Rexmit:
+			channelType = CHANNEL_PARTIAL_RELIABLE_REXMIT;
+			reliabilityParameter = to_uint32(std::max(boost::get<int>(mReliability->rexmit), 0));
+			break;
+
+		case Reliability::Type::Timed:
+			channelType = CHANNEL_PARTIAL_RELIABLE_TIMED;
+			reliabilityParameter = to_uint32(boost::get<milliseconds>(mReliability->rexmit).count());
+			break;
+
+		default:
+			channelType = CHANNEL_RELIABLE;
+			reliabilityParameter = 0;
+			break;
+		}
 
 	if (mReliability->unordered)
 		channelType |= 0x80;
@@ -277,8 +297,8 @@ void OutgoingDataChannel::open(shared_ptr<SctpTransport> transport) {
 	open.channelType = channelType;
 	open.priority = htons(0);
 	open.reliabilityParameter = htonl(reliabilityParameter);
-	open.labelLength = htons(uint16_t(mLabel.size()));
-	open.protocolLength = htons(uint16_t(mProtocol.size()));
+	open.labelLength = htons(to_uint16(mLabel.size()));
+	open.protocolLength = htons(to_uint16(mProtocol.size()));
 
 	auto end = reinterpret_cast<char *>(buffer.data() + sizeof(OpenMessage));
 	std::copy(mLabel.begin(), mLabel.end(), end);
@@ -332,17 +352,31 @@ void IncomingDataChannel::processOpenMessage(message_ptr message) {
 	mProtocol.assign(end + open.labelLength, open.protocolLength);
 
 	mReliability->unordered = (open.channelType & 0x80) != 0;
+	mReliability->maxPacketLifeTime.reset();
+	mReliability->maxRetransmits.reset();
 	switch (open.channelType & 0x7F) {
 	case CHANNEL_PARTIAL_RELIABLE_REXMIT:
-		mReliability->type = Reliability::Type::Rexmit;
+		mReliability->maxRetransmits.emplace(open.reliabilityParameter);
+		break;
+	case CHANNEL_PARTIAL_RELIABLE_TIMED:
+		mReliability->maxPacketLifeTime.emplace(milliseconds(open.reliabilityParameter));
+		break;
+	default:
+		break;
+	}
+
+	// Deprecated
+	switch (open.channelType & 0x7F) {
+	case CHANNEL_PARTIAL_RELIABLE_REXMIT:
+		mReliability->typeDeprecated = Reliability::Type::Rexmit;
 		mReliability->rexmit = int(open.reliabilityParameter);
 		break;
 	case CHANNEL_PARTIAL_RELIABLE_TIMED:
-		mReliability->type = Reliability::Type::Timed;
+		mReliability->typeDeprecated = Reliability::Type::Timed;
 		mReliability->rexmit = milliseconds(open.reliabilityParameter);
 		break;
 	default:
-		mReliability->type = Reliability::Type::Reliable;
+		mReliability->typeDeprecated = Reliability::Type::Reliable;
 		mReliability->rexmit = int(0);
 	}
 

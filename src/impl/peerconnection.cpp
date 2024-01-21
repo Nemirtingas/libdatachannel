@@ -113,7 +113,7 @@ optional<Description> PeerConnection::remoteDescription() const {
 size_t PeerConnection::remoteMaxMessageSize() const {
 	const size_t localMax = config.maxMessageSize.value_or(DEFAULT_LOCAL_MAX_MESSAGE_SIZE);
 
-	size_t remoteMax = DEFAULT_MAX_MESSAGE_SIZE;
+	size_t remoteMax = DEFAULT_REMOTE_MAX_MESSAGE_SIZE;
 	std::lock_guard<std::mutex> lock(mRemoteDescriptionMutex);
 	if (mRemoteDescription)
 		if (auto *application = mRemoteDescription->application())
@@ -223,6 +223,11 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 		PLOG_VERBOSE << "Starting DTLS transport";
 
+		auto fingerprintAlgorithm = CertificateFingerprint::Algorithm::Sha256;
+		if (auto remote = remoteDescription(); remote && remote->fingerprint()) {
+			fingerprintAlgorithm = remote->fingerprint()->algorithm;
+		}
+
 		auto lower = std::atomic_load(&mIceTransport);
 		if (!lower)
 			throw std::logic_error("No underlying ICE transport for DTLS transport");
@@ -269,8 +274,8 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 			// DTLS-SRTP
 			transport = std::make_shared<DtlsSrtpTransport>(
-				lower, certificate, config.mtu, verifierCallback,
-				weak_bind(&PeerConnection::forwardMedia, this, _1), dtlsStateChangeCallback);
+			    lower, certificate, config.mtu, fingerprintAlgorithm, verifierCallback,
+			    weak_bind(&PeerConnection::forwardMedia, this, _1), dtlsStateChangeCallback);
 #else
 			PLOG_WARNING << "Ignoring media support (not compiled with media support)";
 #endif
@@ -280,7 +285,8 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 		if (!transport) {
 			// DTLS only
 			transport = std::make_shared<DtlsTransport>(lower, certificate, config.mtu,
-			                                            verifierCallback, dtlsStateChangeCallback);
+			                                            fingerprintAlgorithm, verifierCallback,
+			                                            dtlsStateChangeCallback);
 		}
 
 		return emplaceTransport(this, &mDtlsTransport, std::move(transport));
@@ -433,14 +439,16 @@ void PeerConnection::rollbackLocalDescription() {
 
 bool PeerConnection::checkFingerprint(const std::string &fingerprint) const {
 	std::lock_guard<std::mutex> lock(mRemoteDescriptionMutex);
-	auto expectedFingerprint = mRemoteDescription ? mRemoteDescription->fingerprint() : none;
-	if (expectedFingerprint && *expectedFingerprint == fingerprint) {
+	if (!mRemoteDescription || !mRemoteDescription->fingerprint())
+		return false;
+
+	auto expectedFingerprint = mRemoteDescription ? mRemoteDescription->fingerprint()->value : none;
+	if (expectedFingerprint == fingerprint) {
 		PLOG_VERBOSE << "Valid fingerprint \"" << fingerprint << "\"";
 		return true;
 	}
 
-	PLOG_ERROR << "Invalid fingerprint \"" << fingerprint << "\", expected \""
-	           << expectedFingerprint.value_or("[none]") << "\"";
+	PLOG_ERROR << "Invalid fingerprint \"" << fingerprint << "\", expected \"" << expectedFingerprint << "\"";
 	return false;
 }
 
@@ -511,18 +519,38 @@ void PeerConnection::forwardMessage(message_ptr message) {
 	}
 }
 
-void PeerConnection::forwardMedia(message_ptr message) {
+void PeerConnection::forwardMedia([[maybe_unused]] message_ptr message) {
+#if RTC_ENABLE_MEDIA
 	if (!message)
 		return;
 
-	auto handler = getMediaHandler();
+	// TODO: outgoing
+	if (auto handler = getMediaHandler()) {
+		message_vector messages{std::move(message)};
 
-	if (handler) {
-		message = handler->incoming(message);
-		if (!message)
-			return;
+		handler->incoming(messages, [this](message_ptr message) {
+			auto transport = std::atomic_load(&mDtlsTransport);
+			if (auto srtpTransport = std::dynamic_pointer_cast<DtlsSrtpTransport>(transport))
+				srtpTransport->send(std::move(message));
+		});
+
+		for (auto &m : messages)
+			dispatchMedia(std::move(m));
+
+	} else {
+		dispatchMedia(std::move(message));
 	}
+#endif
+}
 
+void PeerConnection::dispatchMedia([[maybe_unused]] message_ptr message) {
+#if RTC_ENABLE_MEDIA
+	std::shared_lock lock(mTracksMutex); // read-only
+	if (mTrackLines.size()==1) {
+		if (auto track = mTrackLines.front().lock())
+			track->incoming(message);
+		return;
+	}
 	// Browsers like to compound their packets with a random SSRC.
 	// we have to do this monstrosity to distribute the report blocks
 	if (message->type == Message::Control) {
@@ -572,7 +600,6 @@ void PeerConnection::forwardMedia(message_ptr message) {
 		}
 
 		if (!ssrcs.empty()) {
-			boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 			for (uint32_t ssrc : ssrcs) {
 				auto it = mTracksBySsrc.find(ssrc);
 				if (it != mTracksBySsrc.end()) {
@@ -586,7 +613,6 @@ void PeerConnection::forwardMedia(message_ptr message) {
 
 	uint32_t ssrc = uint32_t(message->stream);
 
-    boost::shared_lock<boost::shared_mutex> lock(mTracksMutex); // read-only
 	auto trackIt = mTracksBySsrc.find(ssrc);
 	if (trackIt != mTracksBySsrc.end()) {
 		if (auto track = trackIt->second.lock())
@@ -601,6 +627,7 @@ void PeerConnection::forwardMedia(message_ptr message) {
 		// PLOG_WARNING << "Track not found for SSRC " << ssrc << ", dropping";
 		return;
 	}
+#endif
 }
 
 void PeerConnection::forwardBufferedAmount(uint16_t stream, size_t amount) {
@@ -768,6 +795,10 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 		mTracks.emplace(std::make_pair(track->mid(), track));
 		mTrackLines.emplace_back(track);
 	}
+
+	auto handler = getMediaHandler();
+	if (handler)
+		handler->media(track->description());
 
 	if (track->description().isRemoved())
 		track->close();
@@ -945,6 +976,10 @@ void PeerConnection::processLocalDescription(Description description) {
 				        mTracks.emplace(std::make_pair(track->mid(), track));
 				        mTrackLines.emplace_back(track);
 				        triggerTrack(track); // The user may modify the track description
+
+				        auto handler = getMediaHandler();
+				        if (handler)
+					        handler->media(track->description());
 
 				        if (track->description().isRemoved())
 					        track->close();
@@ -1128,8 +1163,6 @@ string PeerConnection::localBundleMid() const {
 
 void PeerConnection::setMediaHandler(shared_ptr<MediaHandler> handler) {
 	std::unique_lock<boost::shared_mutex> lock(mMediaHandlerMutex);
-	if (mMediaHandler)
-		mMediaHandler->onOutgoing(nullptr);
 	mMediaHandler = handler;
 }
 

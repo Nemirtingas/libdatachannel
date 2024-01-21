@@ -28,6 +28,17 @@ const string DEFAULT_OPUS_AUDIO_PROFILE =
 const string DEFAULT_H264_VIDEO_PROFILE =
     "profile-level-id=42e01f;packetization-mode=1;level-asymmetry-allowed=1";
 
+struct CertificateFingerprint {
+	enum class Algorithm { Sha1, Sha224, Sha256, Sha384, Sha512 };
+	static string AlgorithmIdentifier(Algorithm algorithm);
+	static size_t AlgorithmSize(Algorithm algorithm);
+
+	bool isValid() const;
+
+	Algorithm algorithm;
+	string value;
+};
+
 class RTC_CPP_EXPORT Description {
 public:
 	enum class Type { Unspec, Offer, Answer, Pranswer, Rollback };
@@ -51,11 +62,11 @@ public:
 	std::vector<string> iceOptions() const;
 	optional<string> iceUfrag() const;
 	optional<string> icePwd() const;
-	optional<string> fingerprint() const;
+	optional<CertificateFingerprint> fingerprint() const;
 	bool ended() const;
 
 	void hintType(Type type);
-	void setFingerprint(string fingerprint);
+	void setFingerprint(CertificateFingerprint f);
 	void addIceOption(string option);
 	void removeIceOption(const string &option);
 
@@ -109,6 +120,7 @@ public:
 
 		std::vector<int> extIds();
 		ExtMap *extMap(int id);
+		const ExtMap *extMap(int id) const;
 		void addExtMap(ExtMap map);
 		void removeExtMap(int id);
 
@@ -208,6 +220,7 @@ public:
 		bool hasPayloadType(int payloadType) const;
 		std::vector<int> payloadTypes() const;
 		RtpMap *rtpMap(int payloadType);
+		const RtpMap *rtpMap(int payloadType) const;
 		void addRtpMap(RtpMap map);
 		void removeRtpMap(int payloadType);
 		void removeFormat(const string &format);
@@ -231,11 +244,15 @@ public:
 		Audio(string mid = "audio", Direction dir = Direction::SendOnly);
 
 		void addAudioCodec(int payloadType, string codec, optional<string> profile = none);
-
 		void addOpusCodec(int payloadType, optional<string> profile = DEFAULT_OPUS_AUDIO_PROFILE);
 		void addPCMACodec(int payloadType, optional<string> profile = boost::none);
 		void addPCMUCodec(int payloadType, optional<string> profile = boost::none);
 		void addAacCodec(int payloadType, optional<string> profile = boost::none);
+
+		[[deprecated("Use addAACCodec")]] inline void
+		addAacCodec(int payloadType, optional<string> profile = boost::none) {
+			addAACCodec(payloadType, std::move(profile));
+		};
 	};
 
 	class RTC_CPP_EXPORT Video : public Media {
@@ -285,7 +302,7 @@ private:
 	string mSessionId;
 	std::vector<string> mIceOptions;
 	optional<string> mIceUfrag, mIcePwd;
-	optional<string> mFingerprint;
+	optional<CertificateFingerprint> mFingerprint;
 	std::vector<string> mAttributes; // other attributes
 
 	// Entries
@@ -297,11 +314,11 @@ private:
 	bool mEnded = false;
 };
 
-} // namespace rtc
+RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, const Description &description);
+RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, Description::Type type);
+RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, Description::Role role);
+RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, const Description::Direction &direction);
 
-RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, const rtc::Description &description);
-RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, rtc::Description::Type type);
-RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, rtc::Description::Role role);
-RTC_CPP_EXPORT std::ostream &operator<<(std::ostream &out, const rtc::Description::Direction &direction);
+} // namespace rtc
 
 #endif

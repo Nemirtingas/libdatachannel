@@ -217,16 +217,14 @@ std::shared_ptr<ClientTrackData> addVideo(const std::shared_ptr<PeerConnection> 
 	    ssrc, cname, payloadType, H264RtpPacketizer::defaultClockRate);
     // create packetizer
     auto packetizer = boost::make_shared<H264RtpPacketizer>(NalUnit::Separator::Length, rtpConfig);
-    // create H264 handler
-	auto h264Handler = boost::make_shared<H264PacketizationHandler>(packetizer);
     // add RTCP SR handler
     auto srReporter = boost::make_shared<RtcpSrReporter>(rtpConfig);
-    h264Handler->addToChain(srReporter);
+    packetizer->addToChain(srReporter);
     // add RTCP NACK handler
 	auto nackResponder = boost::make_shared<RtcpNackResponder>();
-    h264Handler->addToChain(nackResponder);
+    packetizer->addToChain(nackResponder);
     // set handler
-    track->setMediaHandler(h264Handler);
+    track->setMediaHandler(packetizer);
     track->onOpen(onOpen);
     auto trackData = std::make_shared<ClientTrackData>(track, srReporter);
     return trackData;
@@ -241,20 +239,17 @@ std::shared_ptr<ClientTrackData> addAudio(const std::shared_ptr<PeerConnection> 
     audio.addSSRC(ssrc, cname, msid, cname);
     auto track = pc->addTrack(audio);
     // create RTP configuration
-	auto rtpConfig = boost::make_shared<RtpPacketizationConfig>(
-	    ssrc, cname, payloadType, OpusRtpPacketizer::defaultClockRate);
+    auto rtpConfig = boost:make_shared<RtpPacketizationConfig>(ssrc, cname, payloadType, OpusRtpPacketizer::DefaultClockRate);
     // create packetizer
 	auto packetizer = boost::make_shared<OpusRtpPacketizer>(rtpConfig);
-    // create opus handler
-	auto opusHandler = boost::make_shared<OpusPacketizationHandler>(packetizer);
     // add RTCP SR handler
 	auto srReporter = boost::make_shared<RtcpSrReporter>(rtpConfig);
-    opusHandler->addToChain(srReporter);
+    packetizer->addToChain(srReporter);
     // add RTCP NACK handler
 	auto nackResponder = boost::make_shared<RtcpNackResponder>();
-    opusHandler->addToChain(nackResponder);
+    packetizer->addToChain(nackResponder);
     // set handler
-    track->setMediaHandler(opusHandler);
+    track->setMediaHandler(packetizer);
     track->onOpen(onOpen);
     auto trackData = std::make_shared<ClientTrackData>(track, srReporter);
     return trackData;

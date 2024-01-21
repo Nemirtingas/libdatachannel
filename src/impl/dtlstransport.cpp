@@ -7,6 +7,7 @@
  */
 
 #include "dtlstransport.hpp"
+#include "dtlssrtptransport.hpp"
 #include "icetransport.hpp"
 #include "internals.hpp"
 #include "threadpool.hpp"
@@ -48,10 +49,11 @@ void DtlsTransport::Init() {
 void DtlsTransport::Cleanup() { gnutls_global_deinit(); }
 
 DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr certificate,
-                             optional<size_t> mtu, verifier_callback verifierCallback,
-                             state_callback stateChangeCallback)
+                             optional<size_t> mtu,
+                             CertificateFingerprint::Algorithm fingerprintAlgorithm,
+                             verifier_callback verifierCallback, state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
-      mVerifierCallback(std::move(verifierCallback)),
+      mFingerprintAlgorithm(fingerprintAlgorithm), mVerifierCallback(std::move(verifierCallback)),
       mIsClient(lower->role() == Description::Role::Active), mStarted(false), mPendingRecvCount(0),
       mCurrentDscp(0),
       mOutgoingResult(true) {
@@ -297,7 +299,7 @@ int DtlsTransport::CertificateCallback(gnutls_session_t session) {
 			return GNUTLS_E_CERTIFICATE_ERROR;
 		}
 
-		string fingerprint = make_fingerprint(crt);
+		string fingerprint = make_fingerprint(crt, t->mFingerprintAlgorithm);
 		gnutls_x509_crt_deinit(crt);
 
 		bool success = t->mVerifierCallback(fingerprint);
@@ -376,10 +378,11 @@ const mbedtls_ssl_srtp_profile srtpSupportedProtectionProfiles[] = {
 };
 
 DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr certificate,
-                             optional<size_t> mtu, verifier_callback verifierCallback,
-                             state_callback stateChangeCallback)
+                             optional<size_t> mtu,
+                             CertificateFingerprint::Algorithm fingerprintAlgorithm,
+                             verifier_callback verifierCallback, state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
-      mVerifierCallback(std::move(verifierCallback)),
+      mFingerprintAlgorithm(fingerprintAlgorithm), mVerifierCallback(std::move(verifierCallback)),
       mIsClient(lower->role() == Description::Role::Active) {
 
 	PLOG_DEBUG << "Initializing DTLS transport (MbedTLS)";
@@ -611,7 +614,7 @@ void DtlsTransport::doRecv() {
 int DtlsTransport::CertificateCallback(void *ctx, mbedtls_x509_crt *crt, int /*depth*/,
                                        uint32_t * /*flags*/) {
 	auto this_ = static_cast<DtlsTransport *>(ctx);
-	string fingerprint = make_fingerprint(crt);
+	string fingerprint = make_fingerprint(crt, this_->mFingerprintAlgorithm);
 	std::transform(fingerprint.begin(), fingerprint.end(), fingerprint.begin(),
 	               [](char c) { return char(std::toupper(c)); });
 	return this_->mVerifierCallback(fingerprint) ? 0 : 1;
@@ -727,10 +730,11 @@ void DtlsTransport::Cleanup() {
 }
 
 DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr certificate,
-                             optional<size_t> mtu, verifier_callback verifierCallback,
-                             state_callback stateChangeCallback)
+                             optional<size_t> mtu,
+                             CertificateFingerprint::Algorithm fingerprintAlgorithm,
+                             verifier_callback verifierCallback, state_callback stateChangeCallback)
     : Transport(lower, std::move(stateChangeCallback)), mMtu(mtu), mCertificate(certificate),
-      mVerifierCallback(std::move(verifierCallback)),
+      mFingerprintAlgorithm(fingerprintAlgorithm), mVerifierCallback(std::move(verifierCallback)),
       mIsClient(lower->role() == Description::Role::Active), mPendingRecvCount(0), mCurrentDscp(0),
       mOutgoingResult(true) {
 	PLOG_DEBUG << "Initializing DTLS transport (OpenSSL)";
@@ -769,7 +773,6 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 		auto ecdh = unique_ptr<EC_KEY, decltype(&EC_KEY_free)>(
 		    EC_KEY_new_by_curve_name(NID_X9_62_prime256v1), EC_KEY_free);
 		SSL_CTX_set_tmp_ecdh(mCtx, ecdh.get());
-		SSL_CTX_set_options(mCtx, SSL_OP_SINGLE_ECDH_USE);
 #endif
 
 		auto tuple = mCertificate->credentials();
@@ -800,16 +803,23 @@ DtlsTransport::DtlsTransport(shared_ptr<IceTransport> lower, certificate_ptr cer
 		SSL_set_bio(mSsl, mInBio, mOutBio);
 
 		// RFC 8827: The DTLS-SRTP protection profile SRTP_AES128_CM_HMAC_SHA1_80 MUST be supported
-		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5 Warning:
-		// SSL_set_tlsext_use_srtp() returns 0 on success and 1 on error
+		// See https://www.rfc-editor.org/rfc/rfc8827.html#section-6.5
+		// Warning: SSL_set_tlsext_use_srtp() returns 0 on success and 1 on error
+#if RTC_ENABLE_MEDIA
 		// Try to use GCM suite
-		if (SSL_set_tlsext_use_srtp(
+		if (!DtlsSrtpTransport::IsGcmSupported() ||
+		    SSL_set_tlsext_use_srtp(
 		        mSsl, "SRTP_AEAD_AES_256_GCM:SRTP_AEAD_AES_128_GCM:SRTP_AES128_CM_SHA1_80")) {
+			PLOG_WARNING << "AES-GCM for SRTP is not supported, falling back to default profile";
 			if (SSL_set_tlsext_use_srtp(mSsl, "SRTP_AES128_CM_SHA1_80"))
 				throw std::runtime_error("Failed to set SRTP profile: " +
 				                         openssl::error_string(ERR_get_error()));
 		}
-
+#else
+		if (SSL_set_tlsext_use_srtp(mSsl, "SRTP_AES128_CM_SHA1_80"))
+			throw std::runtime_error("Failed to set SRTP profile: " +
+			                         openssl::error_string(ERR_get_error()));
+#endif
 	} catch (...) {
 		if (mSsl)
 			SSL_free(mSsl);
@@ -1032,7 +1042,7 @@ int DtlsTransport::CertificateCallback(int /*preverify_ok*/, X509_STORE_CTX *ctx
 	    static_cast<DtlsTransport *>(SSL_get_ex_data(ssl, DtlsTransport::TransportExIndex));
 
 	X509 *crt = X509_STORE_CTX_get_current_cert(ctx);
-	string fingerprint = make_fingerprint(crt);
+	string fingerprint = make_fingerprint(crt, t->mFingerprintAlgorithm);
 
 	return t->mVerifierCallback(fingerprint) ? 1 : 0;
 }

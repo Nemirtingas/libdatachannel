@@ -68,6 +68,8 @@ struct WebSocket final : public Channel, public std::enable_shared_from_this<Web
 	boost::atomic<State> state;
 
 private:
+	static certificate_ptr loadCertificate(const Configuration& config);
+
 	void scheduleConnectionTimeout();
 
 	const init_token mInitToken = Init::Instance().token();

@@ -49,29 +49,29 @@ struct RTC_CPP_EXPORT NalUnitFragmentHeader {
 
 #pragma pack(pop)
 
-typedef enum {
+enum NalUnitStartSequenceMatch {
 	NUSM_noMatch,
 	NUSM_firstZero,
 	NUSM_secondZero,
 	NUSM_thirdZero,
 	NUSM_shortMatch,
 	NUSM_longMatch
-} NalUnitStartSequenceMatch;
+};
 
 static const size_t H264_NAL_HEADER_SIZE = 1;
 static const size_t H265_NAL_HEADER_SIZE = 2;
 /// Nal unit
 struct RTC_CPP_EXPORT NalUnit : binary {
-	typedef enum { H264, H265 } Type;
+	enum class Type { H264, H265 };
 
 	NalUnit(const NalUnit &unit) = default;
-	NalUnit(size_t size, bool includingHeader = true, Type type = H264)
+	NalUnit(size_t size, bool includingHeader = true, Type type = Type::H264)
 	    : binary(size + (includingHeader
 	                         ? 0
-	                         : (type == H264 ? H264_NAL_HEADER_SIZE : H265_NAL_HEADER_SIZE))) {}
+	                         : (type == Type::H264 ? H264_NAL_HEADER_SIZE : H265_NAL_HEADER_SIZE))) {}
 	NalUnit(binary &&data) : binary(std::move(data)) {}
-	NalUnit(Type type = H264)
-	    : binary(type == H264 ? H264_NAL_HEADER_SIZE : H265_NAL_HEADER_SIZE) {}
+	NalUnit(Type type = Type::H264)
+	    : binary(type == Type::H264 ? H264_NAL_HEADER_SIZE : H265_NAL_HEADER_SIZE) {}
 	template <typename Iterator> NalUnit(Iterator begin_, Iterator end_) : binary(begin_, end_) {}
 
 	bool forbiddenBit() const { return header()->forbiddenBit(); }
@@ -159,7 +159,7 @@ protected:
 /// Nal unit fragment A
 struct RTC_CPP_EXPORT NalUnitFragmentA : NalUnit {
 	static std::vector<shared_ptr<NalUnitFragmentA>> fragmentsFrom(shared_ptr<NalUnit> nalu,
-	                                                               uint16_t maximumFragmentSize);
+	                                                               uint16_t maxFragmentSize);
 
 	enum class FragmentType { Start, Middle, End };
 
@@ -216,7 +216,7 @@ public:
 	static const uint16_t defaultMaximumFragmentSize =
 	    uint16_t(RTC_DEFAULT_MTU - 12 - 8 - 40); // SRTP/UDP/IPv6
 
-	std::vector<shared_ptr<binary>> generateFragments(uint16_t maximumFragmentSize);
+	std::vector<shared_ptr<binary>> generateFragments(uint16_t maxFragmentSize);
 };
 
 } // namespace rtc

@@ -97,6 +97,7 @@ private:
 	void processData(binary &&data, uint16_t streamId, PayloadId ppid);
 	void processNotification(const union sctp_notification *notify, size_t len);
 
+	const size_t mMaxMessageSize;
 	const Ports mPorts;
 	struct socket *mSock;
 	boost::optional<uint16_t> mNegotiatedStreamsCount;
