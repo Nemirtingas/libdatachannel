@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.7)
 project(libdatachannel
-	VERSION 0.20.1
+	VERSION 0.21.1
 	LANGUAGES CXX)
 set(PROJECT_DESCRIPTION "C/C++ WebRTC network library featuring Data Channels, Media Transport, and WebSockets")
 
@@ -75,7 +75,9 @@ set(LIBDATACHANNEL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtppacketizationconfig.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtcpsrreporter.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtppacketizer.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/rtpdepacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h264rtppacketizer.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/h264rtpdepacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/nalunit.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h265rtppacketizer.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/h265nalunit.cpp
@@ -85,6 +87,7 @@ set(LIBDATACHANNEL_SOURCES
 	${CMAKE_CURRENT_SOURCE_DIR}/src/rtp.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/capi.cpp
 	${CMAKE_CURRENT_SOURCE_DIR}/src/plihandler.cpp
+	${CMAKE_CURRENT_SOURCE_DIR}/src/pacinghandler.cpp
 )
 
 set(LIBDATACHANNEL_HEADERS
@@ -98,6 +101,7 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/common.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/global.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/message.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/frameinfo.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/peerconnection.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/reliability.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtc.h
@@ -109,7 +113,9 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizationconfig.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtcpsrreporter.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtppacketizer.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtpdepacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h264rtppacketizer.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h264rtpdepacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/nalunit.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265rtppacketizer.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/h265nalunit.hpp
@@ -118,6 +124,8 @@ set(LIBDATACHANNEL_HEADERS
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/rtcpnackresponder.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/utils.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/plihandler.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/pacinghandler.hpp
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/version.h
 	
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/byte.hpp
 	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/workarounds.hpp
@@ -255,6 +263,11 @@ else()
 	add_library(Usrsctp::Usrsctp ALIAS usrsctp)
 endif()
 
+configure_file (
+    ${PROJECT_SOURCE_DIR}/cmake/version.h.in
+	${CMAKE_CURRENT_SOURCE_DIR}/include/rtc/version.h
+)
+
 add_library(datachannel SHARED
 	${LIBDATACHANNEL_SOURCES}
 	${LIBDATACHANNEL_HEADERS}
@@ -336,7 +349,9 @@ else()
 		target_link_libraries(datachannel PRIVATE libSRTP::srtp2)
 		target_link_libraries(datachannel-static PRIVATE libSRTP::srtp2)
 	else()
-		add_subdirectory(deps/libsrtp EXCLUDE_FROM_ALL)
+		if(NOT TARGET srtp2)
+			add_subdirectory(deps/libsrtp EXCLUDE_FROM_ALL)
+		endif()
 		target_compile_definitions(datachannel PRIVATE RTC_SYSTEM_SRTP=0)
 		target_compile_definitions(datachannel-static PRIVATE RTC_SYSTEM_SRTP=0)
 		target_link_libraries(datachannel PRIVATE srtp2)
@@ -365,7 +380,9 @@ if (USE_GNUTLS)
 		target_link_libraries(datachannel-static PRIVATE Nettle::Nettle)
 	endif()
 elseif(USE_MBEDTLS)
-	find_package(MbedTLS 3 REQUIRED)
+	if(NOT TARGET MbedTLS::MbedTLS)
+		find_package(MbedTLS 3 REQUIRED)
+	endif()
 	target_compile_definitions(datachannel PRIVATE USE_MBEDTLS=1)
 	target_compile_definitions(datachannel-static PRIVATE USE_MBEDTLS=1)
 	target_link_libraries(datachannel PRIVATE MbedTLS::MbedTLS)

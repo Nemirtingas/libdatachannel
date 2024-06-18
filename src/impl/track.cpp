@@ -77,24 +77,23 @@ void Track::close() {
 	resetCallbacks();
 }
 
+message_variant Track::trackMessageToVariant(message_ptr message) {
+	if (message->type == Message::Control)
+		return to_variant(*message); // The same message may be frowarded into multiple Tracks
+	else
+		return to_variant(std::move(*message));
+}
+
 optional<message_variant> Track::receive() {
 	if (auto next = mRecvQueue.pop()) {
-		message_ptr message = *next;
-		if (message->type == Message::Control)
-			return to_variant(**next); // The same message may be frowarded into multiple Tracks
-		else
-			return to_variant(std::move(*message));
+		return trackMessageToVariant(*next);
 	}
 	return none;
 }
 
 optional<message_variant> Track::peek() {
 	if (auto next = mRecvQueue.peek()) {
-		message_ptr message = *next;
-		if (message->type == Message::Control)
-			return to_variant(**next); // The same message may be forwarded into multiple Tracks
-		else
-			return to_variant(std::move(*message));
+		return trackMessageToVariant(*next);
 	}
 	return none;
 }
@@ -145,7 +144,11 @@ void Track::incoming(message_ptr message) {
 
 	message_vector messages{std::move(message)};
 	if (auto handler = getMediaHandler())
-		handler->incomingChain(messages, [this](message_ptr m) { transportSend(m); });
+		handler->incomingChain(messages, [this, weak_this = weak_from_this()](message_ptr m) {
+			if (auto locked = weak_this.lock()) {
+				transportSend(m);
+			}
+		});
 
 	for (auto &m : messages) {
 		// Tail drop if queue is full
@@ -178,7 +181,11 @@ bool Track::outgoing(message_ptr message) {
 
 	if (handler) {
 		message_vector messages{std::move(message)};
-		handler->outgoingChain(messages, [this](message_ptr m) { transportSend(m); });
+		handler->outgoingChain(messages, [this, weak_this = weak_from_this()](message_ptr m) {
+			if (auto locked = weak_this.lock()) {
+				transportSend(m);
+			}
+		});
 		bool ret = false;
 		for (auto &m : messages)
 			ret = transportSend(std::move(m));
@@ -219,13 +226,40 @@ void Track::setMediaHandler(shared_ptr<MediaHandler> handler) {
 		mMediaHandler = handler;
 	}
 
-	if(handler)
+	if (handler)
 		handler->media(description());
 }
 
 shared_ptr<MediaHandler> Track::getMediaHandler() {
 	boost::shared_lock<boost::shared_mutex> lock(mMutex);
 	return mMediaHandler;
+}
+
+void Track::onFrame(std::function<void(binary data, FrameInfo frame)> callback) {
+	frameCallback = callback;
+	flushPendingMessages();
+}
+
+void Track::flushPendingMessages() {
+	if (!mOpenTriggered)
+		return;
+
+	while (messageCallback || frameCallback) {
+		auto next = mRecvQueue.pop();
+		if (!next)
+			break;
+
+		auto message = next.value();
+		try {
+			if (message->frameInfo != nullptr && frameCallback) {
+				frameCallback(std::move(*message), std::move(*message->frameInfo));
+			} else if (message->frameInfo == nullptr && messageCallback) {
+				messageCallback(trackMessageToVariant(message));
+			}
+		} catch (const std::exception &e) {
+			PLOG_WARNING << "Uncaught exception in callback: " << e.what();
+		}
+	}
 }
 
 }} // namespace rtc::impl

@@ -291,6 +291,9 @@ createRtpPacketizationConfig(const rtcPacketizationHandlerInit *init) {
 	                                                       init->payloadType, init->clockRate);
 	config->sequenceNumber = init->sequenceNumber;
 	config->timestamp = init->timestamp;
+	config->playoutDelayId = init->playoutDelayId;
+	config->playoutDelayMin = init->playoutDelayMin;
+	config->playoutDelayMax = init->playoutDelayMax;
 	return config;
 }
 
@@ -530,7 +533,7 @@ int rtcSetSignalingStateChangeCallback(int pc, rtcSignalingStateCallbackFunc cb)
 					cb(pc, static_cast<rtcSignalingState>(state), *ptr);
 			});
 		else
-			peerConnection->onGatheringStateChange(nullptr);
+			peerConnection->onSignalingStateChange(nullptr);
 		return RTC_ERR_SUCCESS;
 	});
 }

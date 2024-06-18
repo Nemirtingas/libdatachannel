@@ -9,6 +9,8 @@
 #ifndef RTC_C_API
 #define RTC_C_API
 
+#include "version.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -339,6 +341,9 @@ typedef struct {
 	// AV1 only
 	rtcObuPacketization obuPacketization; // OBU paketization for AV1 samples
 
+	uint8_t playoutDelayId;
+	uint16_t playoutDelayMin;
+	uint16_t playoutDelayMax;
 } rtcPacketizerInit;
 
 // Deprecated, do not use

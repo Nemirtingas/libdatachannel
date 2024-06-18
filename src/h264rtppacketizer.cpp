@@ -12,6 +12,7 @@
 
 #include "impl/internals.hpp"
 
+#include <algorithm>
 #include <cassert>
 
 #ifdef _WIN32
@@ -32,8 +33,9 @@ shared_ptr<NalUnits> H264RtpPacketizer::splitMessage(binary_ptr message) {
 				LOG_WARNING << "Invalid NAL Unit data (incomplete length), ignoring!";
 				break;
 			}
-			auto lengthPtr = (uint32_t *)(message->data() + index);
-			uint32_t length = ntohl(*lengthPtr);
+			uint32_t length;
+			std::memcpy(&length, message->data() + index, sizeof(uint32_t));
+			length = ntohl(length);
 			auto naluStartIndex = index + 4;
 			auto naluEndIndex = naluStartIndex + length;
 
