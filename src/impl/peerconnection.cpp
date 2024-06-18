@@ -774,7 +774,7 @@ void PeerConnection::remoteCloseDataChannels() {
 }
 
 shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
-	std::unique_lock lock(mTracksMutex); // we are going to emplace
+	std::unique_lock<boost::shared_mutex> lock(mTracksMutex); // we are going to emplace
 
 #if !RTC_ENABLE_MEDIA
 	// No media support, mark as removed
@@ -785,8 +785,8 @@ shared_ptr<Track> PeerConnection::emplaceTrack(Description::Media description) {
 	shared_ptr<Track> track;
 	auto it = mTracks.find(description.mid());
 	if (it != mTracks.end()) {		
-		if (track = it->second.lock()) {
-		if (auto t = it->second.lock(); t && !t->isClosed())
+		track = it->second.lock();
+		if (track && !track->isClosed()) {
 			track->setDescription(std::move(description));
 		}
 	}
@@ -941,8 +941,7 @@ void PeerConnection::processLocalDescription(Description description) {
 				        description.addMedia(std::move(reciprocated));
 			        },
 					[&](Description::Media *remoteMedia) {
-				        boost::shared_lock<boost::shared_mutex> lock(mTracksMutex);
-				        std::unique_lock lock(mTracksMutex); // we may emplace a track
+				        std::unique_lock<boost::shared_mutex> lock(mTracksMutex); // we may emplace a track
 				        auto it = mTracks.find(remoteMedia->mid());
 				        if (it != mTracks.end()) {
 					        // Prefer local description
