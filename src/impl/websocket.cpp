@@ -38,9 +38,9 @@ using std::chrono::milliseconds;
 const string PemBeginCertificateTag = "-----BEGIN CERTIFICATE-----";
 
 WebSocket::WebSocket(optional<Configuration> optConfig, certificate_ptr certificate)
-    : config(optConfig ? std::move(*optConfig) : Configuration()),
-      mIsSecure(mCertificate != nullptr), mRecvQueue(RECV_QUEUE_LIMIT, message_size_func),
-	  state(State::Closed)
+    : config(optConfig ? std::move(*optConfig) : Configuration()), state(State::Closed),
+      mInitToken(Init::Instance().token()),
+      mIsSecure(mCertificate != nullptr), mRecvQueue(RECV_QUEUE_LIMIT, message_size_func)
 {
 	PLOG_VERBOSE << "Creating WebSocket";
 

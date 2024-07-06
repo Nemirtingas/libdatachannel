@@ -241,7 +241,7 @@ shared_ptr<DtlsTransport> PeerConnection::initDtlsTransport() {
 
 		CertificateFingerprint::Algorithm fingerprintAlgorithm;
 		{
-			std::lock_guard lock(mRemoteDescriptionMutex);
+			std::lock_guard<std::mutex> lock(mRemoteDescriptionMutex);
 			if (mRemoteDescription && mRemoteDescription->fingerprint()) {
 				mRemoteFingerprintAlgorithm = mRemoteDescription->fingerprint()->algorithm;
 			}
@@ -1347,7 +1347,7 @@ void PeerConnection::resetCallbacks() {
 }
 
 CertificateFingerprint PeerConnection::remoteFingerprint() {
-	std::lock_guard lock(mRemoteDescriptionMutex);
+	std::lock_guard<std::mutex> lock(mRemoteDescriptionMutex);
 	if (mRemoteFingerprint)
 		return {CertificateFingerprint{mRemoteFingerprintAlgorithm, *mRemoteFingerprint}};
 	else
