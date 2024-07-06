@@ -74,7 +74,7 @@ private:
 
 	const init_token mInitToken = Init::Instance().token();
 
-	const certificate_ptr mCertificate;
+	certificate_ptr mCertificate;
 	bool mIsSecure;
 
 	optional<string> mHostname; // for TLS SNI and Proxy

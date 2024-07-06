@@ -640,6 +640,9 @@ TlsTransport::TlsTransport(variant<shared_ptr<TcpTransport>, shared_ptr<HttpProx
 			auto &pkey = std::get<1>(tuple);
 			SSL_CTX_use_certificate(mCtx, x509);
 			SSL_CTX_use_PrivateKey(mCtx, pkey);
+
+			for (auto c : certificate->chain())
+				SSL_CTX_add1_chain_cert(mCtx, c); // add1 increments reference count
 		}
 
 		SSL_CTX_set_options(mCtx, SSL_OP_NO_SSLv3 | SSL_OP_NO_RENEGOTIATION);
