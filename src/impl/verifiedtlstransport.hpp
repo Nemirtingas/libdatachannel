@@ -35,7 +35,7 @@ private:
 	uint32_t mChainFlags = 0;
 
 	static int VerifyCallback(void *ctx, mbedtls_x509_crt *crt, int depth, uint32_t *flags);
-#elif RTC_SYSTEM_TRUST_STORE // OpenSSL
+#elif !USE_SCHANNEL && RTC_SYSTEM_TRUST_STORE // OpenSSL
 	static int CertVerifyCallback(X509_STORE_CTX *ctx, void *arg);
 #endif
 };
